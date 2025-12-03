@@ -8,6 +8,7 @@ const Page = () => {
   const [username, setUsername] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [repos, setRepos] = useState([]);
 
   const editReadme = async () => {
     const res = await fetch("/api/update", {
@@ -26,6 +27,23 @@ const Page = () => {
     console.log("Update result:", data);
   };
 
+  const getRepos = async () => {
+    if (!username.trim()) return;
+    setLoading(true);
+    setResult(null)
+
+    const res = await fetch('/api/analyze', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+
+    });
+
+    const data = await res.json();
+    setLoading(false);
+    setRepos(data.repos)
+  }
+
 
   const analyzeProfile = async () => {
     if (!username.trim()) return;
@@ -41,7 +59,6 @@ const Page = () => {
 
     const data = await res.json();
     setLoading(false);
-
     setResult(data);
   };
 
@@ -66,6 +83,12 @@ const Page = () => {
         >
           Analyze
         </button>
+        <button
+          className="cursor-pointer bg-black text-white p-2"
+          onClick={getRepos}
+        >
+          Get Repos
+        </button>
       </div>
 
       {/* Loading */}
@@ -83,9 +106,23 @@ const Page = () => {
           <p><strong>Public Repos:</strong> {result.profile.public_repos}</p>
           <p><strong>Created on:</strong> {result.profile.created_at}</p>
           <p><strong>Last Update on:</strong> {result.profile.updated_at}</p>
-          
         </div>
       )}
+
+      {/* show Repositries */}
+
+      {Array.isArray(repos) && repos.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-lg font-bold">Repositories:</h3>
+
+          {repos.map((repo) => (
+            <p key={repo.id} className="border-b py-2">
+              {repo.name}
+            </p>
+          ))}
+        </div>
+      )}
+
       {result?.success && (
         <button
           className="mt-4 bg-blue-600 text-white p-2 rounded"
