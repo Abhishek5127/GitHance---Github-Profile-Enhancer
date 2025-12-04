@@ -6,9 +6,9 @@ const Page = () => {
   const [profile, setProfile] = useState(null);
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [repoCount, setRepoCount] = useState(10)
+  const [repoPage, setRepoPage] = useState(1);   // pagination
 
-  /* ------------------ UPDATE README ------------------ */
+  /* ------------------ UPDATE PROFILE README ------------------ */
   const editReadme = async () => {
     const res = await fetch("/api/update", {
       method: "POST",
@@ -44,23 +44,44 @@ const Page = () => {
     setProfile(data);
   };
 
-  /* ------------------ FETCH REPOS + README ------------------ */
+  /* ------------------ FETCH FIRST 10 REPOS ------------------ */
   const getRepos = async () => {
     if (!username.trim()) return;
 
     setLoading(true);
     setRepos([]);
+    setRepoPage(1);
 
-    const res = await fetch("/api/readmeRepo", {
+    const res = await fetch("/api/repositories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username,repoCount }),
+      body: JSON.stringify({ username, page: 1, perPage: 10 }),
     });
 
     const data = await res.json();
     setLoading(false);
 
     if (data.success) setRepos(data.repos);
+  };
+
+  /* ------------------ FETCH MORE REPOS ------------------ */
+  const fetchMoreRepos = async () => {
+    const nextPage = repoPage + 1;
+    setLoading(true);
+
+    const res = await fetch("/api/repositories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, page: nextPage, perPage: 10 }),
+    });
+
+    const data = await res.json();
+    setLoading(false);
+
+    if (data.success) {
+      setRepos((prev) => [...prev, ...data.repos]); // append new repos
+      setRepoPage(nextPage); // update page
+    }
   };
 
   return (
@@ -92,7 +113,6 @@ const Page = () => {
         </div>
       </div>
 
-      {/* ------------------ Loading Indicator ------------------ */}
       {loading && <p className="mt-4">Loading…</p>}
 
       {/* ------------------ PROFILE SECTION ------------------ */}
@@ -120,8 +140,10 @@ const Page = () => {
           <h3 className="text-lg font-bold mb-3">Repositories</h3>
 
           {repos.map((repo, index) => (
-            <div key={repo.id || repo.name || index} className="border-b pb-3 mb-3">
-
+            <div
+              key={repo.id || repo.name || index}
+              className="border-b pb-3 mb-3"
+            >
               <h4 className="font-semibold">{repo.name}</h4>
 
               <p className="mt-2 text-sm text-gray-600">
@@ -135,10 +157,16 @@ const Page = () => {
               </div>
             </div>
           ))}
+
+          <button
+            onClick={fetchMoreRepos}
+            className="bg-black text-white px-3 py-2 mt-4 rounded"
+          >
+            Fetch More
+          </button>
         </div>
       )}
 
-      {/* ------------------ UPDATE README BUTTON ------------------ */}
       {profile?.success && (
         <button
           className="bg-blue-600 text-white px-4 py-2 mt-6 rounded"
