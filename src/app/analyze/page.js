@@ -27,12 +27,20 @@ const Page = () => {
     console.log("Update result:", data);
   };
 
+  const fetchReadme = async () => {
+    const res = await fetch("/api/ReadmeRepo", {
+      method: "POST",
+      headers: { "Conternt-type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+  }
+
   const getRepos = async () => {
     if (!username.trim()) return;
     setLoading(true);
-    setResult(null)
 
-    const res = await fetch('/api/analyze', {
+
+    const res = await fetch('/api/Repositries', {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username }),
@@ -88,6 +96,12 @@ const Page = () => {
           onClick={getRepos}
         >
           Get Repos
+        </button>
+        <button
+          className="cursor-pointer bg-black text-white p-2"
+          onClick={fetchReadme}
+        >
+          Fetch Repositries
         </button>
       </div>
 
