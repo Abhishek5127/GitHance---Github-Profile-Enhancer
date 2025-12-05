@@ -1,33 +1,19 @@
-"use client";
-
-import { useDraggable } from "@dnd-kit/core";
-import { PROFILE_COMPONENTS } from "@/app/lib/profileComponents";
-
 export default function Sidebar() {
   return (
-    <div className="w-64 border-r p-4">
-      <h3 className="font-bold mb-4">Components</h3>
-
-      {PROFILE_COMPONENTS.map((item) => (
-        <DraggableItem key={item.id} id={item.id} title={item.title} />
-      ))}
-    </div>
-  );
-}
-
-function DraggableItem({ id, title }) {
-  const { attributes, listeners, setNodeRef } = useDraggable({
-    id,
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className="p-3 mb-3 bg-gray-100 border rounded cursor-pointer"
-    >
-      {title}
+    <div className="flex flex-col h-screen w-72 bg-[#0d1117] border-r border-[#30363d]">
+      <div className="p-4">
+        <ul className="space-y-1 text-sm font-medium text-[#c9d1d9]">
+          <li className="px-3 py-2 rounded hover:bg-[#21262d] cursor-pointer">
+            H1
+          </li>
+          <li className="px-3 py-2 rounded hover:bg-[#21262d] cursor-pointer">
+            H2
+          </li>
+          <li className="px-3 py-2 rounded hover:bg-[#21262d] cursor-pointer">
+            H3
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
