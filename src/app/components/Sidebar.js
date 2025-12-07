@@ -3,83 +3,63 @@
 import { useState } from "react";
 import {
   DndContext,
-  closestCorners,
   PointerSensor,
   useSensor,
   useSensors,
+  closestCorners,
 } from "@dnd-kit/core";
 
 import {
   SortableContext,
   verticalListSortingStrategy,
-  useSortable,
+  arrayMove,
 } from "@dnd-kit/sortable";
 
-import { CSS } from "@dnd-kit/utilities";
+import SortableItem from "./DraggableBlock";
 
 export default function Sidebar() {
-  const [items, setItems] = useState(["H1", "H2", "H3"]);
+  const [headings, setHeadings] = useState([
+    { id: "1", title: "Heading 1" },
+    { id: "2", title: "Heading 2" },
+    { id: "3", title: "Heading 3" },
+  ]);
 
+  // sensors → must have for dragging
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
     })
   );
 
+  // Reorder items when drag ends
   const handleDragEnd = (event) => {
     const { active, over } = event;
 
     if (!over || active.id === over.id) return;
 
-    const oldIndex = items.indexOf(active.id);
-    const newIndex = items.indexOf(over.id);
+    const oldIndex = headings.findIndex((h) => h.id === active.id);
+    const newIndex = headings.findIndex((h) => h.id === over.id);
 
-    const newArray = [...items];
-    newArray.splice(oldIndex, 1);
-    newArray.splice(newIndex, 0, active.id);
-
-    setItems(newArray);
+    const newArray = arrayMove(headings, oldIndex, newIndex);
+    setHeadings(newArray);
   };
 
   return (
-    <div className="flex flex-col h-screen w-72 bg-[#0d1117] border-r border-[#30363d]">
+    <div className="w-72 p-4 bg-[#0d1117] h-screen text-white">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragEnd={handleDragEnd}
       >
-        <div className="p-4">
-          <SortableContext items={items} strategy={verticalListSortingStrategy}>
-            <ul className="space-y-1 text-sm font-medium text-[#c9d1d9]">
-              {items.map((item) => (
-                <SortableItem key={item} id={item} />
-              ))}
-            </ul>
-          </SortableContext>
-        </div>
+        <SortableContext
+          items={headings.map((h) => h.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {headings.map((heading) => (
+            <SortableItem key={heading.id} id={heading.id} title={heading.title} />
+          ))}
+        </SortableContext>
       </DndContext>
     </div>
-  );
-}
-
-function SortableItem({ id }) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className="px-3 py-2 rounded hover:bg-[#21262d] cursor-pointer"
-    >
-      {id}
-    </li>
   );
 }
