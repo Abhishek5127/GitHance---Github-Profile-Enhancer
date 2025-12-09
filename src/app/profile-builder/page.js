@@ -16,9 +16,11 @@ import Sidebar from "@/app/components/Sidebar";
 import Canvas from "@/app/components/Canvas";
 
 /**
- * canvasItems: array of { id: "canvas-163234234", type: "header", data: {} }
+ * Main page for the profile README builder.
+ * This entire file is a client component (use client).
  */
 export default function Page() {
+    // canvas items: { id, type, data }
     const [canvasItems, setCanvasItems] = useState([]);
 
     const sensors = useSensors(
@@ -28,45 +30,41 @@ export default function Page() {
 
     const onDragEnd = (event) => {
         const { active, over } = event;
-
-        // If nothing was dropped over, do nothing
         if (!over) return;
 
-        // If dragging a template from the sidebar (we mark templates with id starting with "template:")
+        // If dragging a template from sidebar (id like "template:header")
         if (active.data?.current?.source === "template") {
-            // active.id is like "template:header"
-            const templateId = active.data.current.templateId; // "header"
-            // If dropped on canvas directly (over.id === "canvas") -> append
-            // If dropped on a canvas item (over.id === canvasItemId) -> insert before that item
+            const templateId = active.data.current.templateId;
+            const newItem = {
+                id: `canvas-${templateId}-${Date.now()}`,
+                type: templateId,
+                data: {}, // initial data
+            };
+
+            // dropped onto empty canvas area
             if (over.id === "canvas") {
-                const newItem = {
-                    id: `canvas-${templateId}-${Date.now()}`,
-                    type: templateId,
-                    data: {}, // future: template defaults or user-edited data
-                };
+                setCanvasItems((prev) => [...prev, newItem]);
+                return;
+            }
+
+            // dropped over a canvas item => insert before it
+            const idx = canvasItems.findIndex((i) => i.id === over.id);
+            if (idx === -1) {
                 setCanvasItems((prev) => [...prev, newItem]);
             } else {
-                // over is a canvas item id
-                const index = canvasItems.findIndex((i) => i.id === over.id);
-                const newItem = {
-                    id: `canvas-${templateId}-${Date.now()}`,
-                    type: templateId,
-                    data: {},
-                };
                 setCanvasItems((prev) => {
                     const copy = [...prev];
-                    copy.splice(index, 0, newItem);
+                    copy.splice(idx, 0, newItem);
                     return copy;
                 });
             }
             return;
         }
 
-        // If dragging an existing canvas item (id starts with "canvas-") -> reorder
+        // If moving existing canvas item (id starts with "canvas-")
         if (active.id && active.id.startsWith("canvas-")) {
-            // If dropped on the canvas container (empty area) or over another canvas item
             const oldIndex = canvasItems.findIndex((i) => i.id === active.id);
-            // if over is 'canvas' -> move to end
+            // dropped on canvas empty area => move to end
             if (over.id === "canvas") {
                 const copy = [...canvasItems];
                 const [moved] = copy.splice(oldIndex, 1);
@@ -75,29 +73,27 @@ export default function Page() {
                 return;
             }
             const newIndex = canvasItems.findIndex((i) => i.id === over.id);
-            if (oldIndex !== -1 && newIndex !== -1) {
+            if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
                 setCanvasItems((prev) => arrayMove(prev, oldIndex, newIndex));
             }
         }
     };
 
     return (
-        <div className="flex h-screen">
+        <div className="flex h-screen bg-[#0b0d0f]">
             <DndContext
+
                 sensors={sensors}
                 collisionDetection={closestCorners}
                 onDragEnd={onDragEnd}
             >
-
                 <Sidebar />
-
                 <div className="flex-1 p-6">
-                    <h2 className="text-2xl mb-4">Profile README Builder</h2>
-
+                    <h2 className="text-2xl text-white mb-4">Profile README Builder</h2>
                     <Canvas items={canvasItems} setItems={setCanvasItems} />
                 </div>
             </DndContext>
+
         </div >
-    
-  );
+    );
 }

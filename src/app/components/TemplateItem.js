@@ -3,11 +3,11 @@
 import { useDraggable } from "@dnd-kit/core";
 
 /**
- * TemplateItem is a draggable source (a template you can drag to the canvas).
- * We mark its drag data with { source: 'template', templateId } so onDragEnd handler can detect it.
+ * A draggable source in the sidebar.
+ * data: { source: 'template', templateId }
  */
 export default function TemplateItem({ template }) {
-  const id = `template:${template.id}`; // e.g. "template:header"
+  const id = `template:${template.id}`; // unique draggable id
 
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id,
@@ -24,7 +24,7 @@ export default function TemplateItem({ template }) {
       {...listeners}
       {...attributes}
       style={style}
-      className="p-3 bg-[#111418] rounded cursor-grab hover:bg-[#16191d]"
+      className="p-3 bg-[#111418] rounded cursor-grab hover:bg-[#16191d] select-none"
     >
       {template.title}
     </div>
