@@ -1,65 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-} from "@dnd-kit/core";
-
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
-
-import SortableItem from "./DraggableBlock";
+import TemplateItem from "./TemplateItem";
+import { PROFILE_TEMPLATES } from "@/app/lib/profileTemplates";
 
 export default function Sidebar() {
-  const [headings, setHeadings] = useState([
-    { id: "1", title: "Heading 1" },
-    { id: "2", title: "Heading 2" },
-    { id: "3", title: "Heading 3" },
-  ]);
-
-  // sensors → must have for dragging
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    })
-  );
-
-  // Reorder items when drag ends
-  const handleDragEnd = (event) => {
-    const { active, over } = event;
-
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = headings.findIndex((h) => h.id === active.id);
-    const newIndex = headings.findIndex((h) => h.id === over.id);
-
-    const newArray = arrayMove(headings, oldIndex, newIndex);
-    setHeadings(newArray);
-  };
-
   return (
-    <div className="w-72 p-4 bg-[#0d1117] h-screen text-white">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={headings.map((h) => h.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {headings.map((heading) => (
-            <SortableItem key={heading.id} id={heading.id} title={heading.title} />
-          ))}
-        </SortableContext>
-      </DndContext>
-    </div>
+    <aside className="w-72 p-4 bg-[#0d1117] text-white border-r">
+      <h3 className="font-semibold mb-4">Components</h3>
+
+      <div className="space-y-2">
+        {PROFILE_TEMPLATES.map((t) => (
+          <TemplateItem key={t.id} template={t} />
+        ))}
+      </div>
+
+      <p className="mt-6 text-xs text-gray-400">
+        Drag a component into the canvas to add it to your profile README.
+      </p>
+    </aside>
   );
 }

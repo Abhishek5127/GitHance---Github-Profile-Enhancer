@@ -1,82 +1,103 @@
 "use client";
 
+import { useState } from "react";
 import {
     DndContext,
-    closestCenter,
+    closestCorners,
     PointerSensor,
-    KeyboardSensor,
     useSensor,
-    useSensors
+    useSensors,
+    KeyboardSensor,
 } from "@dnd-kit/core";
-import { arrayMove, SortableContext, useSortable } from "@dnd-kit/sortable";
-import Sidebar from "@/app/components/Sidebar";
-import BuilderCanvas from "@/app/components/BuilderCanvas";
-import HeaderBlock from "@/app/components/blocks/HeaderBlock";
-import BioBlock from "@/app/components/blocks/BioBlock";
-import { useState } from "react";
 
+import { arrayMove } from "@dnd-kit/sortable";
+
+import Sidebar from "@/app/components/Sidebar";
+import Canvas from "@/app/components/Canvas";
+
+/**
+ * canvasItems: array of { id: "canvas-163234234", type: "header", data: {} }
+ */
 export default function Page() {
     const [canvasItems, setCanvasItems] = useState([]);
 
-    const onDragEnd = (event) => {
-        const { over, active } = event;
-
-        if (!over) return;
-
-        // If dragging from sidebar → Add new component
-        if (over.id === "canvas") {
-            const newId = `${active.id}-${Date.now()}`;
-
-            setCanvasItems((prev) => [...prev, { id: newId, type: active.id }]);
-            return;
-        }
-    };
-
     const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 5, // 5px movement to trigger drag
-            },
-        }),
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
         useSensor(KeyboardSensor)
     );
 
+    const onDragEnd = (event) => {
+        const { active, over } = event;
 
-    return (
-        <div className="flex">
-            <Sidebar />
+        // If nothing was dropped over, do nothing
+        if (!over) return;
 
-            <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                <BuilderCanvas>
-                    <SortableContext items={canvasItems.map((i) => i.id)}>
-                        {canvasItems.map((item) => (
-                            <CanvasElement key={item.id} item={item} />
-                        ))}
-                    </SortableContext>
-                </BuilderCanvas>
-            </DndContext>
-        </div>
-    );
-}
+        // If dragging a template from the sidebar (we mark templates with id starting with "template:")
+        if (active.data?.current?.source === "template") {
+            // active.id is like "template:header"
+            const templateId = active.data.current.templateId; // "header"
+            // If dropped on canvas directly (over.id === "canvas") -> append
+            // If dropped on a canvas item (over.id === canvasItemId) -> insert before that item
+            if (over.id === "canvas") {
+                const newItem = {
+                    id: `canvas-${templateId}-${Date.now()}`,
+                    type: templateId,
+                    data: {}, // future: template defaults or user-edited data
+                };
+                setCanvasItems((prev) => [...prev, newItem]);
+            } else {
+                // over is a canvas item id
+                const index = canvasItems.findIndex((i) => i.id === over.id);
+                const newItem = {
+                    id: `canvas-${templateId}-${Date.now()}`,
+                    type: templateId,
+                    data: {},
+                };
+                setCanvasItems((prev) => {
+                    const copy = [...prev];
+                    copy.splice(index, 0, newItem);
+                    return copy;
+                });
+            }
+            return;
+        }
 
-// Renders the dropped block with correct component
-function CanvasElement({ item }) {
-    const { attributes, listeners, setNodeRef, transform } = useSortable({
-        id: item.id,
-    });
-
-    const style = {
-        transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : "",
+        // If dragging an existing canvas item (id starts with "canvas-") -> reorder
+        if (active.id && active.id.startsWith("canvas-")) {
+            // If dropped on the canvas container (empty area) or over another canvas item
+            const oldIndex = canvasItems.findIndex((i) => i.id === active.id);
+            // if over is 'canvas' -> move to end
+            if (over.id === "canvas") {
+                const copy = [...canvasItems];
+                const [moved] = copy.splice(oldIndex, 1);
+                copy.push(moved);
+                setCanvasItems(copy);
+                return;
+            }
+            const newIndex = canvasItems.findIndex((i) => i.id === over.id);
+            if (oldIndex !== -1 && newIndex !== -1) {
+                setCanvasItems((prev) => arrayMove(prev, oldIndex, newIndex));
+            }
+        }
     };
 
-    const Component = {
-        header: HeaderBlock,
-        bio: BioBlock,
-    }[item.type];
-
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-            <Component />
-        </div>
-    );
+        <div className="flex h-screen">
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragEnd={onDragEnd}
+            >
+
+                <Sidebar />
+
+                <div className="flex-1 p-6">
+                    <h2 className="text-2xl mb-4">Profile README Builder</h2>
+
+                    <Canvas items={canvasItems} setItems={setCanvasItems} />
+                </div>
+            </DndContext>
+        </div >
+    
+  );
 }
