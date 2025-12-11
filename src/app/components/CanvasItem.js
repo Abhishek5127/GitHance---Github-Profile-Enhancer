@@ -28,6 +28,13 @@ export default function CanvasItem({ item }) {
             <strong>Tech stack:</strong> React · Node.js · Python
           </div>
         );
+
+       case "commits":
+        return(
+          <div>
+            Commit Graph
+          </div>
+        )
       default:
         return <div>{item.type}</div>;
     }

@@ -4,12 +4,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import CanvasItem from "./CanvasItem";
 import { useDroppable } from "@dnd-kit/core";
 
-/**
- * Canvas: droppable + sortable area
- * props:
- *   items: canvas array
- *   setItems: setter
- */
+
 export default function Canvas({ items, setItems }) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
 
