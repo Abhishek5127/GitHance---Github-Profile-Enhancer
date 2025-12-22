@@ -3,9 +3,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-/**
- * Renders each canvas item and makes it sortable.
- */
+
 export default function CanvasItem({ item }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: item.id,

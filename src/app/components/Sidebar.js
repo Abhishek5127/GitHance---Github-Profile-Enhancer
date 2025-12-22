@@ -13,7 +13,7 @@ export default function Sidebar() {
           <TemplateItem key={t.id} template={t} />
         ))}
       </div>
-
+      
       <p className="mt-6 text-xs text-gray-400">
         Drag a component into the canvas to add it to your profile README.
       </p>
