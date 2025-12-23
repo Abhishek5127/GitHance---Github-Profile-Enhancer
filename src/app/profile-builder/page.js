@@ -11,16 +11,12 @@ import {
 } from "@dnd-kit/core";
 
 import { arrayMove } from "@dnd-kit/sortable";
-
 import Sidebar from "@/app/components/Sidebar";
 import Canvas from "@/app/components/Canvas";
 
-/**
- * Main page for the profile README builder.
- * This entire file is a client component (use client).
- */
+
 export default function Page() {
-    // canvas items: { id, type, data }
+
     const [canvasItems, setCanvasItems] = useState([]);
 
     const sensors = useSensors(

@@ -8,5 +8,10 @@ export const PROFILE_COMPONENTS = [
     id: "bio",
     title: "Short Bio",
     component: "BioBlock"
+  },
+  {
+    id: "contri",
+    title: "Short Bio",
+    component: "ContributionGraph"
   }
 ];

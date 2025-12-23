@@ -2,6 +2,9 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import ContributionGraph from "./blocks/ContributionGraph";
+import HeaderBlock from "./blocks/HeaderBlock";
+import BioBlock from "./blocks/BioBlock";
 
 
 export default function CanvasItem({ item }) {
@@ -17,9 +20,13 @@ export default function CanvasItem({ item }) {
   const renderInner = () => {
     switch (item.type) {
       case "header":
-        return <div className="text-xl font-bold">👋 Hi, I'm Your Name</div>;
+        return <div>
+          <HeaderBlock/>
+        </div>;
       case "bio":
-        return <div>A short bio about you — talk about what you build.</div>;
+        return <div>
+          <BioBlock/>
+        </div>;
       case "skills":
         return (
           <div>
@@ -32,7 +39,15 @@ export default function CanvasItem({ item }) {
           <div>
             Commit Graph
           </div>
-        )
+        );
+
+        case "contribution":
+          return(
+            <div>
+              <ContributionGraph/>
+            </div>
+          )
+
       default:
         return <div>{item.type}</div>;
     }
