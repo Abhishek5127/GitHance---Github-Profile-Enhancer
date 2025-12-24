@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import generateMarkdown from "../lib/genrateMarkdown";
+import MarkdownPreview from "../components/markdownPreview";
 import {
     DndContext,
     closestCorners,
@@ -23,6 +25,12 @@ export default function Page() {
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
         useSensor(KeyboardSensor)
     );
+    const [markdownPreview, setMarkdownPreview] = useState("");
+
+    const handlePreview = () => {
+        const md = generateMarkdown(canvasItems);
+        setMarkdownPreview(md); // sets the dragged items as markdown
+    }
 
     const onDragEnd = (event) => {
         const { active, over } = event;
@@ -31,10 +39,29 @@ export default function Page() {
         // If dragging a template from sidebar (id like "template:header")
         if (active.data?.current?.source === "template") {
             const templateId = active.data.current.templateId;
+
+            let defaultData = {};
+
+            if (templateId === "header") {
+                defaultData = { text: "Hi, I'm Your Name" };
+            }
+
+            if (templateId === "bio") {
+                defaultData = { text: "Write something about yourself..." };
+            }
+
+            if (templateId === "skills") {
+                defaultData = { skills: ["JavaScript", "React"] };
+            }
+
+            if (templateId === "contributions") {
+                defaultData = { username: "your-github-username" };
+            }
+
             const newItem = {
                 id: `canvas-${templateId}-${Date.now()}`,
                 type: templateId,
-                data: {}, // initial data
+                data: defaultData,
             };
 
             // dropped onto empty canvas area
@@ -90,6 +117,16 @@ export default function Page() {
                 </div>
             </DndContext>
 
+            <button
+                onClick={handlePreview}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+            >
+                Preview README
+            </button>
+
+            <div className="mt-4">
+                <MarkdownPreview markdown={markdownPreview} />
+            </div>
         </div >
     );
 }
