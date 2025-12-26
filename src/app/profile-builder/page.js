@@ -13,9 +13,8 @@ import {
 } from "@dnd-kit/core";
 
 import { arrayMove } from "@dnd-kit/sortable";
-import Sidebar from "@/app/components/Sidebar";
-import Canvas from "@/app/components/Canvas";
-
+import Sidebar from "../components/Sidebar";
+import Canvas from "../components/Canvas";
 
 export default function Page() {
 

@@ -1,8 +1,7 @@
 "use client";
 
 import TemplateItem from "./TemplateItem";
-import { PROFILE_TEMPLATES } from "@/app/lib/profileTemplates";
-
+import { PROFILE_TEMPLATES } from "../lib/profileTemplates";
 export default function Sidebar() {
   return (
     <aside className="w-72 p-4 bg-[#0d1117] text-white border-r border-[#222629]">
