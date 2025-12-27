@@ -1,7 +1,17 @@
 import React from 'react'
 import Image from 'next/image'
 
-const userDataBlock = () => {
+const UserDataBlock = ({userData}) => {
+
+  if(!userData){
+    return(
+      <div className="w-full bg-white shadow-sm p-8 text-gray-500">
+        Loading user data...
+      </div>
+    );
+  }
+
+
     return (
         <div className="w-full bg-white shadow-sm overflow-hidden">
       {/* Top gradient */}
@@ -11,7 +21,7 @@ const userDataBlock = () => {
         {/* Left */}
         <div className="flex items-center gap-6">
           <Image
-            src="https://avatars.githubusercontent.com/u/206503696?v=4"
+            src={`${userData.avatar_url}`}
             alt="Profile"
             width={112}
             height={112}
@@ -21,7 +31,7 @@ const userDataBlock = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-semibold text-gray-900">
-                Irene Brooks
+                {`${userData.name}`}
               </h2>
               <span className="rounded-md bg-indigo-500 px-2 py-0.5 text-xs font-medium text-white">
                 PRO ⚡
@@ -29,8 +39,7 @@ const userDataBlock = () => {
             </div>
 
             <p className="mt-1 text-sm text-gray-600">
-              Interface and Brand Designer <br />
-              based in San Antonio
+              {`${userData.bio}`}
             </p>
 
             <div className="mt-4 flex gap-3">
@@ -48,15 +57,15 @@ const userDataBlock = () => {
         <div className="flex gap-10 text-center">
           <div>
             <p className="text-sm text-gray-500">Followers</p>
-            <p className="text-xl font-semibold">2,985</p>
+            <p className="text-xl font-semibold">{`${userData.followers}`}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Following</p>
-            <p className="text-xl font-semibold">132</p>
+            <p className="text-xl font-semibold">{`${userData.following}`}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Contributions</p>
-            <p className="text-xl font-semibold">548</p>
+            <p className="text-sm text-gray-500">Repositries</p>
+            <p className="text-xl font-semibold">{`${userData.public_repos}`}</p>
           </div>
         </div>
       </div>
@@ -65,4 +74,4 @@ const userDataBlock = () => {
     )
 }
 
-export default userDataBlock
+export default UserDataBlock

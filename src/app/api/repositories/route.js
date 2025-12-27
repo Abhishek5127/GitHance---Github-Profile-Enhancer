@@ -11,7 +11,7 @@ export async function POST(req) {
   try {
     // Fetch paginated repos
     const reposRes = await fetch(
-      `https://api.github.com/users/${username}/repos?per_page=${perPage}&page=${page}&sort=updated`,
+      `https://api.github.com/users/${username}/repos?&sort=updated`,
       { headers: { Authorization } }
     );
 
