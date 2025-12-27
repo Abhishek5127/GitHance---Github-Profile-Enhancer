@@ -55,7 +55,7 @@ const userDataBlock = () => {
             <p className="text-xl font-semibold">132</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Likes</p>
+            <p className="text-sm text-gray-500">Contributions</p>
             <p className="text-xl font-semibold">548</p>
           </div>
         </div>
