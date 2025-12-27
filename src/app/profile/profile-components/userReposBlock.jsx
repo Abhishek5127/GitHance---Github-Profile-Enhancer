@@ -1,10 +1,12 @@
 import React from 'react'
 import RepoCard from './RepoCard'
 
-const userReposBlock = () => {
+const userReposBlock = ({userRepos}) => {
   return (
     <div className='bg-[#010409] flex'>
-        <RepoCard/>
+        {userRepos.map((repo)=>(
+          <RepoCard key={repo.id} repo={repo}/>
+        ))}
     </div>
   )
 }
