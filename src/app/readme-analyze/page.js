@@ -13,10 +13,10 @@ export default function Page() {
 
     const getRepoData = async () => {
       try {
-        const username = session.user?.name; // FIX
-        const reponame = "your-repo-name"; // TEMP (later make dynamic)
+        const username = session.user?.name; 
+        const reponame = "AI-Resume-Builder"; 
 
-        const res = await fetch("api/repoTree",{
+        const res = await fetch('/api/repoTree',{
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, reponame }),
@@ -29,7 +29,7 @@ export default function Page() {
       }
     };
 
-    getRepoData(); // ✅ CALLED
+    getRepoData();
   }, [session, status]);
 
   return (
