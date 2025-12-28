@@ -49,7 +49,7 @@ export default function Profile() {
 
 
   useEffect(() => {
-     if (status !== "authenticated") return;
+    if (status !== "authenticated") return;
     const getRepoData = async () => {
 
       const username = session.username;
@@ -70,7 +70,7 @@ export default function Profile() {
 
         const data = await res.json();
 
-        console.log("Repositries:", data);
+        //console.log("Repositries:", data);
         setUserRepos(data.repos);
 
 

@@ -1,7 +1,18 @@
+"use client"
 import React from 'react'
 import Image from 'next/image'
 import { assets } from '@/app/assets/assets'
+import { useRouter } from 'next/navigation'
+
 const RepoCard = ({repo,userRepos}) => {
+    const router = useRouter();
+
+    const onRepoClick = (reponame)=>{
+        router.push("/readme-analyze");
+        
+    }
+
+
     return (
         <div>
             <div className='content-center flex-col w-60 bg-amber-300 m-5'>
@@ -13,7 +24,7 @@ const RepoCard = ({repo,userRepos}) => {
                     height={250}
                     alt="repositry"/>
                 </div>
-                    <div className='bg-white w-full content-center'>
+                    <div onClick={()=>onRepoClick(repo.name)} className=' cursor-pointer bg-white w-full content-center'>
                        {`${repo.readme||"No Readme"}`}
                     </div>
             </div>
