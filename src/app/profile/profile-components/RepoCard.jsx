@@ -8,7 +8,7 @@ const RepoCard = ({repo,userRepos}) => {
     const router = useRouter();
 
     const onRepoClick = (reponame)=>{
-        router.push("/readme-analyze");
+        router.push(`/readme-analyze/${reponame}`);
         
     }
 

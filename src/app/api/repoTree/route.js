@@ -39,7 +39,6 @@ export async function POST(req) {
     }
 
     const repoInfo = await repoInfoRes.json();
-    console.log(repoInfo);
     const defaultBranch = repoInfo.default_branch;
     console.log(defaultBranch);
 
@@ -79,8 +78,7 @@ export async function POST(req) {
       branch: defaultBranch,
       tree: normalizedTree,
     });
-    console.log(normalizedTree);
-
+   
   } catch (error) {
     console.error("Repo tree error:", error);
 
