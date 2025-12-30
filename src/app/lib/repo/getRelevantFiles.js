@@ -62,7 +62,7 @@ const IGNORED_FOLDERS = [
         }
     }
     
-    export async function getRelevant() {
+    export async function getRelevantFiles() {
 
         if(!Array.isArray(tree)) return[];
 
