@@ -44,6 +44,7 @@ export default function GetFilteredFiles({ reponame }) {
 
   // ✅ derived data (no state, no async)
   const relevantFiles = getRelevantFiles(repoTree);
+  
 
   return (
     <ul>
