@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import ReadmeBlock from "../readme-analyze-components/ReadmeBlock";
+import getRelevantFiles from "@/app/lib/repo/getRelevantFiles";
+import detectAndGroupProjects from "@/app/lib/repo/detectGroupProjects";
+
 
 export default function ReadmeClient({ reponame }) {
   const { data: session, status } = useSession();
@@ -14,9 +17,9 @@ export default function ReadmeClient({ reponame }) {
 
     const fetchRepoTree = async () => {
       try {
-        const username =session.username;
-        
-        
+        const username = session.username;
+
+
 
         const res = await fetch("/api/repoTree", {
           method: "POST",
@@ -36,6 +39,10 @@ export default function ReadmeClient({ reponame }) {
     fetchRepoTree();
   }, [status, session]);
 
+  const relevantFiles = getRelevantFiles(repoTree);
+  const groupData = detectAndGroupProjects(repoTree);
+  console.log(relevantFiles);
+
   if (loading) return <p className="p-4">Loading repo tree...</p>;
 
   return (
@@ -43,7 +50,7 @@ export default function ReadmeClient({ reponame }) {
       <h1 className="text-xl font-semibold mb-4">
         {reponame}
       </h1>
-      <ReadmeBlock tree={repoTree} />
+      <ReadmeBlock tree={relevantFiles} />
     </div>
   );
 }

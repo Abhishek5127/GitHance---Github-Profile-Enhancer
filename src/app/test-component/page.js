@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import detectAndGroupProjects from "../lib/repo/detectGroupProjects";
 
+
 export default function GetFilteredFiles({ reponame }) {
   const { data: session, status } = useSession();
 
@@ -44,9 +45,7 @@ export default function GetFilteredFiles({ reponame }) {
   }
 
   // ✅ derived data (no state, no async)
-  const relevantFiles = getRelevantFiles(repoTree);
-  const groupData = detectAndGroupProjects(repoTree);
-  console.log(groupData);
+
     
 
   return (
