@@ -1,6 +1,7 @@
 export async function POST(req) {
   try {
-    const { username, reponame, token } = await req.json();
+    const { reponame, token } = await req.json();
+    const username = 'harfool'
 
     // 1️⃣ Validation
     if (!username || !reponame) {

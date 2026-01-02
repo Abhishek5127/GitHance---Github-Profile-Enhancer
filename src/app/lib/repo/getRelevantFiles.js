@@ -60,10 +60,10 @@ function filterWebFiles(tree) {
   });
 }
 
-export default function getRelevantFiles(tree) {
-  if (!Array.isArray(tree)) return [];
+export default function getRelevantFiles(projectRoot) {
+  if (!Array.isArray(projectRoot)) return [];
 
-  const cleanedTree = removeJunk(tree);
+  const cleanedTree = removeJunk(projectRoot);
 
   if (isWebProject(cleanedTree)) {
     return filterWebFiles(cleanedTree);

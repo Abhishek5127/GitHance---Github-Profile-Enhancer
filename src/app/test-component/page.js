@@ -3,6 +3,7 @@
 import getRelevantFiles from "../lib/repo/getRelevantFiles";
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
+import detectAndGroupProjects from "../lib/repo/detectGroupProjects";
 
 export default function GetFilteredFiles({ reponame }) {
   const { data: session, status } = useSession();
@@ -11,7 +12,7 @@ export default function GetFilteredFiles({ reponame }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const reponame = 'AI-Resume-builder'
+    const reponame = 'leetLab'
     if (status !== "authenticated" || !reponame) return;
 
     const fetchRepoTree = async () => {
@@ -44,7 +45,9 @@ export default function GetFilteredFiles({ reponame }) {
 
   // ✅ derived data (no state, no async)
   const relevantFiles = getRelevantFiles(repoTree);
-  
+  const groupData = detectAndGroupProjects(repoTree);
+  console.log(groupData);
+    
 
   return (
     <ul>
