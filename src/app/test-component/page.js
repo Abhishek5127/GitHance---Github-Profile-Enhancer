@@ -12,7 +12,7 @@ export default function GetFilteredFiles({ reponame }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const reponame = 'leetLab'
+
     if (status !== "authenticated" || !reponame) return;
 
     const fetchRepoTree = async () => {
