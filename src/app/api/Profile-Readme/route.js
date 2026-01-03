@@ -21,7 +21,6 @@ export async function POST(req) {
     }
 
     const readme = await res.text();
-    console.log(readme);
 
     return Response.json({
       username,

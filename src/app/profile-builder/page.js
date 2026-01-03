@@ -1,6 +1,7 @@
 "use client";
 
-import { useState,useEffect } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import generateMarkdown from "../lib/genrateMarkdown";
 import MarkdownPreview from "../components/markdownPreview";
 import {
@@ -19,7 +20,31 @@ import Canvas from "../components/Canvas";
 export default function Page() {
 
     const [canvasItems, setCanvasItems] = useState([]);
+    const { data: session, status } = useSession();
 
+
+    useEffect(() => {
+        const fetchReadme = async () => {
+            try {
+                if (!session?.username) return;
+
+                const res = await fetch("/api/Profile-Readme", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ username: session.username }),
+                });
+
+                const data = await res.json();
+                console.log(data.readme);
+            } catch (error) {
+                console.error("Failed to fetch profile README", error);
+            }
+        };
+
+        fetchReadme();
+    }, [session?.username]);
 
 
     const sensors = useSensors(
@@ -28,7 +53,7 @@ export default function Page() {
     );
     const [markdownPreview, setMarkdownPreview] = useState("");
 
-    
+
 
     const handlePreview = () => {
         const md = generateMarkdown(canvasItems);

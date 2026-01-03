@@ -10,6 +10,7 @@ export default function Profile() {
   const [userRepos, setUserRepos] = useState([])
 
 
+
   useEffect(() => {
     if (status !== "authenticated") return;
     const getUserData = async () => {
@@ -45,7 +46,7 @@ export default function Profile() {
     getUserData();
 
 
-  }, [session, status])
+  }, [session,status])
 
 
   useEffect(() => {

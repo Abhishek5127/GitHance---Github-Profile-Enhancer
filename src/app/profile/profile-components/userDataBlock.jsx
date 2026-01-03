@@ -1,7 +1,10 @@
+"use-client"
 import React from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 
 const UserDataBlock = ({userData}) => {
+    const router = useRouter();
 
   if(!userData){
     return(
@@ -46,8 +49,8 @@ const UserDataBlock = ({userData}) => {
               <button className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white">
                 Follow
               </button>
-              <button className="rounded-md border px-4 py-2 text-sm text-gray-700">
-                Get in touch
+              <button onClick={()=>{router.push('/profile-builder')}} className="rounded-md border px-4 py-2 text-sm text-gray-700">
+                see Readme
               </button>
             </div>
           </div>
