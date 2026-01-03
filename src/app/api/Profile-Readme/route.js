@@ -1,5 +1,5 @@
 export async function POST(req) {
-  const { username } = await req.json();
+  const username = 'harfool';
 
   if (!username) {
     return Response.json(

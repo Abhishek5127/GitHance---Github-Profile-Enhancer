@@ -1,6 +1,13 @@
 import "./globals.css";
 import { Geist, Geist_Mono } from "next/font/google";
 import Providers from "./providers";
+import "github-markdown-css/github-markdown.css";
+
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown.min.css"
+/>
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

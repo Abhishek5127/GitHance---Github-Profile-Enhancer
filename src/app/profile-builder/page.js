@@ -21,6 +21,7 @@ export default function Page() {
 
     const [canvasItems, setCanvasItems] = useState([]);
     const { data: session, status } = useSession();
+    const [readme, setReadme] = useState("")
 
 
     useEffect(() => {
@@ -37,6 +38,7 @@ export default function Page() {
                 });
 
                 const data = await res.json();
+                setReadme(data.readme)
                 console.log(data.readme);
             } catch (error) {
                 console.error("Failed to fetch profile README", error);
@@ -142,7 +144,7 @@ export default function Page() {
                 <Sidebar />
                 <div className="flex-1 p-6">
                     <h2 className="text-2xl text-white mb-4">Profile README Builder</h2>
-                    <Canvas items={canvasItems} setItems={setCanvasItems} />
+                    <Canvas readmeData={readme} items={canvasItems} setItems={setCanvasItems} />
                 </div>
             </DndContext>
 
