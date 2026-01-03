@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import generateMarkdown from "../lib/genrateMarkdown";
 import MarkdownPreview from "../components/markdownPreview";
 import {
@@ -20,16 +20,21 @@ export default function Page() {
 
     const [canvasItems, setCanvasItems] = useState([]);
 
+
+
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
         useSensor(KeyboardSensor)
     );
     const [markdownPreview, setMarkdownPreview] = useState("");
 
+    
+
     const handlePreview = () => {
         const md = generateMarkdown(canvasItems);
         setMarkdownPreview(md); // sets the dragged items as markdown
     }
+
 
     const onDragEnd = (event) => {
         const { active, over } = event;
