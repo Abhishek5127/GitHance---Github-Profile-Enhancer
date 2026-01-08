@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+
+.content-center{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+
+/* GitHub-like horizontal image groups */
+.markdown-body p:has(img):not(:has(a)):not(:has(code)) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.markdown-body p:has(img) img {
+  display: inline-block !important;
+  margin: 0 !important;
+}
+.font-yuji {
+  font-family: var(--font-yuji-boku);
+}
