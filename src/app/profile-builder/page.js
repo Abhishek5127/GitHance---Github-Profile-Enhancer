@@ -26,8 +26,11 @@ export default function Page() {
     const [activeBlock, setActiveBlock] = useState(null);
     const [showHeaderPicker, setShowHeaderPicker] = useState(false);
     const token = session?.accessToken;
+    const [markdown, setMarkdown] = useState([])
+    
 
     const updateProfileReadme = async () => {
+
         const res = await fetch("/api/update", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -36,15 +39,20 @@ export default function Page() {
                 repo: 'abhishek5127',
                 path: "README.md",
                 message: "Updated via Analyzer App",
-                content: "Test 2 ",
+                content: markdown,
                 token: token
             }),
         });
 
         const data = await res.json();
         console.log("Update result:", data);
+        console.log(markdown)
     };
 
+    useEffect(()=>{
+        setMarkdown(generateMarkdown(canvasItems));
+        
+    },[canvasItems])
 
     /* ---------------- FETCH README ---------------- */
     useEffect(() => {
