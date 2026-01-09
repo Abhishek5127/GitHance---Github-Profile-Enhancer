@@ -9,7 +9,6 @@ export default function ImageHeaderPreview() {
   function exportSvg() {
     const svg = generateHeaderSvg({
       text: "Hello, I am Abhishek",
-      // IMPORTANT: this must be a public URL
       bannerUrl: "/headers/DragonBannerHeader.png",
     });
   }
