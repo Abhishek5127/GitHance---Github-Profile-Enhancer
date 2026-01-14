@@ -1,7 +1,7 @@
 export function generateHeaderSvg({
   text,
   bannerUrl,
-  fontSize = 36,
+  fontSize = 86,
   color = "#ffffff",
 }) {
   const WIDTH = 1600;
