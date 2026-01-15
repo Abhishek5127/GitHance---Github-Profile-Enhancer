@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
+import Navbar from "./UI/home/Navbar";
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -23,7 +24,10 @@ export default function Home() {
 
   // 3️⃣ If logged in
   return (
+
     <div>
+
+      <Navbar/>
       <p>Logged in as: {session.username}</p>
       <p>
         Access Token:{" "}
