@@ -49,8 +49,8 @@ const UserDataBlock = ({userData}) => {
               <button className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white">
                 Follow
               </button>
-              <button onClick={()=>{router.push('/profile-builder')}} className="rounded-md border px-4 py-2 text-sm text-gray-700">
-                see Readme
+              <button onClick={()=>{router.push('/profile-builder')}} className="rounded-md cursor-pointer border px-4 py-2 text-sm text-gray-700">
+                Edit Profile Readme
               </button>
             </div>
           </div>

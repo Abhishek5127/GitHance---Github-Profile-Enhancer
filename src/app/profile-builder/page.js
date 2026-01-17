@@ -18,7 +18,7 @@ import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
 export default function Page() {
     const { data: session } = useSession();
-    
+
 
     const [canvasItems, setCanvasItems] = useState([]);
     const [readme, setReadme] = useState("");
@@ -27,7 +27,7 @@ export default function Page() {
     const [showHeaderPicker, setShowHeaderPicker] = useState(false);
     const token = session?.accessToken;
     const [markdown, setMarkdown] = useState([])
-    
+
 
     const updateProfileReadme = async () => {
 
@@ -49,10 +49,10 @@ export default function Page() {
         console.log(markdown)
     };
 
-    useEffect(()=>{
-        setMarkdown(generateMarkdown(canvasItems));222
-        
-    },[canvasItems])
+    useEffect(() => {
+        setMarkdown(generateMarkdown(canvasItems)); 222
+
+    }, [canvasItems])
 
     /* ---------------- FETCH README ---------------- */
     useEffect(() => {
@@ -161,14 +161,19 @@ export default function Page() {
 
     return (
         <div className="flex h-screen bg-[#0b0d0f] text-white">
-            <Sidebar
-                onSelectBlock={(blockId) => {
-                    if (blockId === "header") {
-                        setShowHeaderPicker(true);
-                    }
-                    setActiveBlock(blockId);
-                }}
-            />
+            <div>
+
+                <Sidebar
+                    onSelectBlock={(blockId) => {
+                        if (blockId === "header") {
+                            setShowHeaderPicker(true);
+                        }
+                        setActiveBlock(blockId);
+                    }}
+                />
+                <button className="bg-green-700 w-20 border-2 rounded-2xl p-2 mt-5 ml-10 cursor-pointer hover:bg-green-900" onClick={updateProfileReadme}>Update</button>
+            </div>
+
 
             <DndContext
                 sensors={sensors}
@@ -193,16 +198,13 @@ export default function Page() {
 
                 <HeaderVariantPicker
                     open={showHeaderPicker}
-                    onClose={() => setHeaderPickerOpen(false)}
+                    onClose={() => setShowHeaderPicker(false)}
                     onSelectVariant={(variant) => {
                         console.log(variant);
                         addHeaderToCanvas(variant);
                         setShowHeaderPicker(false);
                     }}
                 />
-
-                <button onClick={updateProfileReadme}>Update</button>
-
             </DndContext>
         </div>
     );
