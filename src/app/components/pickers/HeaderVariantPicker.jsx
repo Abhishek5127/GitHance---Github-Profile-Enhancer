@@ -3,14 +3,9 @@ import { useEffect, useState } from "react";
 import SimpleHeaderPreview from "../previews/headers/SimpleHeaderPreview";
 import TypingHeaderPreview from "../previews/headers/TypingHeaderPreview";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
-import { useSession } from "next-auth/react";
 
 
 export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) {
-    const {data:session} = useSession();
-    const username = session.username;
-    
-
     const [mounted, setMounted] = useState(false);
     const [animateIn, setAnimateIn] = useState(false);
 
@@ -60,7 +55,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
                     <h3 className="text-lg font-semibold text-white">
                         Choose Header Style
                     </h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">
+                    <button onClick={onClose} className="text-gray-400 cursor-pointer hover:text-white">
                         ✕
                     </button>
                 </div>
