@@ -4,11 +4,11 @@ import Image from "next/image";
 import { assets } from "@/app/assets/assets";
 import { generateHeaderSvg } from "@/app/lib/generateHeaderSvg";
 
-export default function ImageHeaderPreview() {
-
+export default function ImageHeaderPreview({name}) {
+  
   function exportSvg() {
     const svg = generateHeaderSvg({
-      text: "Hello, I am Abhishek",
+      text: `Hello, I am $${name}`,
       bannerUrl: "/headers/DragonBannerHeader.png",
     });
   }
@@ -21,7 +21,7 @@ export default function ImageHeaderPreview() {
     >
       {/* Preview-only overlay (NOT exported) */}
       <p className="absolute inset-0 flex items-center justify-center font-yuji font-bold text-white text-[18px] pointer-events-none">
-        Hello, I am Abhishek
+        {`Hello, I am ${name}`};
       </p>
 
       {/* Preview banner */}

@@ -18,8 +18,9 @@ export default function generateMarkdown(canvasItems) {
         }
         if (block === "header" && item.variant === "image") {
             markdown += `
-<img src="./${item.data.exportPath}" />
-
+            <div className="flex align-center">
+<img src="https://ghchart.rshah.org/abhishek5127" alt="contribution Graph Image"></img>
+</div>
 `;
         }
         if (block === "header" && item.variant === "simple") {
@@ -45,8 +46,7 @@ export default function generateMarkdown(canvasItems) {
 
         /* ---------- CONTRIBUTIONS ---------- */
         if (block === "contributions") {
-            markdown += "## Contributions\n";
-            markdown += `![GitHub Contributions](https://github-readme-activity-graph.vercel.app/graph?username=${item.data?.username})\n\n`;
+            markdown += `<img src="https://ghchart.rshah.org/abhishek5127" alt="contribution Graph Image"></img>`;
         }
     });
 

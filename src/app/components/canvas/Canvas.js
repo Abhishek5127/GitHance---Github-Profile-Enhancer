@@ -9,9 +9,10 @@ export default function Canvas({ items, setItems, readmeData }) {
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-[600px] p-4 rounded border-dashed border ${isOver ? "border-blue-500 bg-blue-50/10" : "border-gray-700 bg-white/2"
+      className={`min-h-[600px] p-4 relative rounded border-dashed border ${isOver ? "border-blue-500 bg-blue-50/10" : "border-gray-700 bg-white/2"
         }`}
     >
+      <div><button onClick={()=>setItems([])} className="absolute right-2 top-1 bg-red-600 hover:bg-red-900 border-2 p-1 cursor-pointer">Clear</button></div>
       {/* README SECTION */}
       {readmeData ? (
         <article

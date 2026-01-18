@@ -3,10 +3,13 @@ import { useEffect, useState } from "react";
 import SimpleHeaderPreview from "../previews/headers/SimpleHeaderPreview";
 import TypingHeaderPreview from "../previews/headers/TypingHeaderPreview";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
+import { useSession } from "next-auth/react";
 
 
 export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) {
-    const username = "abhishek";
+    const {data:session} = useSession();
+    const username = session.username;
+    
 
     const [mounted, setMounted] = useState(false);
     const [animateIn, setAnimateIn] = useState(false);
