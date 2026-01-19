@@ -1,19 +1,18 @@
-export async function POST() {
+export function SelectImportantFiles({ReleventFiles}){
+    return `
+    You are an expert in guessing the most important files in a repositry
 
-    const {releventfiles} = await req.json();
+    SELECT THE TOP 5 MOST IMPORTANT AND FILES WHICH COULD DEFINE WORK OF THIS REPOSITRY BEST.
 
-    if(!releventfiles){
-        return Response.json(
-            {error:"Repositry Files not recived"},
-            {status:404})
-    }
+    #REPOSITRY FILES:
+    ${ReleventFiles}
 
-    try {
-        
-        const res = await fetch(``)
-    } catch (error) {
-        
-    }
 
-    
+
+    ##REQUIRMENTS:
+
+    Select only TOP 5 Files.
+    Only send File names as they were Provided.
+    Send file names as an object in Json Format.
+    `
 }
