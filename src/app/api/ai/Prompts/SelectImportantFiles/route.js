@@ -7,12 +7,11 @@ export function SelectImportantFiles({ReleventFiles}){
     #REPOSITRY FILES:
     ${ReleventFiles}
 
-
-
     ##REQUIRMENTS:
 
     Select only TOP 5 Files.
     Only send File names as they were Provided.
     Send file names as an object in Json Format.
+    if the document have less than 5 files just send all of them.
     `
 }
