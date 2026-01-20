@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import generateMarkdown from "../lib/genrateMarkdown";
-import MarkdownPreview from "../components/markdownPreview";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import {
     DndContext,
@@ -163,7 +162,7 @@ export default function Page() {
     return (
         <div className="flex h-screen bg-[#0b0d0f] text-white">
             <div>
-
+                {/*Left Component Bar :) */}
                 <Sidebar
                     onSelectBlock={(blockId) => {
                         if (blockId === "header") {
@@ -181,8 +180,6 @@ export default function Page() {
                 collisionDetection={closestCorners}
                 onDragEnd={onDragEnd}
             >
-                {/* LEFT SIDEBAR */}
-
 
                 {/* CENTER CANVAS */}
                 <div className="flex-1 p-6 overflow-y-auto">
@@ -192,7 +189,6 @@ export default function Page() {
 
                     <Canvas
                         readmeData={readme}
-                        setReadmeData={setReadmeData}
                         items={canvasItems}
                         setItems={setCanvasItems}
                     />
