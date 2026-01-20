@@ -1,6 +1,7 @@
 import Image from "next/image";
 import TypingHeaderPreview from "../previews/headers/TypingHeaderPreview";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
+import SimpleHeaderPreview from "../previews/headers/SimpleHeaderPreview";
 
 export default function HeaderBlock({ item }) {
   const { variant, data } = item;
@@ -15,9 +16,7 @@ export default function HeaderBlock({ item }) {
 
   if (variant === "simple") {
     return (
-      <h1 className="text-3xl font-bold text-white">
-        {data.text}
-      </h1>
+      <SimpleHeaderPreview defaultValues={data}/>
     );
   }
 

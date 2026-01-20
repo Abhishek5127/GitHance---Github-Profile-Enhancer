@@ -150,6 +150,7 @@ export default function Page() {
             variant,
             data: {
                 text: "Hello, I am Abhishek",
+                subText:"senior Developer at Microsoft",
                 bannerUrl: "/headers/DragonBannerHeader.png",
             },
         };

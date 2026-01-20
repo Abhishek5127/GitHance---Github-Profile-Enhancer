@@ -1,9 +1,8 @@
-export default function SimpleHeaderPreview() {
+export default function SimpleHeaderPreview({defaultValues}) {
   return (
-    <div className="rounded bg-[#0b0d0f] p-4 border border-white/10">
-      <div className="h-4 w-40 bg-white/80 rounded mb-2" />
-      
-      <div className="h-3 w-28 bg-white/40 rounded" />
+    <div className="rounded bg-[#0b0d0f] p-4 flex flex-col border border-white/10">
+      <input onKeyDown={(e)=>{e.stopPropagation()}} className="h-8 w-60 bg-white/80 rounded mb-2 focus:outline-none text-black" type="text"/>
+      <input onKeyDown={(e)=>{e.stopPropagation()}} className="h-5 w-50 bg-white/40 rounded text-black" type="text"/>
     </div>
   );
 }
