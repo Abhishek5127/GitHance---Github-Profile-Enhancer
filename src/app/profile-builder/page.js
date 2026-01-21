@@ -15,6 +15,8 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
+import SimpleHeaderPreview from "../components/previews/headers/SimpleHeaderPreview";
+
 export default function Page() {
     const { data: session } = useSession();
 
@@ -25,7 +27,9 @@ export default function Page() {
     const [activeBlock, setActiveBlock] = useState(null);
     const [showHeaderPicker, setShowHeaderPicker] = useState(false);
     const token = session?.accessToken;
-    const [markdown, setMarkdown] = useState([])
+    const [markdown, setMarkdown] = useState([]);
+    const [simpleHeaderTitle, setSimpleHeaderTitle] = useState(`Hello I am ${session?.name}`);
+    const [simpleHeaderSubTitle, setSimpleHeaderSubTitle] = useState("Junior Software Developer");
 
 
     const updateProfileReadme = async () => {
@@ -49,9 +53,9 @@ export default function Page() {
     };
 
     useEffect(() => {
-        setMarkdown(generateMarkdown(canvasItems)); 222
-
-    }, [canvasItems])
+        setMarkdown(generateMarkdown(canvasItems,simpleHeaderTitle,simpleHeaderSubTitle));
+        
+    }, [canvasItems,simpleHeaderSubTitle,simpleHeaderTitle])
 
     /* ---------------- FETCH README ---------------- */
     useEffect(() => {
