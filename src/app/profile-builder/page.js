@@ -21,7 +21,6 @@ export default function Page() {
 
     const [canvasItems, setCanvasItems] = useState([]);
     const [readme, setReadme] = useState("");
-    const [readmeData, setReadmeData] = useState("")
     const [markdownPreview, setMarkdownPreview] = useState("");
     const [activeBlock, setActiveBlock] = useState(null);
     const [showHeaderPicker, setShowHeaderPicker] = useState(false);
