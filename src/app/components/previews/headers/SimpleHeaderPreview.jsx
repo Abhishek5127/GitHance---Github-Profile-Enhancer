@@ -4,7 +4,8 @@ export default function SimpleHeaderPreview({
   setUserTextInput,
   userSubTextInput,
   setUserSubTextInput,
-}) {
+}){
+
   return (
     <div className="rounded bg-[#0b0d0f] p-4 flex flex-col border border-white/10">
       <input
