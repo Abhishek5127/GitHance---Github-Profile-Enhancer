@@ -1,4 +1,4 @@
-export default function generateMarkdown(canvasItems,simpleHeaderTitle,simpleHeaderSubTitle) {
+export default function generateMarkdown(canvasItems, userTextInput, userSubTextInput) {
     let markdown = "";
 
     canvasItems.forEach((item) => {
@@ -24,12 +24,16 @@ export default function generateMarkdown(canvasItems,simpleHeaderTitle,simpleHea
 `;
         }
         if (block === "header" && item.variant === "simple") {
-            markdown += `![${simpleHeaderTitle}](https://img.shields.io/badge/Abhishek%20Choudhary-cfe8ff?style=for-the-badge&labelColor=cfe8ff&color=#238636)
+
+            const title = encodeURIComponent(userTextInput);
+            const subtitle = encodeURIComponent(userSubTextInput);
+
+            markdown += `![${userTextInput}](https://img.shields.io/badge/${title}-cfe8ff?style=for-the-badge&labelColor=cfe8ff&color=238636)
 <br/>
-![${simpleHeaderSubTitle}](https://img.shields.io/badge/Senior%20Software%20Engineer-3c3c3c?style=for-the-badge&labelColor=#238636&color=3c3c3c)
-`
-            console.log(item.text)
+![${userSubTextInput}](https://img.shields.io/badge/${subtitle}-3c3c3c?style=for-the-badge&labelColor=238636&color=3c3c3c)
+`;
         }
+
 
 
 

@@ -9,21 +9,27 @@ export default function HeaderBlock({ item }) {
   if (variant === "image") {
     return (
       <div className="rounded overflow-hidden border border-white/10">
-        <ImageHeaderPreview/>        
+        <ImageHeaderPreview />
       </div>
     );
   }
 
   if (variant === "simple") {
     return (
-      <SimpleHeaderPreview defaultValues={data}/>
+      <SimpleHeaderPreview
+        userTextInput={data?.text}
+        setUserTextInput={() => { }}
+        userSubTextInput={data?.subText}
+        setUserSubTextInput={() => { }}
+      />
     );
   }
+
 
   if (variant === "typingHeader") {
     return (
       <div className="text-white">
-        <TypingHeaderPreview/>
+        <TypingHeaderPreview />
       </div>
     );
   }
