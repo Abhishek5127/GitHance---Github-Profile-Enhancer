@@ -30,14 +30,19 @@ export default function HeaderBlock({ item, setItems }) {
     return (
       <div className="flex">
 
-      <SimpleHeaderPreview
-        textInput={item.data.text}
-        subTextInput={item.data.subText}
-        setTextInput={(val) => updateHeaderField("text", val)}
-        setSubTextInput={(val) => updateHeaderField("subText", val)}
+        <SimpleHeaderPreview
+          textInput={item.data.text}
+          subTextInput={item.data.subText}
+          setTextInput={(val) => updateHeaderField("text", val)}
+          setSubTextInput={(val) => updateHeaderField("subText", val)}
+          color={item.data.color}
+          subcolor={item.data.subcolor}
+          setColor={(val) => updateHeaderField("color", val)}
+          setSubColor={(val) => updateHeaderField("subcolor", val)}
         />
-      <HexColorPicker/>
-        </div>
+
+
+      </div>
 
     );
   }

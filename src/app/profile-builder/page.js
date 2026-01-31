@@ -152,6 +152,8 @@ export default function Page() {
             type: "header",
             variant,
             data: {
+                color:"#ffffff",
+                subcolor:"#373d35",
                 text: "",
                 subText: "",
                 bannerUrl: "/headers/DragonBannerHeader.png",

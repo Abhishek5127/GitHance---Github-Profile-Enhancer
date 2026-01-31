@@ -4,31 +4,51 @@ import { useEffect, useState } from "react";
 
 export default function SimpleHeaderPreview({
   textInput,
-  setTextInput,
   subTextInput,
-  setSubTextInput
+  setTextInput,
+  setSubTextInput,
+  color,
+  subcolor,
+  setColor,
+  setSubColor
 }) {
- 
-
 
   return (
-    <div className="rounded p-4 flex flex-col">
-      <input
-        value={textInput}
-        onChange={(e) => setTextInput(e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
-        className="h-8 w-80 pl-2 font-bold bg-white/80 mb-2 focus:outline-none text-black"
-        type="text"
-      />
+    <div className="rounded p-4 flex flex-col gap-2">
 
-      <input
-        value={subTextInput}
-        onChange={(e) => setSubTextInput(e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
-        className="h-6 w-60 pl-2 bg-white/40 text-black focus:outline-none"
-        type="text"
-      />
+      <div className="flex items-center gap-1">
+        <input
+        onKeyDown={(e)=>e.stopPropagation()}
+          value={textInput}
+          onChange={(e) => setTextInput(e.target.value)}
+          style={{ backgroundColor: color }}
+          className="h-8 w-80 pl-2 bg-white font-bold focus:outline-none text-black"
+        />
+
+        <HexColorPicker
+          color={color}
+          setColor={setColor}
+        />
+      </div>
+
+  
+      <div className="flex items-center gap-1">
+        <input
+          value={subTextInput}
+          onKeyDown={(e)=>e.stopPropagation()}
+          onChange={(e) => setSubTextInput(e.target.value)}
+          style={{ backgroundColor: subcolor }}
+          className="h-6 w-60 pl-2 bg-gray-700 text-black focus:outline-none"
+        />
+
+        <HexColorPicker
+          color={subcolor}
+          setColor={setSubColor}
+        />
+      </div>
+
     </div>
+
   );
 }
 

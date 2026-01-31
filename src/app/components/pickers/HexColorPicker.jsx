@@ -1,9 +1,8 @@
 "use client";
 import { useState } from "react";
 
-export default function HexColorPicker() {
-  const [color, setColor] = useState("#ffffff"); // green
-
+export default function HexColorPicker({color,setColor}) {
+  
   const handleHexInput = (e) => {
     const value = e.target.value;
     setColor(value);

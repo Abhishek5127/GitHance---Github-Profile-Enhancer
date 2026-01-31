@@ -1,4 +1,4 @@
-export default function generateMarkdown(canvasItems){
+export default function generateMarkdown(canvasItems) {
 
     let markdown = "";
 
@@ -26,15 +26,23 @@ export default function generateMarkdown(canvasItems){
         }
         if (block === "header" && item.variant === "simple") {
 
-    const title = encodeURIComponent(item.data?.text || "");
-    const subtitle = encodeURIComponent(item.data?.subText || "");
+            const title = encodeURIComponent(item.data?.text || "");
+            const subtitle = encodeURIComponent(item.data?.subText || "");
 
-    markdown += `![${item.data?.text || ""}](https://img.shields.io/badge/${title}-cfe8ff?style=for-the-badge&labelColor=cfe8ff&color=238636)
-<br/>
-![${item.data?.subText || ""}](https://img.shields.io/badge/${subtitle}-3c3c3c?style=for-the-badge&labelColor=238636&color=3c3c3c)
-<br/>
+            const cleanColor = item.data?.color?.replace("#", "") || "238636";
+            const cleanSubColor = item.data?.subcolor?.replace("#", "") || "3c3c3c";
+
+            markdown += `
+<div>
+
+![${item.data?.text || ""}](https://img.shields.io/badge/${title}-cfe8ff?style=for-the-badge&labelColor=cfe8ff&color=${cleanColor})
+
+![${item.data?.subText || ""}](https://img.shields.io/badge/${subtitle}-cfe8ff?style=for-the-badge&labelColor=${cleanColor}&color=${cleanSubColor})
+
+</div>
 `;
-}
+        }
+
 
         /* ---------- BIO ---------- */
         if (block === "bio") {
