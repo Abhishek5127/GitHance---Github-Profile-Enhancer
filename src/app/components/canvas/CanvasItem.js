@@ -4,7 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import ContributionGraph from "../blocks/ContributionGraph";
 import HeaderBlock from "../blocks/HeaderBlock";
-import BioBlock from "../blocks/BioBlock";
+import BioBlock from "../BioBlock";
 import Page from "@/app/profile-builder/page";
 
 export default function CanvasItem({ item,setItems, userSubTextInput, userTextInput, setUserSubTextInput, setUserTextInput }) {

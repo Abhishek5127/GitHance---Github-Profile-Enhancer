@@ -212,6 +212,7 @@ export default function Page() {
                         setShowHeaderPicker(false);
                     }}
                 />
+                
             </DndContext>
         </div>
     );

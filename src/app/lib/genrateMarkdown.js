@@ -32,6 +32,7 @@ export default function generateMarkdown(canvasItems){
     markdown += `![${item.data?.text || ""}](https://img.shields.io/badge/${title}-cfe8ff?style=for-the-badge&labelColor=cfe8ff&color=238636)
 <br/>
 ![${item.data?.subText || ""}](https://img.shields.io/badge/${subtitle}-3c3c3c?style=for-the-badge&labelColor=238636&color=3c3c3c)
+<br/>
 `;
 }
 

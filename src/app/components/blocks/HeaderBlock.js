@@ -1,6 +1,7 @@
 import TypingHeaderPreview from "../previews/headers/TypingHeaderPreview";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
 import SimpleHeaderPreview from "../previews/headers/SimpleHeaderPreview";
+import HexColorPicker from "../pickers/HexColorPicker";
 import { useState } from "react";
 
 export default function HeaderBlock({ item, setItems }) {
@@ -27,13 +28,16 @@ export default function HeaderBlock({ item, setItems }) {
 
 
     return (
+      <div className="flex">
+
       <SimpleHeaderPreview
         textInput={item.data.text}
         subTextInput={item.data.subText}
         setTextInput={(val) => updateHeaderField("text", val)}
         setSubTextInput={(val) => updateHeaderField("subText", val)}
-      />
-
+        />
+      <HexColorPicker/>
+        </div>
 
     );
   }
