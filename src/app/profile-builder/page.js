@@ -15,11 +15,11 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
+import SimpleHeaderPreview from "../components/previews/headers/SimpleHeaderPreview";
 
 export default function Page() {
     const { data: session } = useSession();
-
-
+    
     const [canvasItems, setCanvasItems] = useState([]);
     const [readme, setReadme] = useState("");
     const [markdownPreview, setMarkdownPreview] = useState("");
@@ -27,8 +27,8 @@ export default function Page() {
     const [showHeaderPicker, setShowHeaderPicker] = useState(false);
     const token = session?.accessToken;
     const [markdown, setMarkdown] = useState([]);
-    const [userTextInput, setUserTextInput] = useState("I am John");
-    const [userSubTextInput, setUserSubTextInput] = useState("Senior Developer at Microsoft");
+    const [userTextInput, setUserTextInput] = useState(`I am ${session?.username}`);
+    const [userSubTextInput, setUserSubTextInput] = useState("Developer");
 
 
 
@@ -54,6 +54,8 @@ export default function Page() {
 
     useEffect(() => {
         setMarkdown(generateMarkdown(canvasItems, userTextInput,userSubTextInput));
+        console.log(userTextInput)
+        console.log(userSubTextInput)
 
     }, [canvasItems, userTextInput,userSubTextInput])
 
@@ -152,8 +154,8 @@ export default function Page() {
             type: "header",
             variant,
             data: {
-                text: "Hello, I am Abhishek",
-                subText: "senior Developer at Microsoft",
+                text: {userTextInput},
+                subText: {userSubTextInput},
                 bannerUrl: "/headers/DragonBannerHeader.png",
             },
         };

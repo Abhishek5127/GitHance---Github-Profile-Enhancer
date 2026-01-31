@@ -24,7 +24,7 @@ export default function generateMarkdown(canvasItems, userTextInput, userSubText
 `;
         }
         if (block === "header" && item.variant === "simple") {
-
+            
             const title = encodeURIComponent(userTextInput);
             const subtitle = encodeURIComponent(userSubTextInput);
 

@@ -1,9 +1,9 @@
-import Image from "next/image";
 import TypingHeaderPreview from "../previews/headers/TypingHeaderPreview";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
 import SimpleHeaderPreview from "../previews/headers/SimpleHeaderPreview";
+import { useState } from "react";
 
-export default function HeaderBlock({ item }) {
+export default function HeaderBlock({ item,userTextInput,userSubTextInput,setUserSubTextInput,setUserTextInput }) {
   const { variant, data } = item;
 
   if (variant === "image") {
@@ -15,13 +15,10 @@ export default function HeaderBlock({ item }) {
   }
 
   if (variant === "simple") {
+    const [text, setText] = useState("");
+    const [subText, setSubText] = useState("");
     return (
-      <SimpleHeaderPreview
-        userTextInput={data?.text}
-        setUserTextInput={() => { }}
-        userSubTextInput={data?.subText}
-        setUserSubTextInput={() => { }}
-      />
+      <SimpleHeaderPreview />
     );
   }
 
