@@ -1,4 +1,5 @@
-export default function generateMarkdown(canvasItems, userTextInput, userSubTextInput) {
+export default function generateMarkdown(canvasItems){
+
     let markdown = "";
 
     canvasItems.forEach((item) => {
@@ -24,18 +25,15 @@ export default function generateMarkdown(canvasItems, userTextInput, userSubText
 `;
         }
         if (block === "header" && item.variant === "simple") {
-            
-            const title = encodeURIComponent(userTextInput);
-            const subtitle = encodeURIComponent(userSubTextInput);
 
-            markdown += `![${userTextInput}](https://img.shields.io/badge/${title}-cfe8ff?style=for-the-badge&labelColor=cfe8ff&color=238636)
+    const title = encodeURIComponent(item.data?.text || "");
+    const subtitle = encodeURIComponent(item.data?.subText || "");
+
+    markdown += `![${item.data?.text || ""}](https://img.shields.io/badge/${title}-cfe8ff?style=for-the-badge&labelColor=cfe8ff&color=238636)
 <br/>
-![${userSubTextInput}](https://img.shields.io/badge/${subtitle}-3c3c3c?style=for-the-badge&labelColor=238636&color=3c3c3c)
+![${item.data?.subText || ""}](https://img.shields.io/badge/${subtitle}-3c3c3c?style=for-the-badge&labelColor=238636&color=3c3c3c)
 `;
-        }
-
-
-
+}
 
         /* ---------- BIO ---------- */
         if (block === "bio") {

@@ -1,9 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-export default function SimpleHeaderPreview({}){
-  const [textInput, setTextInput] = useState("");
-  const [subTextInput,setSubTextInput] = useState("");
+export default function SimpleHeaderPreview({
+  textInput,
+  setTextInput,
+  subTextInput,
+  setSubTextInput
+}) {
+ 
 
 
   return (

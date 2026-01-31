@@ -19,7 +19,7 @@ import SimpleHeaderPreview from "../components/previews/headers/SimpleHeaderPrev
 
 export default function Page() {
     const { data: session } = useSession();
-    
+
     const [canvasItems, setCanvasItems] = useState([]);
     const [readme, setReadme] = useState("");
     const [markdownPreview, setMarkdownPreview] = useState("");
@@ -27,8 +27,8 @@ export default function Page() {
     const [showHeaderPicker, setShowHeaderPicker] = useState(false);
     const token = session?.accessToken;
     const [markdown, setMarkdown] = useState([]);
-    const [userTextInput, setUserTextInput] = useState(`I am ${session?.username}`);
-    const [userSubTextInput, setUserSubTextInput] = useState("Developer");
+    const [userTextInput, setUserTextInput] = useState("");
+    const [userSubTextInput, setUserSubTextInput] = useState("");
 
 
 
@@ -53,11 +53,9 @@ export default function Page() {
     };
 
     useEffect(() => {
-        setMarkdown(generateMarkdown(canvasItems, userTextInput,userSubTextInput));
-        console.log(userTextInput)
-        console.log(userSubTextInput)
+        setMarkdown(generateMarkdown(canvasItems));
+    }, [canvasItems]);
 
-    }, [canvasItems, userTextInput,userSubTextInput])
 
     /* ---------------- FETCH README ---------------- */
     useEffect(() => {
@@ -154,8 +152,8 @@ export default function Page() {
             type: "header",
             variant,
             data: {
-                text: {userTextInput},
-                subText: {userSubTextInput},
+                text: "",
+                subText: "",
                 bannerUrl: "/headers/DragonBannerHeader.png",
             },
         };
@@ -197,7 +195,12 @@ export default function Page() {
                         readmeData={readme}
                         items={canvasItems}
                         setItems={setCanvasItems}
+                        userTextInput={userTextInput}
+                        userSubTextInput={userSubTextInput}
+                        setUserTextInput={setUserTextInput}
+                        setUserSubTextInput={setUserSubTextInput}
                     />
+
                 </div>
 
                 <HeaderVariantPicker

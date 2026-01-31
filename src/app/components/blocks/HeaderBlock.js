@@ -3,7 +3,7 @@ import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
 import SimpleHeaderPreview from "../previews/headers/SimpleHeaderPreview";
 import { useState } from "react";
 
-export default function HeaderBlock({ item,userTextInput,userSubTextInput,setUserSubTextInput,setUserTextInput }) {
+export default function HeaderBlock({ item, setItems }) {
   const { variant, data } = item;
 
   if (variant === "image") {
@@ -15,10 +15,26 @@ export default function HeaderBlock({ item,userTextInput,userSubTextInput,setUse
   }
 
   if (variant === "simple") {
-    const [text, setText] = useState("");
-    const [subText, setSubText] = useState("");
+    const updateHeaderField = (field, value) => {
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === item.id
+            ? { ...i, data: { ...i.data, [field]: value } }
+            : i
+        )
+      );
+    };
+
+
     return (
-      <SimpleHeaderPreview />
+      <SimpleHeaderPreview
+        textInput={item.data.text}
+        subTextInput={item.data.subText}
+        setTextInput={(val) => updateHeaderField("text", val)}
+        setSubTextInput={(val) => updateHeaderField("subText", val)}
+      />
+
+
     );
   }
 

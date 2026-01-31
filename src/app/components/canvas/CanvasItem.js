@@ -5,8 +5,9 @@ import { CSS } from "@dnd-kit/utilities";
 import ContributionGraph from "../blocks/ContributionGraph";
 import HeaderBlock from "../blocks/HeaderBlock";
 import BioBlock from "../blocks/BioBlock";
+import Page from "@/app/profile-builder/page";
 
-export default function CanvasItem({ item }) {
+export default function CanvasItem({ item,setItems, userSubTextInput, userTextInput, setUserSubTextInput, setUserTextInput }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
 
@@ -18,7 +19,12 @@ export default function CanvasItem({ item }) {
   const renderInner = () => {
     switch (item.type) {
       case "header":
-        return <HeaderBlock item={item} />;
+        return <HeaderBlock
+          item={item}
+          setItems={setItems}
+        />
+
+          ;
 
       case "bio":
         return <BioBlock item={item} />;
@@ -47,7 +53,7 @@ export default function CanvasItem({ item }) {
       style={style}
       {...attributes}
       {...listeners}
-      
+
     >
       {renderInner()}
     </div>

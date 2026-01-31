@@ -6,7 +6,12 @@ import CanvasItem from "./CanvasItem";
 import { useState } from "react";
 import { useEffect } from "react";
 import Navbar from "@/app/UI/home/Navbar";
-export default function Canvas({ items, setItems, readmeData }) {
+export default function Canvas({
+  readmeData,
+  items,
+  setItems,
+}) {
+
   const [readmeDataContent, setreadmeDataContent] = useState("");
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
 
@@ -14,11 +19,11 @@ export default function Canvas({ items, setItems, readmeData }) {
     setreadmeDataContent(readmeData);
   }, [readmeData]);
 
-  useEffect(()=>{
-    if(items.length > 0){
+  useEffect(() => {
+    if (items.length > 0) {
       setreadmeDataContent("");
     }
-  },[items]);
+  }, [items]);
 
   return (
     <div
@@ -33,7 +38,7 @@ export default function Canvas({ items, setItems, readmeData }) {
             readmeDataContent ? (
               <div className="flex gap-2">
                 <button onClick={() => setreadmeDataContent("")} className="bg-gray-700 text-white border-2 font-bold hover:bg-gray-800 cursor-pointer p-2 rounded-2xl">Create</button>
-                <button onClick={() => {setItems([]);setreadmeDataContent("");}} className="rounded-2xl w-20 bg-red-600 hover:bg-red-900 border-2 p-1 cursor-pointer">Clear</button>
+                <button onClick={() => { setItems([]); setreadmeDataContent(""); }} className="rounded-2xl w-20 bg-red-600 hover:bg-red-900 border-2 p-1 cursor-pointer">Clear</button>
               </div>
             ) : <button onClick={() => setItems([])} className="rounded-2xl w-20 bg-red-600 hover:bg-red-900 border-2 p-1 cursor-pointer">Clear</button>
           }
@@ -46,9 +51,9 @@ export default function Canvas({ items, setItems, readmeData }) {
           dangerouslySetInnerHTML={{ __html: readmeDataContent }}
         />
       ) : items?.length === 0 ? (
-        
+
         <div className="py-12 text-center text-gray-400">
-          Create Readme 
+          Create Readme
         </div>
       ) : null}
 
@@ -58,8 +63,12 @@ export default function Canvas({ items, setItems, readmeData }) {
         strategy={verticalListSortingStrategy}
       >
         {items.map((item) => (
-          <CanvasItem key={item.id} item={item} setItems={setItems} />
+          <CanvasItem
+            key={item.id}
+            item={item}
+            setItems={setItems}/>
         ))}
+
       </SortableContext>
     </div>
   );
