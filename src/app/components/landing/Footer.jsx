@@ -16,7 +16,7 @@ const columns = [
 export default function Footer() {
   return (
     <footer className="border-t border-white/10 bg-[#0b0d0f]">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-12 text-white/70 md:flex-row md:items-start md:justify-between">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-4 py-12 text-white/70 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-lg font-semibold text-white">GitHance</div>
           <p className="mt-3 max-w-xs text-sm text-white/60">

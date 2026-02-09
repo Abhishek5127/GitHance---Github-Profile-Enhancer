@@ -6,7 +6,7 @@ const stats = [
 
 export default function Highlights() {
   return (
-    <section id="product" className="mx-auto w-full max-w-6xl px-4 pb-20">
+    <section id="product" className="mx-auto w-full max-w-7xl px-4 pb-20">
       <div className="grid gap-6 rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 via-white/10 to-white/5 p-8 text-white md:grid-cols-[1.3fr_0.7fr]">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-white/40">Why GitHance</p>

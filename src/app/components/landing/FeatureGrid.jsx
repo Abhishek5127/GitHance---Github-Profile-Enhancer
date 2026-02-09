@@ -27,7 +27,7 @@ const cards = [
 
 export default function FeatureGrid() {
   return (
-    <section id="solutions" className="mx-auto w-full max-w-6xl px-4 pb-20">
+    <section id="solutions" className="mx-auto w-full max-w-7xl px-4 pb-20">
       <div className="flex items-end justify-between gap-6">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-white/40">Solutions</p>

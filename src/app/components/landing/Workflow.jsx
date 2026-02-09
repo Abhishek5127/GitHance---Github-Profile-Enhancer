@@ -15,7 +15,7 @@ const steps = [
 
 export default function Workflow() {
   return (
-    <section id="process" className="mx-auto w-full max-w-6xl px-4 pb-20">
+    <section id="process" className="mx-auto w-full max-w-7xl px-4 pb-20">
       <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
           <div>

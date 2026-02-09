@@ -15,7 +15,7 @@ export default function LandingNav() {
 
   return (
     <header className="relative z-30 w-full">
-      <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 pt-6">
+      <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 pt-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5">
             <span className="text-sm font-semibold text-white">GH</span>
