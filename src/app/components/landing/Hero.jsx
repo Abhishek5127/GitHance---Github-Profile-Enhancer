@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 const modes = [
   {
@@ -9,6 +10,12 @@ const modes = [
     title: "Design a GitHub profile that looks intentional.",
     copy: "Compose sections, tune colors, and ship a profile README that feels crafted, not copied.",
     detail: "Drag blocks, preview instantly, publish in one click.",
+    blocklist: [
+      { label: "Analyze Profile", path: "/profile" },
+      { label: "Get Profile data", path: "/profile" },
+      { label: "Analyze Repository", path: "/analyze" },
+    ],
+    colorPalette: ['green', 'yellow', 'blue']
   },
   {
     id: "readme",
@@ -16,6 +23,12 @@ const modes = [
     title: "Ship clean project docs without the scramble.",
     copy: "Generate README structure based on your repo and fill the gaps with focused prompts.",
     detail: "Installation, usage, and structure done right.",
+    blocklist: [
+      { label: "Analyze Profile", path: "/profile" },
+      { label: "Get Profile data", path: "/profile" },
+      { label: "Analyze Repositories", path: "/analyze" },
+    ],
+    colorPalette: ['green', 'yellow', 'blue']
   },
   {
     id: "insights",
@@ -23,11 +36,25 @@ const modes = [
     title: "See what matters inside any repository.",
     copy: "Surface key files, map structure, and understand codebases faster.",
     detail: "Perfect for audits, onboarding, and reviews.",
+    blocklist: [
+      { label: "Analyze Profile", path: "/profile" },
+      { label: "Get Profile data", path: "/profile" },
+      { label: "Analyze Repository", path: "/analyze" },
+    ],
+    colorPalette: ['green', 'yellow', 'blue']
   },
 ];
 
+const colorMap = {
+  green: "bg-green-500/15 text-green-400 border border-green-500/30",
+  yellow: "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30",
+  blue: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+};
+
+
 export default function Hero() {
   const [active, setActive] = useState(modes[0]);
+  const router = useRouter();
 
   return (
     <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-20 pt-16 text-white lg:grid-cols-[1.1fr_0.9fr]">
@@ -47,7 +74,7 @@ export default function Hero() {
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-4">
-          <button className="rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]">
+          <button onClick={() => { router.push('/profile-builder') }} className="rounded-full cursor-pointer bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]">
             Start building
           </button>
           <button className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
@@ -68,11 +95,10 @@ export default function Hero() {
             <button
               key={mode.id}
               onClick={() => setActive(mode)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                active.id === mode.id
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${active.id === mode.id
                   ? "bg-white text-black"
                   : "border border-white/15 text-white/70 hover:bg-white/10"
-              }`}
+                }`}
             >
               {mode.label}
             </button>
@@ -90,12 +116,24 @@ export default function Hero() {
             {active.detail}
           </div>
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <div className="h-10 rounded-lg bg-white/10" />
-            <div className="h-10 rounded-lg bg-white/10" />
-            <div className="h-10 rounded-lg bg-white/10" />
-            <div className="col-span-2 h-10 rounded-lg bg-white/10" />
-            <div className="h-10 rounded-lg bg-white/10" />
+            {active.blocklist?.map((item, index) => {
+              const colorKey = active.colorPalette?.[index] || "blue";
+
+              return (
+                <div
+                  onClick={() => {
+                    if (item.path) router.push(item.path);
+                  }}
+                  key={index}
+                  className={`h-10 flex items-center justify-center rounded-lg text-xs font-semibold cursor-pointer transition hover:scale-[1.02]
+        ${colorMap[colorKey]}`}
+                >
+                  {item.label}
+                </div>
+              );
+            })}
           </div>
+
         </div>
       </div>
     </section>
