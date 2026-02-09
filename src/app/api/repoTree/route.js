@@ -19,6 +19,7 @@ export async function POST(req) {
         { status: 401 }
       );
     }
+    
 
     const headers = {
       Authorization: `Bearer ${authToken}`,
