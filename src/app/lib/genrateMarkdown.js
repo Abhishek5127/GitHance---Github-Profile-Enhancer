@@ -58,7 +58,7 @@ export default function generateMarkdown(canvasItems) {
       return window.location.origin;
     }
 
-    return "http://localhost:3000";
+    return "https://githance.vercel.app";
   };
 
   canvasItems.forEach((item) => {
