@@ -1,27 +1,27 @@
-
 import getRelevantFiles from "@/app/lib/repo/getRelevantFiles";
-import { error } from "console";
-import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { NextResponse } from "next/server";
 
+export async function POST(req) {
+  try {
+    const { tree } = await req.json();
 
-export async function POST() {
-
-    try {
-        const { reponame } = await req.json();
-        if (!reponame) {
-            return Response.json(
-                { error: "Missing Parameters" },
-                { status: 404 })
-        }
-        getRelevantFiles({ reponame });
-
+    if (!Array.isArray(tree)) {
+      return NextResponse.json(
+        { error: "Missing or invalid tree array" },
+        { status: 400 }
+      );
     }
 
+    const relevantFiles = getRelevantFiles(tree);
 
-    catch {
-
-    }
-
-
+    return NextResponse.json({
+      success: true,
+      files: relevantFiles,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err?.message || "Server error" },
+      { status: 500 }
+    );
+  }
 }
