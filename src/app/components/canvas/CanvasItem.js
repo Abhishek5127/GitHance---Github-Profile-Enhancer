@@ -5,9 +5,9 @@ import { CSS } from "@dnd-kit/utilities";
 import ContributionGraph from "../blocks/ContributionGraph";
 import HeaderBlock from "../blocks/HeaderBlock";
 import BioBlock from "../BioBlock";
-import Page from "@/app/profile-builder/page";
+import TechStackBlock from "../blocks/TechStackBlock";
 
-export default function CanvasItem({ item,setItems, userSubTextInput, userTextInput, setUserSubTextInput, setUserTextInput }) {
+export default function CanvasItem({ item, setItems }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
 
@@ -19,22 +19,13 @@ export default function CanvasItem({ item,setItems, userSubTextInput, userTextIn
   const renderInner = () => {
     switch (item.type) {
       case "header":
-        return <HeaderBlock
-          item={item}
-          setItems={setItems}
-        />
-
-          ;
+        return <HeaderBlock item={item} setItems={setItems} />;
 
       case "bio":
-        return <BioBlock item={item} />;
+        return <BioBlock item={item} setItems={setItems} />;
 
       case "skills":
-        return (
-          <div>
-            <strong>Tech stack:</strong> React · Node.js · Python
-          </div>
-        );
+        return <TechStackBlock item={item} setItems={setItems} />;
 
       case "commits":
         return <div>Commit Graph</div>;
@@ -48,13 +39,7 @@ export default function CanvasItem({ item,setItems, userSubTextInput, userTextIn
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-
-    >
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       {renderInner()}
     </div>
   );

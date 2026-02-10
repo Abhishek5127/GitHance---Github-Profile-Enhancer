@@ -1,4 +1,4 @@
-"use client"
+
 import getRelevantFiles from "@/app/lib/repo/getRelevantFiles";
 import { error } from "console";
 import { useSession } from "next-auth/react";
