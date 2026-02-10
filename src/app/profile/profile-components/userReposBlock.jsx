@@ -10,7 +10,7 @@ const UserReposBlock = ({ userRepos, loading }) => {
           <h2 className="mt-3 text-2xl font-semibold text-white">Recent activity</h2>
         </div>
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
-          {loading ? "Loading" : `${userRepos?.length || 0} total`}
+          {loading ? "Loading..." : `${userRepos?.length || 0} total`}
         </span>
       </div>
 

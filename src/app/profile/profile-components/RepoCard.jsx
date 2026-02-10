@@ -13,7 +13,7 @@ const RepoCard = ({ repo }) => {
     <button
       type="button"
       onClick={() => onRepoClick(repo.name)}
-      className="group flex h-full flex-col rounded-2xl border border-white/10 bg-[#0f1115] p-4 text-left text-white/80 transition hover:-translate-y-1 hover:border-white/20"
+      className="group cursor-pointer flex h-full flex-col rounded-2xl border border-white/10 bg-[#0f1115] p-4 text-left text-white/80 transition hover:-translate-y-1 hover:border-white/20"
     >
       <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/40">
         <span>Repository</span>

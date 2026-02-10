@@ -38,7 +38,7 @@ export default function Profile() {
     };
 
     getUserData();
-  }, [session, status]);
+  }, [status]);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -66,7 +66,7 @@ export default function Profile() {
     };
 
     getRepoData();
-  }, [session, status]);
+  }, [status]);
 
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">

@@ -24,7 +24,7 @@ const modes = [
     copy: "Generate README structure based on your repo and fill the gaps with focused prompts.",
     detail: "Installation, usage, and structure done right.",
     blocklist: [
-      { label: "Analyze Profile", path: "/profile" },
+      { label: "Build Readme", path: "profile-builder" },
       { label: "Get Profile data", path: "/profile" },
       { label: "Analyze Repositories", path: "/analyze" },
     ],
