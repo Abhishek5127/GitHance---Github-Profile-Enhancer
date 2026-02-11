@@ -14,11 +14,11 @@ export default function SignatureHeaderPreview({ name, role, theme }) {
   )}&descAlignY=60`;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+    <div className="overflow-hidden border border-white/10 bg-white/5 p-1">
       <img
         src={src}
         alt="Header preview"
-        className="w-full rounded-xl"
+        className="block w-full"
       />
     </div>
   );

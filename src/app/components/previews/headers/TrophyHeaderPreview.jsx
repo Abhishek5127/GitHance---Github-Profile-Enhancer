@@ -13,9 +13,9 @@ export default function TrophyHeaderPreview({ title, achievements, theme, column
   });
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-      <div className="rounded-xl border border-white/10 bg-[#0f1115] p-4">
-        <img src={src} alt="Achievements showcase" className="w-full" />
+    <div className="overflow-hidden border border-white/10 bg-white/5 p-1">
+      <div className="overflow-hidden border border-white/10 bg-[#0f1115] p-1">
+        <img src={src} alt="Achievements showcase" className="block w-full" />
       </div>
     </div>
   );

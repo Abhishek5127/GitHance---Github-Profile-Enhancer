@@ -50,12 +50,22 @@ export default function generateMarkdown(canvasItems) {
   };
 
   const resolveBaseUrl = () => {
-    if (process.env.NEXT_PUBLIC_APP_URL) {
-      return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (envUrl) {
+      return envUrl.replace(/\/$/, "");
     }
 
-    if (typeof window !== "undefined" && window.location?.origin) {
-      return window.location.origin;
+    if (typeof window !== "undefined") {
+      const origin = window.location.origin.replace(/\/$/, "");
+      const host = window.location.hostname;
+      const isLocal =
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        host === "::1";
+
+      if (!isLocal) {
+        return origin;
+      }
     }
 
     return "https://githance.vercel.app";

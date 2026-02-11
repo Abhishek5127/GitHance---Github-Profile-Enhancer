@@ -5,10 +5,13 @@ import { PROFILE_TEMPLATES } from "../../lib/profileTemplates";
 
 export default function Sidebar({ onSelectBlock }) {
   return (
-    <aside className="w-72 p-4 bg-[#0d1117] text-white border-r border-[#222629]">
-      <h3 className="font-semibold mb-4">Components</h3>
+    <aside className="w-72 border-r border-white/10 bg-[#0d1117] p-4 text-white">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+        <p className="text-xs uppercase tracking-[0.25em] text-white/40">Blocks</p>
+        <h3 className="mt-2 text-lg font-semibold">Components</h3>
+      </div>
 
-      <div className="space-y-2">
+      <div className="mt-4 space-y-2">
         {PROFILE_TEMPLATES.map((t) => (
           <TemplateItem
             key={t.id}
@@ -18,7 +21,7 @@ export default function Sidebar({ onSelectBlock }) {
         ))}
       </div>
 
-      <p className="mt-6 text-xs text-gray-400">
+      <p className="mt-6 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
         Click a component to choose its style and customize it.
       </p>
     </aside>

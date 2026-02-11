@@ -13,9 +13,9 @@ export default function AchievementHeaderPreview({ name, role, achievements, acc
   const src = `https://readme-typing-svg.demolab.com/?lines=${lines}&font=Fira%20Code&center=true&width=700&height=50&color=${accentColor}&vCenter=true&pause=900&size=28`;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-      <div className="rounded-xl border border-white/10 bg-[#0f1115] p-4">
-        <img src={src} alt="Achievements header" className="w-full" />
+    <div className="overflow-hidden border border-white/10 bg-white/5 p-1">
+      <div className="overflow-hidden border border-white/10 bg-[#0f1115] p-1">
+        <img src={src} alt="Achievements header" className="block w-full" />
       </div>
     </div>
   );

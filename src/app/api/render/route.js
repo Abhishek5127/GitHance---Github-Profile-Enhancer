@@ -6,6 +6,9 @@ import {
 } from "@/app/lib/generateBlockSvg";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
 
@@ -40,7 +43,7 @@ export async function GET(request) {
   return new NextResponse(svg, {
     headers: {
       "Content-Type": "image/svg+xml",
-      "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+      "Cache-Control": "no-store, max-age=0",
     },
   });
 }

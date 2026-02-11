@@ -17,8 +17,8 @@ export default function RenderHeaderPreview({ variant, name, subtitle, accents, 
   });
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0f1115] p-3">
-      <img src={src} alt="Header preview" className="w-full" />
+    <div className="overflow-hidden border border-white/10 bg-[#0f1115] p-1">
+      <img src={src} alt="Header preview" className="block w-full" />
     </div>
   );
 }

@@ -10,15 +10,16 @@ export default function TemplateItem({ template, onSelect }) {
       onClick={() => onSelect(template.id)}
       className="
         w-full text-left
-        p-3 rounded
-        bg-[#111418]
-        hover:bg-[#16191d]
+        p-3 rounded-2xl
+        border border-white/10
+        bg-white/5
+        hover:bg-white/10
         transition
         cursor-pointer
         select-none
       "
     >
-      <div className="text-sm font-medium text-white">
+      <div className="text-sm font-medium text-white/90">
         {template.title}
       </div>
     </button>

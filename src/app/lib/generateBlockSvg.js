@@ -31,12 +31,15 @@ const escapeXml = (value) =>
     .replace(/'/g, "&apos;");
 
 const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+const RENDER_VERSION = "rect-v2";
+const normalizeRadius = () => 0;
 
 export function buildRenderUrl({ baseUrl = "", type, variant, params = {} }) {
   const origin = String(baseUrl || "").replace(/\/$/, "");
   const search = new URLSearchParams();
   search.set("type", type);
   search.set("variant", variant);
+  search.set("v", RENDER_VERSION);
 
   Object.entries(params).forEach(([key, value]) => {
     if (Array.isArray(value)) {
@@ -49,12 +52,22 @@ export function buildRenderUrl({ baseUrl = "", type, variant, params = {} }) {
   return `${origin}/api/render?${search.toString()}`;
 }
 
-export function generateHeaderSvg({ variant, name, subtitle, accents = [], theme = "midnight" }) {
+export function generateHeaderSvg({
+  variant,
+  name,
+  subtitle,
+  accents = [],
+  theme = "midnight",
+  radius = 0,
+}) {
   const palette = RENDER_THEMES[theme] || RENDER_THEMES.midnight;
   const title = escapeXml(name || "Your Name");
   const sub = escapeXml(subtitle || "Building thoughtful software");
   const width = 900;
   const height = 180;
+  const outerRadius = normalizeRadius(radius, 0);
+  const panelRadius = clamp(outerRadius - 4, 0, 32);
+  const innerRadius = clamp(outerRadius - 10, 0, 24);
 
   if (variant === "constellation") {
     const dots = Array.from({ length: 18 }).map((_, i) => {
@@ -65,7 +78,7 @@ export function generateHeaderSvg({ variant, name, subtitle, accents = [], theme
 
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <g opacity="0.7">${dots.join("")}</g>
   <text x="50%" y="50%" text-anchor="middle" font-size="32" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${title}</text>
   <text x="50%" y="68%" text-anchor="middle" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
@@ -75,7 +88,7 @@ export function generateHeaderSvg({ variant, name, subtitle, accents = [], theme
   if (variant === "signal") {
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <path d="M40 120 Q90 90 140 120 T240 120 T340 120 T440 120 T540 120 T640 120 T740 120 T860 120" stroke="${palette.accent}" stroke-width="4" fill="none" />
   <text x="60" y="70" font-size="30" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${title}</text>
   <text x="60" y="100" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
@@ -86,8 +99,8 @@ export function generateHeaderSvg({ variant, name, subtitle, accents = [], theme
     const lines = [title, sub, ...(accents || []).slice(0, 2).map(escapeXml)];
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="24" fill="${palette.panel}" />
-  <rect x="20" y="20" width="${width - 40}" height="${height - 40}" rx="18" fill="#0f1115" stroke="${palette.subtext}" stroke-opacity="0.3" />
+  <rect width="100%" height="100%" rx="${panelRadius}" fill="${palette.panel}" />
+  <rect x="20" y="20" width="${width - 40}" height="${height - 40}" rx="${innerRadius}" fill="#0f1115" stroke="${palette.subtext}" stroke-opacity="0.3" />
   <text x="50" y="60" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">$ githance --profile</text>
   ${lines
     .map((line, index) => {
@@ -101,9 +114,9 @@ export function generateHeaderSvg({ variant, name, subtitle, accents = [], theme
   if (variant === "stacked") {
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
-  <rect x="30" y="30" width="${width - 60}" height="60" rx="20" fill="${palette.panel}" />
-  <rect x="30" y="100" width="${width - 60}" height="50" rx="18" fill="${palette.accent}" fill-opacity="0.2" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
+  <rect x="30" y="30" width="${width - 60}" height="60" rx="${panelRadius}" fill="${palette.panel}" />
+  <rect x="30" y="100" width="${width - 60}" height="50" rx="${innerRadius}" fill="${palette.accent}" fill-opacity="0.2" />
   <text x="50" y="70" font-size="28" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${title}</text>
   <text x="50" y="132" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
 </svg>`;
@@ -111,29 +124,39 @@ export function generateHeaderSvg({ variant, name, subtitle, accents = [], theme
 
   return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <text x="50%" y="50%" text-anchor="middle" font-size="32" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${title}</text>
 </svg>`;
 }
 
-export function generateBioSvg({ variant, title, summary, chips = [], theme = "midnight" }) {
+export function generateBioSvg({
+  variant,
+  title,
+  summary,
+  chips = [],
+  theme = "midnight",
+  radius = 0,
+}) {
   const palette = RENDER_THEMES[theme] || RENDER_THEMES.midnight;
   const width = 900;
   const height = 220;
   const safeChips = chips.filter(Boolean).slice(0, 5);
+  const outerRadius = normalizeRadius(radius, 0);
+  const panelRadius = clamp(outerRadius - 6, 0, 18);
+  const chipRadius = clamp(outerRadius - 10, 0, 16);
 
   if (variant === "badge") {
     const chipRow = safeChips
       .map((chip, index) => {
         const x = 30 + index * 170;
-        return `<rect x="${x}" y="150" width="150" height="32" rx="16" fill="${palette.panel}" />
+        return `<rect x="${x}" y="150" width="150" height="32" rx="${chipRadius}" fill="${palette.panel}" />
         <text x="${x + 16}" y="170" font-size="12" fill="${palette.text}" font-family="Inter, sans-serif">${escapeXml(chip)}</text>`;
       })
       .join("");
 
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <text x="30" y="60" font-size="24" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${escapeXml(
     title
   )}</text>
@@ -157,7 +180,7 @@ export function generateBioSvg({ variant, title, summary, chips = [], theme = "m
 
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <text x="30" y="50" font-size="22" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${escapeXml(
     title
   )}</text>
@@ -171,9 +194,9 @@ export function generateBioSvg({ variant, title, summary, chips = [], theme = "m
   if (variant === "spotlight") {
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
-  <rect x="30" y="40" width="340" height="140" rx="18" fill="${palette.panel}" />
-  <rect x="410" y="40" width="460" height="140" rx="18" fill="${palette.panel}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
+  <rect x="30" y="40" width="340" height="140" rx="${panelRadius}" fill="${palette.panel}" />
+  <rect x="410" y="40" width="460" height="140" rx="${panelRadius}" fill="${palette.panel}" />
   <text x="60" y="80" font-size="18" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${escapeXml(
     title
   )}</text>
@@ -194,18 +217,21 @@ export function generateBioSvg({ variant, title, summary, chips = [], theme = "m
 
   return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <text x="30" y="60" font-size="22" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${escapeXml(
     title
   )}</text>
 </svg>`;
 }
 
-export function generateStackSvg({ variant, stack = [], theme = "midnight" }) {
+export function generateStackSvg({ variant, stack = [], theme = "midnight", radius = 0 }) {
   const palette = RENDER_THEMES[theme] || RENDER_THEMES.midnight;
   const safeStack = stack.filter(Boolean);
   const width = 900;
   const height = 180;
+  const outerRadius = normalizeRadius(radius, 0);
+  const panelRadius = clamp(outerRadius - 8, 0, 14);
+  const barRadius = clamp(outerRadius - 12, 0, 8);
 
   if (variant === "grid") {
     const cols = 4;
@@ -219,7 +245,7 @@ export function generateStackSvg({ variant, stack = [], theme = "midnight" }) {
       const x = padding + col * (cardWidth + gap);
       const y = 40 + row * 60;
 
-      return `<rect x="${x}" y="${y}" width="${cardWidth}" height="44" rx="14" fill="${palette.panel}" />
+      return `<rect x="${x}" y="${y}" width="${cardWidth}" height="44" rx="${panelRadius}" fill="${palette.panel}" />
       <text x="${x + 16}" y="${y + 28}" font-size="12" fill="${palette.text}" font-family="Inter, sans-serif">${escapeXml(
         tech
       )}</text>`;
@@ -227,7 +253,7 @@ export function generateStackSvg({ variant, stack = [], theme = "midnight" }) {
 
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <text x="30" y="28" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">Tech Stack</text>
   ${cards.join("")}
 </svg>`;
@@ -249,7 +275,7 @@ export function generateStackSvg({ variant, stack = [], theme = "midnight" }) {
 
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <circle cx="${centerX}" cy="${centerY}" r="50" stroke="${palette.subtext}" stroke-opacity="0.3" fill="none" />
   <circle cx="${centerX}" cy="${centerY}" r="18" fill="${palette.panel}" />
   <text x="${centerX}" y="${centerY + 4}" text-anchor="middle" font-size="10" fill="${palette.text}" font-family="Inter, sans-serif">Stack</text>
@@ -267,7 +293,7 @@ export function generateStackSvg({ variant, stack = [], theme = "midnight" }) {
       const height = 80 + (index % 3) * 15;
       const y = 60 - (index % 3) * 15;
 
-      return `<rect x="${x}" y="${y}" width="30" height="${height}" rx="8" fill="${palette.panel}" />
+      return `<rect x="${x}" y="${y}" width="30" height="${height}" rx="${barRadius}" fill="${palette.panel}" />
       <text x="${x + 40}" y="${y + 18}" font-size="10" fill="${palette.text}" font-family="Inter, sans-serif">${escapeXml(
         tech
       )}</text>`;
@@ -275,7 +301,7 @@ export function generateStackSvg({ variant, stack = [], theme = "midnight" }) {
 
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <text x="30" y="30" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">Tech Stack</text>
   ${bars.join("")}
 </svg>`;
@@ -283,7 +309,7 @@ export function generateStackSvg({ variant, stack = [], theme = "midnight" }) {
 
   return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
   <text x="30" y="60" font-size="16" fill="${palette.text}" font-family="Inter, sans-serif">${escapeXml(
     safeStack.join(", ")
   )}</text>
@@ -295,9 +321,13 @@ export function generateTrophySvg({
   achievements = [],
   columns = 4,
   theme = "midnight",
+  radius = 0,
 }) {
   const palette = RENDER_THEMES[theme] || RENDER_THEMES.midnight;
   const safeAchievements = achievements.filter(Boolean);
+  const outerRadius = normalizeRadius(radius, 0);
+  const panelRadius = clamp(outerRadius - 6, 0, 24);
+  const cardRadius = clamp(outerRadius - 10, 0, 18);
   const colCount = clamp(Number(columns) || 4, 2, 5);
   const gap = 16;
   const padding = 24;
@@ -317,7 +347,7 @@ export function generateTrophySvg({
 
       return `
       <g>
-        <rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="18" fill="${palette.panel}" />
+        <rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="${cardRadius}" fill="${palette.panel}" />
         <circle cx="${x + 28}" cy="${y + 30}" r="14" fill="${palette.accent}" />
         <text x="${x + 28}" y="${y + 35}" font-size="16" text-anchor="middle" fill="#0b0d0f" font-family="Inter, sans-serif">*</text>
         <text x="${x + 20}" y="${y + 70}" font-size="14" fill="${palette.text}" font-family="Inter, sans-serif">
@@ -329,8 +359,8 @@ export function generateTrophySvg({
 
   return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" rx="28" fill="${palette.bg}" />
-  <rect x="12" y="12" width="${width - 24}" height="${height - 24}" rx="22" fill="none" stroke="${palette.panel}" />
+  <rect width="100%" height="100%" rx="${outerRadius}" fill="${palette.bg}" />
+  <rect x="12" y="12" width="${width - 24}" height="${height - 24}" rx="${panelRadius}" fill="none" stroke="${palette.panel}" />
   <text x="${padding}" y="${padding + 16}" font-size="20" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">
     ${escapeXml(title)}
   </text>

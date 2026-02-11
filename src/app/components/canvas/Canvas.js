@@ -5,11 +5,11 @@ import { useDroppable } from "@dnd-kit/core";
 import CanvasItem from "./CanvasItem";
 import { useState } from "react";
 import { useEffect } from "react";
-import Navbar from "@/app/UI/home/Navbar";
 export default function Canvas({
   readmeData,
   items,
   setItems,
+  onEditItem,
 }) {
 
   const [readmeDataContent, setreadmeDataContent] = useState("");
@@ -28,20 +28,38 @@ export default function Canvas({
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-[600px] p-4 relative rounded border-dashed border ${isOver ? "border-blue-500 bg-blue-50/10" : "border-gray-700 bg-white/2"
-        }`}
+      className={`relative min-h-[600px] border border-dashed p-2 ${
+        isOver ? "border-cyan-400 bg-[#101722]" : "border-white/15 bg-[#0d1117]"
+      }`}
     >
-      <div className="h-15">
-
-        <div className=" absolute right-1 top-1 mb-3 flex gap-2">
-          {
-            readmeDataContent ? (
-              <div className="flex gap-2">
-                <button onClick={() => setreadmeDataContent("")} className="bg-gray-700 text-white border-2 font-bold hover:bg-gray-800 cursor-pointer p-2 rounded-2xl">Create</button>
-                <button onClick={() => { setItems([]); setreadmeDataContent(""); }} className="rounded-2xl w-20 bg-red-600 hover:bg-red-900 border-2 p-1 cursor-pointer">Clear</button>
-              </div>
-            ) : <button onClick={() => setItems([])} className="rounded-2xl w-20 bg-red-600 hover:bg-red-900 border-2 p-1 cursor-pointer">Clear</button>
-          }
+      <div className="h-14">
+        <div className="absolute right-3 top-3 mb-3 flex gap-2">
+          {readmeDataContent ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setreadmeDataContent("")}
+                className="cursor-pointer rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+              >
+                Create
+              </button>
+              <button
+                onClick={() => {
+                  setItems([]);
+                  setreadmeDataContent("");
+                }}
+                className="cursor-pointer rounded-full border border-red-500/40 bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/30"
+              >
+                Clear
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setItems([])}
+              className="cursor-pointer rounded-full border border-red-500/40 bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/30"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
       {/* README SECTION */}
@@ -52,7 +70,7 @@ export default function Canvas({
         />
       ) : items?.length === 0 ? (
 
-        <div className="py-12 text-center text-gray-400">
+        <div className="py-14 text-center text-sm text-white/50">
           Create Readme
         </div>
       ) : null}
@@ -66,7 +84,9 @@ export default function Canvas({
           <CanvasItem
             key={item.id}
             item={item}
-            setItems={setItems}/>
+            setItems={setItems}
+            onEditItem={onEditItem}
+          />
         ))}
 
       </SortableContext>
