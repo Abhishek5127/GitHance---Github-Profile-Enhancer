@@ -11,8 +11,12 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
 
+  const normalizedTransform = transform
+    ? { ...transform, scaleX: 1, scaleY: 1 }
+    : null;
+
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Transform.toString(normalizedTransform),
     transition,
   };
 
@@ -51,7 +55,13 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="relative mb-1" {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative mb-1 w-full"
+      {...attributes}
+      {...listeners}
+    >
       <div className="absolute right-3 top-3 z-20 flex gap-2">
         <button
           onPointerDown={(e) => e.stopPropagation()}

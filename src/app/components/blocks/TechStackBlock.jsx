@@ -39,7 +39,7 @@ export default function TechStackBlock({ item, setItems }) {
   });
 
   return (
-    <div className="w-full border border-white/10 bg-white/5 p-3 text-white">
+    <div className="w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs uppercase tracking-[0.3em] text-white/40">Tech Stack</div>
         <div className="flex gap-2">
@@ -68,11 +68,11 @@ export default function TechStackBlock({ item, setItems }) {
         value={stack.join(", ")}
         onChange={(e) => updateStack(e.target.value)}
         placeholder="Next.js, React, Node.js, Tailwind CSS"
-        className="mt-3 w-full rounded-xl border border-white/10 bg-[#0f1115] px-3 py-2 text-sm text-white focus:outline-none"
+        className="mt-2 w-full rounded-xl border border-white/10 bg-[#0f1115] px-3 py-2 text-sm text-white focus:outline-none"
       />
 
-      <div className="mt-3 overflow-hidden border border-white/10 bg-[#0f1115] p-1">
-        <img src={previewSrc} alt="Tech stack preview" className="block w-full" />
+      <div className="mt-2 h-[120px] overflow-hidden rounded-lg border border-white/10 bg-[#0f1115] p-1">
+        <img src={previewSrc} alt="Tech stack preview" className="block h-full w-full object-cover" />
       </div>
     </div>
   );

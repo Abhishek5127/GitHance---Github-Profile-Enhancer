@@ -12,7 +12,7 @@ function SimpleBadgeHeader({ item }) {
   const subheadingColor = item.data?.subcolor || "#373d35";
 
   return (
-    <div className="border border-white/10 bg-[#0f1115] p-2">
+    <div className="rounded-xl border border-white/10 bg-[#0f1115] p-1.5">
       <div className="flex flex-col gap-2">
         <span
           className="inline-block w-fit rounded px-3 py-1 text-sm font-semibold text-black"
@@ -36,8 +36,8 @@ export default function HeaderBlock({ item }) {
 
   if (variant === "image") {
     return (
-      <div className="overflow-hidden border border-white/10">
-        <ImageHeaderPreview name={item.data?.customName || "Your Name"} />
+      <div className="overflow-hidden rounded-xl border border-white/10">
+        <ImageHeaderPreview name={item.data?.customName || "Your Name"} compact />
       </div>
     );
   }
@@ -52,6 +52,7 @@ export default function HeaderBlock({ item }) {
         name={item.data?.signatureName}
         role={item.data?.signatureRole}
         theme={item.data?.signatureTheme}
+        compact
       />
     );
   }
@@ -63,6 +64,7 @@ export default function HeaderBlock({ item }) {
         role={item.data?.achievementRole}
         achievements={item.data?.achievementList}
         accent={item.data?.achievementAccent}
+        compact
       />
     );
   }
@@ -74,6 +76,7 @@ export default function HeaderBlock({ item }) {
         achievements={item.data?.trophyList}
         theme={item.data?.trophyTheme}
         columns={item.data?.trophyColumns}
+        compact
       />
     );
   }
@@ -86,6 +89,7 @@ export default function HeaderBlock({ item }) {
         subtitle={item.data?.customSubtitle}
         accents={item.data?.customAccents}
         theme={item.data?.customTheme}
+        compact
       />
     );
   }

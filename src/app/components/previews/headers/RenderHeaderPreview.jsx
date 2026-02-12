@@ -2,7 +2,14 @@
 
 import { buildRenderUrl } from "@/app/lib/generateBlockSvg";
 
-export default function RenderHeaderPreview({ variant, name, subtitle, accents, theme }) {
+export default function RenderHeaderPreview({
+  variant,
+  name,
+  subtitle,
+  accents,
+  theme,
+  compact = false,
+}) {
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
   const src = buildRenderUrl({
     baseUrl,
@@ -17,8 +24,16 @@ export default function RenderHeaderPreview({ variant, name, subtitle, accents, 
   });
 
   return (
-    <div className="overflow-hidden border border-white/10 bg-[#0f1115] p-1">
-      <img src={src} alt="Header preview" className="block w-full" />
+    <div
+      className={`overflow-hidden rounded-xl border border-white/10 bg-[#0f1115] p-1 ${
+        compact ? "h-[150px]" : ""
+      }`}
+    >
+      <img
+        src={src}
+        alt="Header preview"
+        className={`block w-full ${compact ? "h-full object-contain" : ""}`}
+      />
     </div>
   );
 }

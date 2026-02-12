@@ -37,7 +37,7 @@ export default function BioBlock({ item, setItems }) {
   });
 
   return (
-    <div className="w-full border border-white/10 bg-white/5 p-3 text-white">
+    <div className="w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs uppercase tracking-[0.3em] text-white/40">Short Bio</div>
         <div className="flex gap-2">
@@ -62,7 +62,7 @@ export default function BioBlock({ item, setItems }) {
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2">
+      <div className="mt-2 grid gap-2">
         <input
           value={data.title}
           onChange={(e) => updateField("title", e.target.value)}
@@ -89,8 +89,8 @@ export default function BioBlock({ item, setItems }) {
         </div>
       </div>
 
-      <div className="mt-3 overflow-hidden border border-white/10 bg-[#0f1115] p-1">
-        <img src={previewSrc} alt="Bio preview" className="block w-full" />
+      <div className="mt-2 h-[120px] overflow-hidden rounded-lg border border-white/10 bg-[#0f1115] p-1">
+        <img src={previewSrc} alt="Bio preview" className="block h-full w-full object-cover" />
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { assets } from "@/app/assets/assets";
 import { generateHeaderSvg } from "@/app/lib/generateHeaderSvg";
 
-export default function ImageHeaderPreview({name}) {
+export default function ImageHeaderPreview({ name, compact = false }) {
   
   function exportSvg() {
     const svg = generateHeaderSvg({
@@ -16,7 +16,9 @@ export default function ImageHeaderPreview({name}) {
   return (
     <div
       onClick={exportSvg}
-      className="relative w-full rounded border border-white/10 bg-[#0b0d0f] overflow-hidden cursor-pointer"
+      className={`relative w-full cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-[#0b0d0f] ${
+        compact ? "h-[150px]" : ""
+      }`}
       title="Click to export SVG"
     >
       {/* Preview-only overlay (NOT exported) */}
@@ -30,7 +32,7 @@ export default function ImageHeaderPreview({name}) {
         alt="Dragon Banner"
         width={1600}
         height={400}
-        className="w-full h-auto"
+        className={compact ? "h-full w-full object-cover" : "w-full h-auto"}
         priority
       />
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-export default function SignatureHeaderPreview({ name, role, theme }) {
+export default function SignatureHeaderPreview({ name, role, theme, compact = false }) {
   const safeName = name || "Your Name";
   const safeRole = role || "Building thoughtful software";
   const safeTheme = theme || "gradient";
@@ -14,11 +14,15 @@ export default function SignatureHeaderPreview({ name, role, theme }) {
   )}&descAlignY=60`;
 
   return (
-    <div className="overflow-hidden border border-white/10 bg-white/5 p-1">
+    <div
+      className={`overflow-hidden rounded-xl border border-white/10 bg-white/5 p-1 ${
+        compact ? "h-[150px]" : ""
+      }`}
+    >
       <img
         src={src}
         alt="Header preview"
-        className="block w-full"
+        className={`block w-full ${compact ? "h-full object-contain" : ""}`}
       />
     </div>
   );

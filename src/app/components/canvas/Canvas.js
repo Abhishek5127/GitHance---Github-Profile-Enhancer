@@ -28,7 +28,7 @@ export default function Canvas({
   return (
     <div
       ref={setNodeRef}
-      className={`relative min-h-[600px] border border-dashed p-2 ${
+      className={`relative min-h-[600px] rounded-2xl border border-dashed p-1.5 ${
         isOver ? "border-cyan-400 bg-[#101722]" : "border-white/15 bg-[#0d1117]"
       }`}
     >
