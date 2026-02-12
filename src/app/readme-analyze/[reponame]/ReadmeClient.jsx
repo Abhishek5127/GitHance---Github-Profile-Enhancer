@@ -23,14 +23,17 @@ export default function ReadmeClient({ reponame }) {
       try {
         setLoading(true);
         const username = session.username;
+        const token = session?.accessToken;
 
         const res = await fetch("/api/repoTree", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, reponame }),
+          body: JSON.stringify({ username, reponame, token }),
+          
         });
 
         const data = await res.json();
+        console.log(data)
 
         if (!res.ok) {
           throw new Error(data?.error || "Failed to fetch repository tree");
@@ -48,7 +51,7 @@ export default function ReadmeClient({ reponame }) {
     fetchRepoTree();
   }, [status, session?.username, reponame]);
 
-  const relevantFiles = getRelevantFiles(repoTree, { maxFiles: 120 });
+  const relevantFiles = getRelevantFiles(repoTree, { maxFiles: 150 });
 
   if (status === "loading" || loading) return <p className="p-4">Loading repo tree...</p>;
   if (status !== "authenticated") return <p className="p-4">Sign in required.</p>;

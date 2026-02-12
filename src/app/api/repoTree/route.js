@@ -11,11 +11,11 @@ export async function POST(req) {
     }
 
     // 2️⃣ Token (prefer user token, fallback to env)
-    const authToken = token || process.env.GITHUB_TOKEN;
+    const authToken = token;
 
     if (!authToken) {
       return Response.json(
-        { error: "GitHub access token missing" },
+        { error: "Auth Token missing, Login Again" },
         { status: 401 }
       );
     }
