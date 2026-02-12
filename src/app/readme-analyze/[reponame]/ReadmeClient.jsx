@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import ReadmeBlock from "../readme-analyze-components/ReadmeBlock";
 import getRelevantFiles from "@/app/lib/repo/getRelevantFiles";
-import detectAndGroupProjects from "@/app/lib/repo/detectGroupProjects";
 
 
 export default function ReadmeClient({ reponame }) {
@@ -13,13 +12,17 @@ export default function ReadmeClient({ reponame }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status === "unauthenticated") {
+      setLoading(false);
+      return;
+    }
+
+    if (status !== "authenticated" || !session?.username || !reponame) return;
 
     const fetchRepoTree = async () => {
       try {
+        setLoading(true);
         const username = session.username;
-
-
 
         const res = await fetch("/api/repoTree", {
           method: "POST",
@@ -28,22 +31,27 @@ export default function ReadmeClient({ reponame }) {
         });
 
         const data = await res.json();
-        setRepoTree(data.tree || []);
+
+        if (!res.ok) {
+          throw new Error(data?.error || "Failed to fetch repository tree");
+        }
+
+        setRepoTree(Array.isArray(data?.tree) ? data.tree : []);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch repo tree:", err);
+        setRepoTree([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchRepoTree();
-  }, [status, session]);
+  }, [status, session?.username, reponame]);
 
-  const relevantFiles = getRelevantFiles(repoTree);
-  const groupData = detectAndGroupProjects(repoTree);
-  console.log(relevantFiles);
+  const relevantFiles = getRelevantFiles(repoTree, { maxFiles: 120 });
 
-  if (loading) return <p className="p-4">Loading repo tree...</p>;
+  if (status === "loading" || loading) return <p className="p-4">Loading repo tree...</p>;
+  if (status !== "authenticated") return <p className="p-4">Sign in required.</p>;
 
   return (
     <div className="p-6">
