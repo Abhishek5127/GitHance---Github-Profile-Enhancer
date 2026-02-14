@@ -17,7 +17,7 @@ import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
 
 export default function Page() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const [canvasItems, setCanvasItems] = useState([]);
   const [readme, setReadme] = useState("");
@@ -34,6 +34,11 @@ export default function Page() {
   const [markdown, setMarkdown] = useState([]);
 
   const updateProfileReadme = async () => {
+    if (status !== "authenticated" || !session?.username || !token) {
+      console.error("Missing authenticated session for README update.");
+      return;
+    }
+
     const latestMarkdown = generateMarkdown(canvasItems);
     setMarkdown(latestMarkdown);
 
@@ -41,8 +46,8 @@ export default function Page() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        username: "abhishek5127",
-        repo: "abhishek5127",
+        username: session.username,
+        repo: session.username,
         path: "README.md",
         message: "Updated via Analyzer App",
         content: latestMarkdown,

@@ -52,7 +52,7 @@ export default function Profile() {
         const res = await fetch("/api/repositories", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username }),
+          body: JSON.stringify({ username, token: session?.accessToken }),
         });
 
         if (!res.ok) throw new Error("Failed to fetch repositories");
@@ -66,7 +66,7 @@ export default function Profile() {
     };
 
     getRepoData();
-  }, [status]);
+  }, [status, session?.accessToken, session?.username]);
 
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">

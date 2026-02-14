@@ -1,6 +1,5 @@
 export async function POST(req) {
-  const { username, page = 1, perPage = 10 } = await req.json();
-  const token = process.env.GITHUB_TOKEN;
+  const { username, page = 1, perPage = 10, token } = await req.json();
 
   if (!username) {
     return Response.json(
@@ -13,10 +12,14 @@ export async function POST(req) {
     const reposRes = await fetch(
       `https://api.github.com/users/${username}/repos?sort=updated&page=${page}&per_page=${perPage}`,
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-        },
+        headers: token
+          ? {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/vnd.github+json",
+            }
+          : {
+              Accept: "application/vnd.github+json",
+            },
       }
     );
 
@@ -36,10 +39,14 @@ export async function POST(req) {
           const readmeRes = await fetch(
             `https://api.github.com/repos/${username}/${repo.name}/readme`,
             {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                Accept: "application/vnd.github+json",
-              },
+              headers: token
+                ? {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/vnd.github+json",
+                  }
+                : {
+                    Accept: "application/vnd.github+json",
+                  },
             }
           );
 
