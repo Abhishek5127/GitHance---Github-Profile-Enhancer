@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
 
 const links = [
   { label: "Product", href: "#product" },
@@ -12,6 +13,9 @@ const links = [
 
 export default function LandingNav() {
   const [open, setOpen] = useState(false);
+  const handleGitHubSignIn = () => {
+    signIn("github", { callbackUrl: "/profile" });
+  };
 
   return (
     <header className="relative z-30 w-full">
@@ -37,7 +41,10 @@ export default function LandingNav() {
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
-          <button className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10">
+          <button
+            onClick={handleGitHubSignIn}
+            className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
+          >
             Sign in
           </button>
           <button className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90">
@@ -69,7 +76,10 @@ export default function LandingNav() {
               ))}
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <button className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10">
+              <button
+                onClick={handleGitHubSignIn}
+                className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
+              >
                 Sign in
               </button>
               <button className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90">

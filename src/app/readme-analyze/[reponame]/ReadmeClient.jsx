@@ -51,7 +51,7 @@ export default function ReadmeClient({ reponame }) {
     fetchRepoTree();
   }, [status, session?.username, reponame]);
 
-  const relevantFiles = getRelevantFiles(repoTree, { maxFiles: 150 });
+  const relevantFiles = getRelevantFiles(repoTree, { maxFiles: 120 });
 
   if (status === "loading" || loading) return <p className="p-4">Loading repo tree...</p>;
   if (status !== "authenticated") return <p className="p-4">Sign in required.</p>;
