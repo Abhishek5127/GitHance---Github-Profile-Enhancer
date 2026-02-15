@@ -1,7 +1,11 @@
 "use client";
+import Image from "next/image";
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { assets } from "@/app/assets/assets";
+import { useRouter } from "next/navigation";
+
 
 const links = [
   { label: "Product", href: "#product" },
@@ -11,20 +15,29 @@ const links = [
   { label: "Changelog", href: "#changelog" },
 ];
 
+
+
 export default function LandingNav() {
   const [open, setOpen] = useState(false);
   const handleGitHubSignIn = () => {
     signIn("github", { callbackUrl: "/profile" });
   };
+  const Router = useRouter();
 
   return (
     <header className="relative z-30 w-full">
       <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 pt-6">
-        <div className="flex items-center gap-3">
+        <div onClick={()=>{Router.push('/')}} className="flex items-center cursor-pointer gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-            <span className="text-sm font-semibold text-white">GH</span>
+            <span className="text-sm font-semibold text-white">
+                <Image
+                src={assets.Logo}
+                height={100}
+                width={100}
+                alt="Logo"/>
+            </span>
           </div>
-          <div className="text-lg font-semibold text-white">GitHance</div>
+          <div className="text-xl font-bold text-white">GitHance</div>
         </div>
 
         <div className="hidden items-center gap-6 text-sm text-white/70 md:flex">
@@ -43,11 +56,16 @@ export default function LandingNav() {
         <div className="hidden items-center gap-3 md:flex">
           <button
             onClick={handleGitHubSignIn}
-            className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
+            className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-sm text-black transition hover:bg-white/10 hover:text-white"
           >
+            <Image
+            src={assets.Github}
+            height={40}
+            width={40}
+            alt="github"/>
             Sign in
           </button>
-          <button className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90">
+          <button className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-bold text-black transition hover:bg-white/10 hover:text-white">
             Start free
           </button>
         </div>

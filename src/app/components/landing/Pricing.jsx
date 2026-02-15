@@ -14,10 +14,10 @@ const Pricing = () => {
               GitHance scales from personal profiles to team workspaces. Choose the plan that fits your workflow.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <button className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-white/90">
+              <button className="rounded-full cursor-pointer bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-white/90">
                 Get started
               </button>
-              <button className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
+              <button className="rounded-full cursor-pointer border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
                 Talk to sales
               </button>
             </div>
@@ -28,14 +28,14 @@ const Pricing = () => {
               <span>Starter</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs">Most popular</span>
             </div>
-            <div className="mt-4 text-3xl font-semibold text-white">$0</div>
+            <div className="mt-4 text-3xl font-semibold text-white">$10</div>
             <p className="mt-2 text-sm text-white/60">Everything you need to get a polished GitHub presence.</p>
             <ul className="mt-4 space-y-2 text-sm text-white/70">
               <li>Profile builder and templates</li>
               <li>README structure and preview</li>
               <li>Repository insights</li>
             </ul>
-            <button className="mt-6 w-full rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8c3a]">
+            <button className="mt-6 w-full cursor-pointer rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8c3a]">
               Start free
             </button>
           </div>

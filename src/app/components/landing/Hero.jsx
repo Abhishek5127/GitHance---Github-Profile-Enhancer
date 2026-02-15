@@ -77,7 +77,7 @@ export default function Hero() {
           <button onClick={() => { router.push('/profile-builder') }} className="rounded-full cursor-pointer bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]">
             Start building
           </button>
-          <button className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
+          <button className="rounded-full border cursor-pointer border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
             Watch demo
           </button>
         </div>
@@ -95,7 +95,7 @@ export default function Hero() {
             <button
               key={mode.id}
               onClick={() => setActive(mode)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${active.id === mode.id
+              className={`rounded-full px-4 py-2 text-xs cursor-pointer font-semibold transition ${active.id === mode.id
                   ? "bg-white text-black"
                   : "border border-white/15 text-white/70 hover:bg-white/10"
                 }`}

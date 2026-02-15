@@ -9,8 +9,6 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-
-    // 2️⃣ Token (prefer user token, fallback to env)
     const authToken = token;
 
     if (!authToken) {
@@ -40,6 +38,7 @@ export async function POST(req) {
     }
 
     const repoInfo = await repoInfoRes.json();
+    console.log(repoInfo);
     const defaultBranch = repoInfo.default_branch;
     console.log(defaultBranch);
 

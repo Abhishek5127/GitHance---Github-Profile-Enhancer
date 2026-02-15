@@ -59,7 +59,7 @@ const UserDataBlock = ({ userData, loading }) => {
 
             <div className="mt-4 flex flex-wrap gap-3">
               <button className="rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8c3a]">
-                Follow
+                Profile
               </button>
               <button
                 onClick={() => router.push("/profile-builder")}
