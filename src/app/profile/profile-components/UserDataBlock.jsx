@@ -2,6 +2,7 @@
 import React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { assets } from "@/app/assets/assets";
 
 const UserDataBlock = ({ userData, loading }) => {
   const router = useRouter();
@@ -58,12 +59,12 @@ const UserDataBlock = ({ userData, loading }) => {
             </p>
 
             <div className="mt-4 flex flex-wrap gap-3">
-              <button className="rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8c3a]">
+              <button className="profile-btn rounded-full cursor-pointer bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8c3a]">
                 Profile
               </button>
               <button
                 onClick={() => router.push("/profile-builder")}
-                className="rounded-full border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                className="rounded-full border cursor-pointer border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
               >
                 Edit Profile README
               </button>
@@ -86,6 +87,32 @@ const UserDataBlock = ({ userData, loading }) => {
           </div>
         </div>
       </div>
+      <style jsx>{`
+        .profile-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0;
+        }
+
+        .profile-btn::before {
+          content: "";
+          width: 0;
+          height: 14px;
+          background-image: url(${assets.Redirect.src});
+          background-repeat: no-repeat;
+          background-position: center;
+          background-size: contain;
+          opacity: 0;
+          transform: translateX(-4px);
+          transition: width 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .profile-btn:hover::before {
+          width: 14px;
+          opacity: 1;
+          transform: translateX(0);
+        }
+      `}</style>
     </div>
   );
 };
