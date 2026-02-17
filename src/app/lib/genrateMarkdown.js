@@ -188,24 +188,18 @@ export default function generateMarkdown(canvasItems) {
     }
 
     if (block === "bio") {
-      const baseUrl = resolveBaseUrl();
-      const variant = item.data?.variant || "badge";
-      const url = buildRenderUrl({
-        baseUrl,
-        type: "bio",
-        variant,
-        params: {
-          title: item.data?.title || "Full Stack Developer",
-          summary: item.data?.summary || "Building modern web apps and thoughtful experiences.",
-          theme: item.data?.theme || "midnight",
-          c: item.data?.focus || [],
-        },
-      });
+      const title = (item.data?.title || "About Me").trim();
+      const summary = (item.data?.summary || "").trim();
+      const focus = (item.data?.focus || [])
+        .map((point) => String(point || "").trim())
+        .filter(Boolean);
 
       markdown += `
-<div align="center">
-  <img src="${url}" alt="Bio" />
-</div>
+## ${title}
+
+${summary}
+
+${focus.length ? `${focus.map((point) => `- ${point}`).join("\n")}` : ""}
 
 `;
     }

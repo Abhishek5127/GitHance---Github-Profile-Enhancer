@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import generateMarkdown from "../lib/genrateMarkdown";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
+import BioVariantPicker from "../components/pickers/BioVariantPicker";
 import {
   DndContext,
   closestCorners,
@@ -18,6 +19,11 @@ import Canvas from "../components/canvas/Canvas";
 
 export default function Page() {
   const { data: session, status } = useSession();
+  const bioDefaults = {
+    title: "About Me",
+    summary: "I build modern web apps, experiment with AI tooling, and care about great DX.",
+    focus: ["Next.js", "AI tooling", "Design systems"],
+  };
 
   const [canvasItems, setCanvasItems] = useState([]);
   const [readme, setReadme] = useState("");
@@ -27,6 +33,12 @@ export default function Page() {
   const [headerPickerContext, setHeaderPickerContext] = useState({
     itemId: null,
     initialVariant: null,
+    initialData: null,
+    pickerKey: 0,
+  });
+  const [showBioPicker, setShowBioPicker] = useState(false);
+  const [bioPickerContext, setBioPickerContext] = useState({
+    itemId: null,
     initialData: null,
     pickerKey: 0,
   });
@@ -125,9 +137,7 @@ export default function Page() {
           customTheme: "midnight",
         },
         bio: {
-          variant: "badge",
-          theme: "midnight",
-          title: "Full Stack Developer",
+          title: "About Me",
           summary: "I build modern web apps, experiment with AI tooling, and care about great DX.",
           focus: ["Next.js", "AI tooling", "Design systems"],
         },
@@ -205,7 +215,21 @@ export default function Page() {
     setCanvasItems((prev) => [...prev, newItem]);
   };
 
+  const addBioToCanvas = (overrides = {}) => {
+    const newItem = {
+      id: `canvas-bio-${Date.now()}`,
+      type: "bio",
+      data: {
+        ...bioDefaults,
+        ...overrides,
+      },
+    };
+
+    setCanvasItems((prev) => [...prev, newItem]);
+  };
+
   const openHeaderPickerForAdd = () => {
+    setShowBioPicker(false);
     setHeaderPickerContext({
       itemId: null,
       initialVariant: null,
@@ -218,6 +242,7 @@ export default function Page() {
   const openHeaderPickerForEdit = (item) => {
     if (item.type !== "header") return;
 
+    setShowBioPicker(false);
     setHeaderPickerContext({
       itemId: item.id,
       initialVariant: item.variant || null,
@@ -229,6 +254,32 @@ export default function Page() {
 
   const closeHeaderPicker = () => {
     setShowHeaderPicker(false);
+  };
+
+  const openBioPickerForAdd = () => {
+    setShowHeaderPicker(false);
+    setBioPickerContext({
+      itemId: null,
+      initialData: null,
+      pickerKey: Date.now(),
+    });
+    setShowBioPicker(true);
+  };
+
+  const openBioPickerForEdit = (item) => {
+    if (item.type !== "bio") return;
+
+    setShowHeaderPicker(false);
+    setBioPickerContext({
+      itemId: item.id,
+      initialData: item.data || null,
+      pickerKey: Date.now(),
+    });
+    setShowBioPicker(true);
+  };
+
+  const closeBioPicker = () => {
+    setShowBioPicker(false);
   };
 
   const handleHeaderSelect = (variant, data) => {
@@ -247,6 +298,40 @@ export default function Page() {
     closeHeaderPicker();
   };
 
+  const handleBioSelect = (data) => {
+    if (bioPickerContext.itemId) {
+      setCanvasItems((prev) =>
+        prev.map((item) =>
+          item.id === bioPickerContext.itemId
+            ? {
+                ...item,
+                data: {
+                  ...bioDefaults,
+                  ...item.data,
+                  ...data,
+                },
+              }
+            : item
+        )
+      );
+    } else {
+      addBioToCanvas(data);
+    }
+
+    closeBioPicker();
+  };
+
+  const handleEditItem = (item) => {
+    if (item.type === "header") {
+      openHeaderPickerForEdit(item);
+      return;
+    }
+
+    if (item.type === "bio") {
+      openBioPickerForEdit(item);
+    }
+  };
+
   return (
     <div className="relative min-h-screen bg-[#0b0d0f] text-white">
       <div className="pointer-events-none absolute -left-40 top-8 h-80 w-80 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.24),_transparent_60%)] blur-3xl" />
@@ -258,7 +343,14 @@ export default function Page() {
             onSelectBlock={(blockId) => {
               if (blockId === "header") {
                 openHeaderPickerForAdd();
+                return;
               }
+
+              if (blockId === "bio") {
+                openBioPickerForAdd();
+                return;
+              }
+
               setActiveBlock(blockId);
             }}
           />
@@ -290,18 +382,27 @@ export default function Page() {
               readmeData={readme}
               items={canvasItems}
               setItems={setCanvasItems}
-              onEditItem={openHeaderPickerForEdit}
+              onEditItem={handleEditItem}
             />
           </div>
 
           <HeaderVariantPicker
-            key={headerPickerContext.pickerKey}
+            key={`header-${headerPickerContext.pickerKey}`}
             open={showHeaderPicker}
             onClose={closeHeaderPicker}
             onSelectVariant={handleHeaderSelect}
             initialVariant={headerPickerContext.initialVariant}
             initialData={headerPickerContext.initialData}
             submitLabel={headerPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+          />
+
+          <BioVariantPicker
+            key={`bio-${bioPickerContext.pickerKey}`}
+            open={showBioPicker}
+            onClose={closeBioPicker}
+            onSave={handleBioSelect}
+            initialData={bioPickerContext.initialData}
+            submitLabel={bioPickerContext.itemId ? "Update Item" : "Add to Canvas"}
           />
         </DndContext>
       </div>

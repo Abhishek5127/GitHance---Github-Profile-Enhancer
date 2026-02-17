@@ -1,9 +1,6 @@
 "use client";
 
-/**
- * Sidebar item for block categories (Header, Bio, etc.)
- * Click-based, NOT draggable.
- */
+
 export default function TemplateItem({ template, onSelect }) {
   return (
     <button

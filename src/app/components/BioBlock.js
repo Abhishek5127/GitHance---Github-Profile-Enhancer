@@ -1,11 +1,10 @@
 "use client";
 
-import { buildRenderUrl } from "@/app/lib/generateBlockSvg";
-
 export default function BioBlock({ item, setItems }) {
   const data = item?.data || {};
-  const variant = data.variant || "badge";
-  const theme = data.theme || "midnight";
+  const title = data.title || "About Me";
+  const summary = data.summary || "";
+  const focus = Array.isArray(data.focus) ? data.focus : ["Next.js", "AI tooling", "Design systems"];
 
   const updateField = (field, value) => {
     setItems((prev) =>
@@ -18,66 +17,43 @@ export default function BioBlock({ item, setItems }) {
   };
 
   const updateFocus = (index, value) => {
-    const next = [...(data.focus || [])];
+    const next = [...focus];
     next[index] = value;
     updateField("focus", next);
   };
 
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-  const previewSrc = buildRenderUrl({
-    baseUrl,
-    type: "bio",
-    variant,
-    params: {
-      title: data.title || "Full Stack Developer",
-      summary: data.summary || "Building modern web apps and thoughtful experiences.",
-      theme,
-      c: data.focus || [],
-    },
-  });
+  const markdownPreview = `## ${title.trim() || "About Me"}
+
+${summary.trim()}
+
+${focus
+  .map((itemValue) => String(itemValue || "").trim())
+  .filter(Boolean)
+  .map((itemValue) => `- ${itemValue}`)
+  .join("\n")}`.trim();
 
   return (
     <div className="w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs uppercase tracking-[0.3em] text-white/40">Short Bio</div>
-        <div className="flex gap-2">
-          <select
-            value={variant}
-            onChange={(e) => updateField("variant", e.target.value)}
-            className="rounded-lg border border-white/10 bg-[#0f1115] px-3 py-1 text-xs text-white"
-          >
-            <option value="badge">Badge</option>
-            <option value="timeline">Timeline</option>
-            <option value="spotlight">Spotlight</option>
-          </select>
-          <select
-            value={theme}
-            onChange={(e) => updateField("theme", e.target.value)}
-            className="rounded-lg border border-white/10 bg-[#0f1115] px-3 py-1 text-xs text-white"
-          >
-            <option value="midnight">Midnight</option>
-            <option value="aurora">Aurora</option>
-            <option value="ember">Ember</option>
-          </select>
-        </div>
+        <div className="text-xs uppercase tracking-[0.3em] text-white/40">Short Bio (Markdown)</div>
       </div>
 
       <div className="mt-2 grid gap-2">
         <input
-          value={data.title}
+          value={title}
           onChange={(e) => updateField("title", e.target.value)}
-          placeholder="Full Stack Developer"
+          placeholder="About Me"
           className="w-full rounded-xl border border-white/10 bg-[#0f1115] px-3 py-2 text-sm text-white focus:outline-none"
         />
         <textarea
-          value={data.summary}
+          value={summary}
           onChange={(e) => updateField("summary", e.target.value)}
           placeholder="Write a short bio about what you build and care about."
           rows={2}
           className="w-full rounded-xl border border-white/10 bg-[#0f1115] px-3 py-2 text-sm text-white focus:outline-none"
         />
         <div className="grid gap-2 sm:grid-cols-3">
-          {(data.focus || ["Next.js", "AI tooling", "Design systems"]).map((itemValue, index) => (
+          {focus.map((itemValue, index) => (
             <input
               key={index}
               value={itemValue}
@@ -89,8 +65,9 @@ export default function BioBlock({ item, setItems }) {
         </div>
       </div>
 
-      <div className="mt-2 h-[120px] overflow-hidden rounded-lg border border-white/10 bg-[#0f1115] p-1">
-        <img src={previewSrc} alt="Bio preview" className="block h-full w-full object-cover" />
+      <div className="mt-2 rounded-lg border border-white/10 bg-[#0f1115] p-2">
+        <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-white/45">Markdown Preview</p>
+        <pre className="whitespace-pre-wrap text-xs text-white/85">{markdownPreview}</pre>
       </div>
     </div>
   );
