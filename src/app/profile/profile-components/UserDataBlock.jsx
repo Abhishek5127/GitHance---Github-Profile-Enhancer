@@ -59,7 +59,7 @@ const UserDataBlock = ({ userData, loading }) => {
             </p>
 
             <div className="mt-4 flex flex-wrap gap-3">
-              <button className="rounded-full cursor-pointer flex item-center bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8c3a]">
+              <button className="rounded-full cursor-pointer flex gap-3 item-center bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8c3a]">
                 <Image
                 src={assets.Redirect}
                 height={20}

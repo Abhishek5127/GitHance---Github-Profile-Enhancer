@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import ReadmeBlock from "../readme-analyze-components/ReadmeBlock";
 import getRelevantFiles from "@/app/lib/repo/getRelevantFiles";
+import Unauthorized from "@/app/statusCodePages/unauthorized";
 
 
 export default function ReadmeClient({ reponame }) {
@@ -54,7 +55,11 @@ export default function ReadmeClient({ reponame }) {
   const relevantFiles = getRelevantFiles(repoTree, { maxFiles: 120 });
 
   if (status === "loading" || loading) return <p className="p-4">Loading repo tree...</p>;
-  if (status !== "authenticated") return <p className="p-4">Sign in required.</p>;
+  if (status !== "authenticated"){
+    return(
+     <Unauthorized/>
+    )
+  };
 
   return (
     <div className="p-6">
