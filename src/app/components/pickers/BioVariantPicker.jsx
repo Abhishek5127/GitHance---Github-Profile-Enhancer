@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 
 const DEFAULT_BIO_HTML = `<h2>About Me</h2>
 <p>I build modern web apps, experiment with AI tooling, and care about great DX.</p>
@@ -107,28 +107,24 @@ export default function BioVariantPicker({
   initialData,
   submitLabel = "Add to Canvas",
 }) {
-  const [editorHtml, setEditorHtml] = useState(buildInitialHtml(initialData));
+  const initialHtml = buildInitialHtml(initialData);
   const editorRef = useRef(null);
-
-  const syncEditorState = () => {
-    if (!editorRef.current) return;
-    setEditorHtml(editorRef.current.innerHTML);
-  };
+  const holdSelection = (e) => e.preventDefault();
+  const toolbarButtonClass =
+    "rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]";
 
   const runCommand = (command, value = null) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     document.execCommand(command, false, value);
-    syncEditorState();
   };
 
   const resetAndClose = () => {
-    setEditorHtml(DEFAULT_BIO_HTML);
     onClose();
   };
 
   const handleSubmit = () => {
-    const nextHtml = String(editorRef.current?.innerHTML || editorHtml).trim();
+    const nextHtml = String(editorRef.current?.innerHTML || initialHtml).trim();
     onSave({
       content: nextHtml || DEFAULT_BIO_HTML,
     });
@@ -155,62 +151,72 @@ export default function BioVariantPicker({
 
           <div className="mb-3 flex flex-wrap gap-2">
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand("formatBlock", "H1")}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               H1
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand("formatBlock", "H2")}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               H2
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand("formatBlock", "H3")}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               H3
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand("formatBlock", "P")}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               Paragraph
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand("insertUnorderedList")}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               Bullets
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand("italic")}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               Italic
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand("underline")}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               Underline
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand(alignmentCommandMap.left)}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               Align Left
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand(alignmentCommandMap.center)}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               Align Center
             </button>
             <button
+              onMouseDown={holdSelection}
               onClick={() => runCommand(alignmentCommandMap.right)}
-              className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
+              className={toolbarButtonClass}
             >
               Align Right
             </button>
@@ -220,9 +226,8 @@ export default function BioVariantPicker({
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            onInput={syncEditorState}
             className="markdown-body min-h-[520px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none"
-            dangerouslySetInnerHTML={{ __html: editorHtml }}
+            dangerouslySetInnerHTML={{ __html: initialHtml }}
           />
 
           <div className="mt-3 flex items-center justify-end gap-2">

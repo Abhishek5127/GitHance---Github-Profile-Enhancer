@@ -27,8 +27,8 @@ ${legacyFocus.map((point) => `- ${point}`).join("\n")}`.trim();
   const content = String(data.content || legacyContent || fallbackContent).trim();
 
   return (
-    <div className="w-full rounded-xl border border-white/10 bg-white p-3 text-black">
-      <ReadmeRenderer readme={content} />
+    <div className="w-full rounded-xl border border-white/10 bg-[#0f1115] p-3">
+      <ReadmeRenderer readme={content} compact />
     </div>
   );
 }
