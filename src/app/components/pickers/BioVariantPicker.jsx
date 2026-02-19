@@ -87,10 +87,49 @@ const markdownToHtml = (markdown) => {
   return html.join("\n") || DEFAULT_BIO_HTML;
 };
 
+const normalizeHtmlForEditor = (html) => {
+  if (typeof window === "undefined") return html;
+
+  const root = document.createElement("div");
+  root.innerHTML = String(html || "");
+
+  root.querySelectorAll("h1,h2,h3").forEach((heading) => {
+    const nested = heading.querySelector("h1,h2,h3");
+    if (nested) {
+      heading.innerHTML = nested.innerHTML;
+    }
+  });
+
+  root.querySelectorAll("li").forEach((li) => {
+    const nestedList = Array.from(li.children).find((child) => {
+      const tag = child.tagName?.toLowerCase?.();
+      return tag === "ul" || tag === "ol";
+    });
+
+    if (!nestedList) return;
+
+    const hasOwnText = Array.from(li.childNodes).some((node) => {
+      if (node === nestedList) return false;
+      return String(node.textContent || "").trim().length > 0;
+    });
+
+    if (hasOwnText) return;
+
+    const parentList = li.parentElement;
+    while (nestedList.firstChild) {
+      parentList.insertBefore(nestedList.firstChild, li.nextSibling);
+    }
+    li.remove();
+  });
+
+  const normalized = root.innerHTML.trim();
+  return normalized || DEFAULT_BIO_HTML;
+};
+
 const buildInitialHtml = (initialData) => {
   const raw = String(initialData?.content || "").trim();
   if (!raw) return DEFAULT_BIO_HTML;
-  if (hasHtmlTags(raw)) return raw;
+  if (hasHtmlTags(raw)) return normalizeHtmlForEditor(raw);
   return markdownToHtml(raw);
 };
 
@@ -99,6 +138,8 @@ const alignmentCommandMap = {
   center: "justifyCenter",
   right: "justifyRight",
 };
+
+const editableBlockTags = new Set(["h1", "h2", "h3", "p", "li", "div"]);
 
 export default function BioVariantPicker({
   open,
@@ -117,6 +158,194 @@ export default function BioVariantPicker({
     if (!editorRef.current) return;
     editorRef.current.focus();
     document.execCommand(command, false, value);
+  };
+
+  const getBlockFromNode = (node) => {
+    if (!node || !editorRef.current) return null;
+    let cursor = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+
+    while (cursor && cursor !== editorRef.current) {
+      const tag = cursor?.tagName?.toLowerCase?.();
+      if (editableBlockTags.has(tag)) {
+        return cursor;
+      }
+      cursor = cursor.parentElement;
+    }
+
+    return null;
+  };
+
+  const hasEditableAncestor = (node) => {
+    if (!node || !editorRef.current) return false;
+    let cursor = node.parentElement;
+    while (cursor && cursor !== editorRef.current) {
+      const tag = cursor?.tagName?.toLowerCase?.();
+      if (editableBlockTags.has(tag)) return true;
+      cursor = cursor.parentElement;
+    }
+    return false;
+  };
+
+  const getSelectedBlocks = () => {
+    if (!editorRef.current) return [];
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return [];
+
+    const range = selection.getRangeAt(0);
+
+    if (range.collapsed) {
+      const single = getBlockFromNode(selection.anchorNode);
+      return single ? [single] : [];
+    }
+
+    const blocks = [];
+    const seen = new Set();
+    const walker = document.createTreeWalker(
+      editorRef.current,
+      NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: (node) => {
+          const tag = node?.tagName?.toLowerCase?.();
+          if (!editableBlockTags.has(tag)) return NodeFilter.FILTER_SKIP;
+          if (hasEditableAncestor(node)) return NodeFilter.FILTER_SKIP;
+          try {
+            return range.intersectsNode(node)
+              ? NodeFilter.FILTER_ACCEPT
+              : NodeFilter.FILTER_SKIP;
+          } catch {
+            return NodeFilter.FILTER_SKIP;
+          }
+        },
+      }
+    );
+
+    let current = walker.nextNode();
+    while (current) {
+      if (!seen.has(current)) {
+        seen.add(current);
+        blocks.push(current);
+      }
+      current = walker.nextNode();
+    }
+
+    if (!blocks.length) {
+      const fallback = getBlockFromNode(selection.anchorNode);
+      return fallback ? [fallback] : [];
+    }
+
+    return blocks;
+  };
+
+  const setCaretToEnd = (element) => {
+    const selection = window.getSelection();
+    if (!selection || !element) return;
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+
+  const replaceListItemWithBlock = (listItem, targetTag) => {
+    const list = listItem.parentElement;
+    const parent = list?.parentElement;
+    if (!list || !parent) return null;
+
+    const listTag = list.tagName.toLowerCase();
+    const afterSibling = list.nextSibling;
+    const afterItems = [];
+
+    let cursor = listItem.nextElementSibling;
+    while (cursor) {
+      afterItems.push(cursor);
+      cursor = cursor.nextElementSibling;
+    }
+
+    listItem.remove();
+
+    let trailingList = null;
+    if (afterItems.length) {
+      trailingList = document.createElement(listTag);
+      afterItems.forEach((item) => trailingList.appendChild(item));
+      parent.insertBefore(trailingList, afterSibling);
+    }
+
+    const newBlock = document.createElement(targetTag);
+    newBlock.textContent = String(listItem.textContent || "Text").trim();
+    parent.insertBefore(newBlock, trailingList || afterSibling);
+
+    if (!list.children.length) {
+      list.remove();
+    }
+
+    return newBlock;
+  };
+
+  const applyBlockFormat = (tag) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    const targetTag = tag.toLowerCase();
+    const blocks = getSelectedBlocks();
+    if (!blocks.length) return;
+
+    let lastChanged = null;
+
+    blocks.forEach((block) => {
+      if (!block?.isConnected) return;
+
+      const currentTag = block.tagName.toLowerCase();
+      if (currentTag === targetTag) {
+        lastChanged = block;
+        return;
+      }
+
+      if (currentTag === "li") {
+        const next = replaceListItemWithBlock(block, targetTag);
+        if (next) lastChanged = next;
+        return;
+      }
+
+      if (!["h1", "h2", "h3", "p", "div"].includes(currentTag)) return;
+
+      const newBlock = document.createElement(targetTag);
+      newBlock.textContent = String(block.textContent || "Text").trim();
+      block.replaceWith(newBlock);
+      lastChanged = newBlock;
+    });
+
+    setCaretToEnd(lastChanged);
+  };
+
+  const applyBullets = () => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    const blocks = getSelectedBlocks();
+    if (!blocks.length) return;
+
+    let lastChanged = null;
+
+    blocks.forEach((block) => {
+      if (!block?.isConnected) return;
+
+      const tag = block.tagName.toLowerCase();
+      if (tag === "li") {
+        lastChanged = block;
+        return;
+      }
+      if (!["h1", "h2", "h3", "p", "div"].includes(tag)) return;
+
+      const list = document.createElement("ul");
+      const listItem = document.createElement("li");
+      listItem.textContent = String(block.textContent || "List item").trim();
+      list.appendChild(listItem);
+      block.replaceWith(list);
+      lastChanged = listItem;
+    });
+
+    setCaretToEnd(lastChanged);
   };
 
   const resetAndClose = () => {
@@ -152,35 +381,35 @@ export default function BioVariantPicker({
           <div className="mb-3 flex flex-wrap gap-2">
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand("formatBlock", "H1")}
+              onClick={() => applyBlockFormat("h1")}
               className={toolbarButtonClass}
             >
               H1
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand("formatBlock", "H2")}
+              onClick={() => applyBlockFormat("h2")}
               className={toolbarButtonClass}
             >
               H2
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand("formatBlock", "H3")}
+              onClick={() => applyBlockFormat("h3")}
               className={toolbarButtonClass}
             >
               H3
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand("formatBlock", "P")}
+              onClick={() => applyBlockFormat("p")}
               className={toolbarButtonClass}
             >
               Paragraph
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand("insertUnorderedList")}
+              onClick={applyBullets}
               className={toolbarButtonClass}
             >
               Bullets
@@ -226,7 +455,7 @@ export default function BioVariantPicker({
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            className="markdown-body min-h-[520px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none"
+            className="markdown-body bio-editor min-h-[520px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none"
             dangerouslySetInnerHTML={{ __html: initialHtml }}
           />
 
