@@ -188,13 +188,21 @@ export default function generateMarkdown(canvasItems) {
     }
 
     if (block === "bio") {
-      const title = (item.data?.title || "About Me").trim();
-      const summary = (item.data?.summary || "").trim();
-      const focus = (item.data?.focus || [])
-        .map((point) => String(point || "").trim())
-        .filter(Boolean);
+      const content = String(item.data?.content || "").trim();
 
-      markdown += `
+      if (content) {
+        markdown += `
+${content}
+
+`;
+      } else {
+        const title = (item.data?.title || "About Me").trim();
+        const summary = (item.data?.summary || "").trim();
+        const focus = (item.data?.focus || [])
+          .map((point) => String(point || "").trim())
+          .filter(Boolean);
+
+        markdown += `
 ## ${title}
 
 ${summary}
@@ -202,6 +210,7 @@ ${summary}
 ${focus.length ? `${focus.map((point) => `- ${point}`).join("\n")}` : ""}
 
 `;
+      }
     }
 
     if (block === "skills") {

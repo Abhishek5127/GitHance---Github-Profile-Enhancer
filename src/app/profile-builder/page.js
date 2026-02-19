@@ -20,9 +20,13 @@ import Canvas from "../components/canvas/Canvas";
 export default function Page() {
   const { data: session, status } = useSession();
   const bioDefaults = {
-    title: "About Me",
-    summary: "I build modern web apps, experiment with AI tooling, and care about great DX.",
-    focus: ["Next.js", "AI tooling", "Design systems"],
+    content: `## About Me
+
+I build modern web apps, experiment with AI tooling, and care about great DX.
+
+- Next.js
+- AI tooling
+- Design systems`,
   };
 
   const [canvasItems, setCanvasItems] = useState([]);
@@ -137,9 +141,7 @@ export default function Page() {
           customTheme: "midnight",
         },
         bio: {
-          title: "About Me",
-          summary: "I build modern web apps, experiment with AI tooling, and care about great DX.",
-          focus: ["Next.js", "AI tooling", "Design systems"],
+          content: bioDefaults.content,
         },
         skills: {
           variant: "grid",

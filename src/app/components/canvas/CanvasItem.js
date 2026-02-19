@@ -10,6 +10,7 @@ import TechStackBlock from "../blocks/TechStackBlock";
 export default function CanvasItem({ item, setItems, onEditItem }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
+  const canEdit = Boolean(onEditItem) && ["header", "bio"].includes(item.type);
 
   const normalizedTransform = transform
     ? { ...transform, scaleX: 1, scaleY: 1 }
@@ -63,18 +64,20 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
       {...listeners}
     >
       <div className="absolute right-3 top-3 z-20 flex gap-2">
-        <button
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={handleEdit}
-          className="rounded-md border border-white/20 bg-[#0f1115]/90 p-1.5 text-white/80 hover:text-white"
-          title="Edit item"
-          aria-label="Edit item"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
-            <path d="M12 20h9" />
-            <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-          </svg>
-        </button>
+        {canEdit ? (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={handleEdit}
+            className="rounded-md border border-white/20 bg-[#0f1115]/90 p-1.5 text-white/80 hover:text-white"
+            title="Edit item"
+            aria-label="Edit item"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+            </svg>
+          </button>
+        ) : null}
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={handleDelete}
