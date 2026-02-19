@@ -1,20 +1,104 @@
 "use client";
 
 import { useRef, useState } from "react";
-import ReadmeRenderer from "../blocks/ReadmeRenderer";
 
-const DEFAULT_BIO_CONTENT = `## About Me
+const DEFAULT_BIO_HTML = `<h2>About Me</h2>
+<p>I build modern web apps, experiment with AI tooling, and care about great DX.</p>
+<ul>
+  <li>Next.js</li>
+  <li>AI tooling</li>
+  <li>Design systems</li>
+</ul>`;
 
-I build modern web apps, experiment with AI tooling, and care about great DX.
+const hasHtmlTags = (value) => /<\/?[a-z][\s\S]*>/i.test(value);
 
-- Next.js
-- AI tooling
-- Design systems`;
+const escapeHtml = (value) =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
-const buildInitialContent = (initialData) =>
-  String(initialData?.content || DEFAULT_BIO_CONTENT);
+const markdownToHtml = (markdown) => {
+  const lines = String(markdown || "").split(/\r?\n/);
+  const html = [];
+  let listBuffer = [];
+  let paragraphBuffer = [];
 
-const ALIGN_WRAPPER_PATTERN = /^<div align="(?:left|center|right)">\n?([\s\S]*?)\n?<\/div>$/;
+  const flushList = () => {
+    if (!listBuffer.length) return;
+    const listItems = listBuffer.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    html.push(`<ul>${listItems}</ul>`);
+    listBuffer = [];
+  };
+
+  const flushParagraph = () => {
+    if (!paragraphBuffer.length) return;
+    html.push(`<p>${escapeHtml(paragraphBuffer.join(" "))}</p>`);
+    paragraphBuffer = [];
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushList();
+      flushParagraph();
+      return;
+    }
+
+    const h1 = trimmed.match(/^#\s+(.+)$/);
+    if (h1) {
+      flushList();
+      flushParagraph();
+      html.push(`<h1>${escapeHtml(h1[1])}</h1>`);
+      return;
+    }
+
+    const h2 = trimmed.match(/^##\s+(.+)$/);
+    if (h2) {
+      flushList();
+      flushParagraph();
+      html.push(`<h2>${escapeHtml(h2[1])}</h2>`);
+      return;
+    }
+
+    const h3 = trimmed.match(/^###\s+(.+)$/);
+    if (h3) {
+      flushList();
+      flushParagraph();
+      html.push(`<h3>${escapeHtml(h3[1])}</h3>`);
+      return;
+    }
+
+    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      flushParagraph();
+      listBuffer.push(bullet[1]);
+      return;
+    }
+
+    flushList();
+    paragraphBuffer.push(trimmed);
+  });
+
+  flushList();
+  flushParagraph();
+
+  return html.join("\n") || DEFAULT_BIO_HTML;
+};
+
+const buildInitialHtml = (initialData) => {
+  const raw = String(initialData?.content || "").trim();
+  if (!raw) return DEFAULT_BIO_HTML;
+  if (hasHtmlTags(raw)) return raw;
+  return markdownToHtml(raw);
+};
+
+const alignmentCommandMap = {
+  left: "justifyLeft",
+  center: "justifyCenter",
+  right: "justifyRight",
+};
 
 export default function BioVariantPicker({
   open,
@@ -23,105 +107,30 @@ export default function BioVariantPicker({
   initialData,
   submitLabel = "Add to Canvas",
 }) {
-  const [content, setContent] = useState(buildInitialContent(initialData));
-  const textareaRef = useRef(null);
+  const [editorHtml, setEditorHtml] = useState(buildInitialHtml(initialData));
+  const editorRef = useRef(null);
 
-  const replaceRange = (start, end, replacement, selectionStart, selectionEnd) => {
-    const next = `${content.slice(0, start)}${replacement}${content.slice(end)}`;
-    setContent(next);
-
-    requestAnimationFrame(() => {
-      if (!textareaRef.current) return;
-      textareaRef.current.focus();
-      textareaRef.current.setSelectionRange(selectionStart, selectionEnd);
-    });
+  const syncEditorState = () => {
+    if (!editorRef.current) return;
+    setEditorHtml(editorRef.current.innerHTML);
   };
 
-  const withSelection = (handler) => {
-    const el = textareaRef.current;
-    if (!el) return;
-
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = content.slice(start, end);
-
-    handler({ start, end, selected });
-  };
-
-  const transformLines = (lineTransform) => {
-    withSelection(({ start, end }) => {
-      const blockStart = content.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-      const nextBreak = content.indexOf("\n", end);
-      const blockEnd = nextBreak === -1 ? content.length : nextBreak;
-
-      const block = content.slice(blockStart, blockEnd);
-      const transformed = block
-        .split("\n")
-        .map((line) => lineTransform(line))
-        .join("\n");
-
-      replaceRange(blockStart, blockEnd, transformed, blockStart, blockStart + transformed.length);
-    });
-  };
-
-  const wrapSelection = (before, after = before, fallback = "text") => {
-    withSelection(({ start, end, selected }) => {
-      const target = selected || fallback;
-      const replacement = `${before}${target}${after}`;
-      const cursorStart = start + before.length;
-      const cursorEnd = cursorStart + target.length;
-      replaceRange(start, end, replacement, cursorStart, cursorEnd);
-    });
-  };
-
-  const applyHeading = (level) => {
-    const prefix = `${"#".repeat(level)} `;
-    transformLines((line) => {
-      const stripped = line
-        .replace(/^#{1,6}\s+/, "")
-        .replace(/^\s*[-*]\s+/, "");
-      return `${prefix}${stripped}`.trimEnd();
-    });
-  };
-
-  const applyParagraph = () => {
-    transformLines((line) => line.replace(/^#{1,6}\s+/, "").replace(/^\s*[-*]\s+/, ""));
-  };
-
-  const applyBullets = () => {
-    transformLines((line) => {
-      if (!line.trim()) return line;
-      const stripped = line.replace(/^#{1,6}\s+/, "").replace(/^\s*[-*]\s+/, "");
-      return `- ${stripped}`;
-    });
-  };
-
-  const applyAlignment = (align) => {
-    withSelection(({ start, end, selected }) => {
-      if (start === end) {
-        const trimmed = content.trim();
-        const match = trimmed.match(ALIGN_WRAPPER_PATTERN);
-        const inner = match ? match[1] : trimmed || "Your text";
-        setContent(`<div align="${align}">\n${inner}\n</div>`);
-        return;
-      }
-
-      const selectedTrimmed = selected.trim();
-      const wrappedMatch = selectedTrimmed.match(ALIGN_WRAPPER_PATTERN);
-      const inner = wrappedMatch ? wrappedMatch[1] : selected;
-      const replacement = `<div align="${align}">\n${inner}\n</div>`;
-      replaceRange(start, end, replacement, start, start + replacement.length);
-    });
+  const runCommand = (command, value = null) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(command, false, value);
+    syncEditorState();
   };
 
   const resetAndClose = () => {
-    setContent(DEFAULT_BIO_CONTENT);
+    setEditorHtml(DEFAULT_BIO_HTML);
     onClose();
   };
 
   const handleSubmit = () => {
+    const nextHtml = String(editorRef.current?.innerHTML || editorHtml).trim();
     onSave({
-      content: content.trim(),
+      content: nextHtml || DEFAULT_BIO_HTML,
     });
     resetAndClose();
   };
@@ -146,83 +155,75 @@ export default function BioVariantPicker({
 
           <div className="mb-3 flex flex-wrap gap-2">
             <button
-              onClick={() => applyHeading(1)}
+              onClick={() => runCommand("formatBlock", "H1")}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               H1
             </button>
             <button
-              onClick={() => applyHeading(2)}
+              onClick={() => runCommand("formatBlock", "H2")}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               H2
             </button>
             <button
-              onClick={() => applyHeading(3)}
+              onClick={() => runCommand("formatBlock", "H3")}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               H3
             </button>
             <button
-              onClick={applyParagraph}
+              onClick={() => runCommand("formatBlock", "P")}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               Paragraph
             </button>
             <button
-              onClick={applyBullets}
+              onClick={() => runCommand("insertUnorderedList")}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               Bullets
             </button>
             <button
-              onClick={() => wrapSelection("*", "*", "italic")}
+              onClick={() => runCommand("italic")}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               Italic
             </button>
             <button
-              onClick={() => wrapSelection("<u>", "</u>", "underlined")}
+              onClick={() => runCommand("underline")}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               Underline
             </button>
             <button
-              onClick={() => applyAlignment("left")}
+              onClick={() => runCommand(alignmentCommandMap.left)}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               Align Left
             </button>
             <button
-              onClick={() => applyAlignment("center")}
+              onClick={() => runCommand(alignmentCommandMap.center)}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               Align Center
             </button>
             <button
-              onClick={() => applyAlignment("right")}
+              onClick={() => runCommand(alignmentCommandMap.right)}
               className="rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]"
             >
               Align Right
             </button>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <textarea
-              ref={textareaRef}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={18}
-              className="w-full rounded-xl border border-white/10 bg-[#0f1115] px-3 py-3 font-mono text-sm text-white focus:outline-none"
-            />
-
-            <div className="rounded-xl border border-white/10 bg-white p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-black/50">
-                Preview
-              </p>
-              <ReadmeRenderer readme={content} />
-            </div>
-          </div>
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={syncEditorState}
+            className="markdown-body min-h-[520px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none"
+            dangerouslySetInnerHTML={{ __html: editorHtml }}
+          />
 
           <div className="mt-3 flex items-center justify-end gap-2">
             <button
