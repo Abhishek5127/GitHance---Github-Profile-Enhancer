@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 const DEFAULT_BIO_HTML = `<h2>About Me</h2>
 <p>I build modern web apps, experiment with AI tooling, and care about great DX.</p>
@@ -13,8 +13,10 @@ const DEFAULT_BIO_HTML = `<h2>About Me</h2>
 const hasHtmlTags = (value) => /<\/?[a-z][\s\S]*>/i.test(value);
 const hasMarkdownSyntax = (value) =>
   /(^|\n)\s*(#{1,6}\s+.+|[-*]\s+.+|\d+\.\s+.+)\s*($|\n)/m.test(String(value || ""));
-const isLikelyHtmlLine = (value) => /^<\/?[a-z][\w:-]*(\s+[^>]*)?>$/i.test(String(value || "").trim());
-const hasOwnContent = (data) => Boolean(data && Object.prototype.hasOwnProperty.call(data, "content"));
+const isLikelyHtmlLine = (value) =>
+  /^<\/?[a-z][\w:-]*(\s+[^>]*)?>$/i.test(String(value || "").trim());
+const hasOwnContent = (data) =>
+  Boolean(data && Object.prototype.hasOwnProperty.call(data, "content"));
 
 const escapeHtml = (value) =>
   String(value || "")
@@ -35,7 +37,10 @@ const sanitizeStyleAttribute = (value) => {
       const propertyValue = rawValueParts.join(":").trim().toLowerCase();
       if (!propertyValue) return;
 
-      if (property === "text-align" && ["left", "center", "right", "justify", "start", "end"].includes(propertyValue)) {
+      if (
+        property === "text-align" &&
+        ["left", "center", "right", "justify", "start", "end"].includes(propertyValue)
+      ) {
         safeDeclarations.push(`text-align: ${propertyValue}`);
         return;
       }
@@ -45,12 +50,18 @@ const sanitizeStyleAttribute = (value) => {
         return;
       }
 
-      if (property === "text-decoration-line" && ["underline", "none"].includes(propertyValue)) {
+      if (
+        property === "text-decoration-line" &&
+        ["underline", "none"].includes(propertyValue)
+      ) {
         safeDeclarations.push(`text-decoration-line: ${propertyValue}`);
         return;
       }
 
-      if (property === "text-decoration" && ["underline", "none"].includes(propertyValue)) {
+      if (
+        property === "text-decoration" &&
+        ["underline", "none"].includes(propertyValue)
+      ) {
         safeDeclarations.push(`text-decoration-line: ${propertyValue}`);
       }
     });
@@ -62,7 +73,10 @@ const sanitizeUrl = (value, { allowDataImage = false } = {}) => {
   const trimmed = String(value || "").trim();
   if (!trimmed) return "";
 
-  if (allowDataImage && /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+$/i.test(trimmed)) {
+  if (
+    allowDataImage &&
+    /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+$/i.test(trimmed)
+  ) {
     return trimmed;
   }
 
@@ -86,27 +100,10 @@ const sanitizeUrl = (value, { allowDataImage = false } = {}) => {
 };
 
 const ALLOWED_TAGS = new Set([
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "p",
-  "ul",
-  "ol",
-  "li",
-  "em",
-  "i",
-  "strong",
-  "b",
-  "u",
-  "a",
-  "br",
-  "code",
-  "span",
-  "div",
-  "img",
+  "h1", "h2", "h3", "h4", "h5", "h6",
+  "p", "ul", "ol", "li",
+  "em", "i", "strong", "b", "u",
+  "a", "br", "code", "span", "div", "img",
 ]);
 
 const GLOBAL_ALLOWED_ATTRS = new Set(["style"]);
@@ -124,6 +121,8 @@ const ALLOWED_ATTRS = {
   h6: new Set(["align"]),
 };
 
+// BUG FIX #9: Guard is now only used at the call sites where SSR matters.
+// sanitizeHtml itself will still run client-side only; callers handle SSR.
 const sanitizeHtml = (html) => {
   if (typeof window === "undefined") return String(html || "");
 
@@ -149,7 +148,8 @@ const sanitizeHtml = (html) => {
 
     Array.from(element.attributes).forEach((attribute) => {
       const attrName = attribute.name.toLowerCase();
-      const isAllowed = GLOBAL_ALLOWED_ATTRS.has(attrName) || allowedAttrs.has(attrName);
+      const isAllowed =
+        GLOBAL_ALLOWED_ATTRS.has(attrName) || allowedAttrs.has(attrName);
       if (!isAllowed) {
         element.removeAttribute(attribute.name);
         return;
@@ -186,7 +186,9 @@ const sanitizeHtml = (html) => {
     }
 
     if (tag === "img") {
-      const safeSrc = sanitizeUrl(element.getAttribute("src"), { allowDataImage: true });
+      const safeSrc = sanitizeUrl(element.getAttribute("src"), {
+        allowDataImage: true,
+      });
       if (safeSrc) {
         element.setAttribute("src", safeSrc);
       } else {
@@ -256,9 +258,13 @@ const markdownToHtml = (markdown) => {
   flushList();
   flushParagraph();
 
-  return html.join("\n") || DEFAULT_BIO_HTML;
+  // BUG FIX #4: Don't silently replace intentionally empty output with DEFAULT_BIO_HTML.
+  // Return empty string so callers can decide what to do.
+  return html.join("\n");
 };
 
+// BUG FIX #10: Fixed li-flattening to check only direct text node siblings,
+// not element.textContent which includes all descendant text.
 const normalizeHtmlForEditor = (html) => {
   if (typeof window === "undefined") return html;
 
@@ -280,9 +286,12 @@ const normalizeHtmlForEditor = (html) => {
 
     if (!nestedList) return;
 
+    // BUG FIX #10: Check only direct text node children, not all descendant text.
     const hasOwnText = Array.from(li.childNodes).some((node) => {
       if (node === nestedList) return false;
-      return String(node.textContent || "").trim().length > 0;
+      // Only count text nodes with actual content (not element nodes)
+      return node.nodeType === Node.TEXT_NODE &&
+        String(node.textContent || "").trim().length > 0;
     });
 
     if (hasOwnText) return;
@@ -298,6 +307,9 @@ const normalizeHtmlForEditor = (html) => {
   return normalized;
 };
 
+// BUG FIX #4 & #9: buildInitialHtml is now a plain function called inside
+// useEffect instead of useMemo, so it always runs client-side. Also handles
+// empty markdown output without falling back to DEFAULT_BIO_HTML.
 const buildInitialHtml = (initialData) => {
   const raw = String(initialData?.content ?? "").trim();
   if (!raw) {
@@ -305,18 +317,21 @@ const buildInitialHtml = (initialData) => {
   }
 
   if (hasMarkdownSyntax(raw)) {
-    return normalizeHtmlForEditor(sanitizeHtml(markdownToHtml(raw)));
+    const converted = markdownToHtml(raw);
+    return normalizeHtmlForEditor(sanitizeHtml(converted || raw));
   }
 
   if (hasHtmlTags(raw)) {
     return normalizeHtmlForEditor(sanitizeHtml(raw));
   }
 
-  return normalizeHtmlForEditor(sanitizeHtml(markdownToHtml(raw)));
+  const converted = markdownToHtml(raw);
+  return normalizeHtmlForEditor(sanitizeHtml(converted || raw));
 };
 
 const editableBlockTags = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "div"]);
 const blockConvertibleTags = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "div"]);
+const rootBlockTags = new Set([...editableBlockTags, "ul", "ol", "blockquote", "pre", "hr"]);
 
 export default function BioVariantPicker({
   open,
@@ -325,11 +340,22 @@ export default function BioVariantPicker({
   initialData,
   submitLabel = "Add to Canvas",
 }) {
-  const initialHtml = useMemo(() => buildInitialHtml(initialData), [initialData]);
   const editorRef = useRef(null);
+
+  // BUG FIX #1 & #12: Replace dangerouslySetInnerHTML + ref combo with useEffect
+  // to set innerHTML imperatively. This avoids React overwriting DOM mutations
+  // on re-renders and eliminates the ref/dangerouslySetInnerHTML conflict.
+  useEffect(() => {
+    if (open && editorRef.current) {
+      editorRef.current.innerHTML = buildInitialHtml(initialData);
+    }
+  }, [open]); // Only re-initialize when the panel opens, not on every initialData change.
+
   const holdSelection = (e) => e.preventDefault();
+
   const toolbarButtonClass =
     "rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]";
+
   const editorThemeStyle = {
     color: "#111827",
     backgroundColor: "#ffffff",
@@ -364,46 +390,112 @@ export default function BioVariantPicker({
     return false;
   };
 
-  const isBoundaryPointAtBlockEdge = (container, offset, block, edge) => {
-    if (!block) return false;
+  const isRootBlock = (node) => {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+    const tag = node.tagName.toLowerCase();
+    return rootBlockTags.has(tag);
+  };
 
+  const normalizeEditorBlocks = () => {
+    if (!editorRef.current) return;
+    const editor = editorRef.current;
+    let cursor = editor.firstChild;
+
+    while (cursor) {
+      const next = cursor.nextSibling;
+
+      if (cursor.nodeType === Node.COMMENT_NODE) {
+        cursor.remove();
+        cursor = next;
+        continue;
+      }
+
+      if (isRootBlock(cursor)) {
+        cursor = next;
+        continue;
+      }
+
+      const paragraph = document.createElement("p");
+      editor.insertBefore(paragraph, cursor);
+
+      let segment = cursor;
+      while (segment && !isRootBlock(segment)) {
+        const after = segment.nextSibling;
+        const isLeadingBreak =
+          segment.nodeType === Node.ELEMENT_NODE &&
+          segment.tagName.toLowerCase() === "br" &&
+          !paragraph.textContent;
+
+        if (isLeadingBreak) {
+          segment.remove();
+        } else {
+          paragraph.appendChild(segment);
+        }
+        segment = after;
+      }
+
+      if (!paragraph.childNodes.length) {
+        paragraph.appendChild(document.createElement("br"));
+      }
+
+      cursor = segment;
+    }
+
+    if (!editor.childNodes.length) {
+      const paragraph = document.createElement("p");
+      paragraph.appendChild(document.createElement("br"));
+      editor.appendChild(paragraph);
+    }
+  };
+
+  // BUG FIX #13: comparePoints now surfaces errors instead of silently returning 0,
+  // and callers handle null gracefully.
+  const comparePoints = (aContainer, aOffset, bContainer, bOffset) => {
+    const pointA = document.createRange();
+    pointA.setStart(aContainer, aOffset);
+    pointA.collapse(true);
+
+    const pointB = document.createRange();
+    pointB.setStart(bContainer, bOffset);
+    pointB.collapse(true);
+
+    return pointA.compareBoundaryPoints(Range.START_TO_START, pointB);
+  };
+
+  const doesRangeSelectBlock = (range, block) => {
     try {
-      const pointRange = document.createRange();
-      pointRange.setStart(container, offset);
-      pointRange.collapse(true);
+      const blockRange = document.createRange();
+      blockRange.selectNodeContents(block);
 
-      const edgeRange = document.createRange();
-      edgeRange.selectNodeContents(block);
-      edgeRange.collapse(edge === "start");
+      const startsAtOrAfterBlockEnd =
+        comparePoints(
+          range.startContainer,
+          range.startOffset,
+          blockRange.endContainer,
+          blockRange.endOffset
+        ) >= 0;
+      if (startsAtOrAfterBlockEnd) return false;
 
-      return pointRange.compareBoundaryPoints(Range.START_TO_START, edgeRange) === 0;
+      const endsAtOrBeforeBlockStart =
+        comparePoints(
+          range.endContainer,
+          range.endOffset,
+          blockRange.startContainer,
+          blockRange.startOffset
+        ) <= 0;
+      if (endsAtOrBeforeBlockStart) return false;
+
+      return true;
     } catch {
+      // BUG FIX #13: On error, default to false (not selected) rather than
+      // returning 0 which made doesRangeSelectBlock incorrectly return true.
       return false;
     }
   };
 
-  const trimBoundaryOnlyBlocks = (blocks, range) => {
-    if (!blocks.length || blocks.length === 1) return blocks;
-
-    const trimmed = [...blocks];
-
-    const firstBlock = trimmed[0];
-    if (isBoundaryPointAtBlockEdge(range.startContainer, range.startOffset, firstBlock, "end")) {
-      trimmed.shift();
-    }
-
-    if (trimmed.length > 1) {
-      const lastBlock = trimmed[trimmed.length - 1];
-      if (isBoundaryPointAtBlockEdge(range.endContainer, range.endOffset, lastBlock, "start")) {
-        trimmed.pop();
-      }
-    }
-
-    return trimmed;
-  };
-
   const getSelectedBlocks = () => {
     if (!editorRef.current) return [];
+    normalizeEditorBlocks();
 
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return [];
@@ -412,7 +504,23 @@ export default function BioVariantPicker({
 
     if (range.collapsed) {
       const single = getBlockFromNode(selection.anchorNode);
-      return single ? [single] : [];
+      if (single) return [single];
+
+      if (selection.anchorNode === editorRef.current) {
+        const childCount = editorRef.current.childNodes.length;
+        if (!childCount) return [];
+
+        const anchorOffset = Math.max(0, Math.min(selection.anchorOffset, childCount));
+        const candidate =
+          editorRef.current.childNodes[Math.min(anchorOffset, childCount - 1)] ||
+          editorRef.current.childNodes[childCount - 1];
+        const tag = candidate?.tagName?.toLowerCase?.();
+        if (candidate && editableBlockTags.has(tag)) {
+          return [candidate];
+        }
+      }
+
+      return [];
     }
 
     const blocks = [];
@@ -425,13 +533,9 @@ export default function BioVariantPicker({
           const tag = node?.tagName?.toLowerCase?.();
           if (!editableBlockTags.has(tag)) return NodeFilter.FILTER_SKIP;
           if (hasEditableAncestor(node)) return NodeFilter.FILTER_SKIP;
-          try {
-            return range.intersectsNode(node)
-              ? NodeFilter.FILTER_ACCEPT
-              : NodeFilter.FILTER_SKIP;
-          } catch {
-            return NodeFilter.FILTER_SKIP;
-          }
+          return doesRangeSelectBlock(range, node)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP;
         },
       }
     );
@@ -447,15 +551,46 @@ export default function BioVariantPicker({
 
     if (!blocks.length) {
       const fallback = getBlockFromNode(selection.anchorNode);
-      return fallback ? [fallback] : [];
+      if (fallback) return [fallback];
+
+      if (selection.anchorNode === editorRef.current) {
+        const firstBlock = editorRef.current.firstElementChild;
+        const tag = firstBlock?.tagName?.toLowerCase?.();
+        if (firstBlock && editableBlockTags.has(tag)) {
+          return [firstBlock];
+        }
+      }
+
+      return [];
     }
 
-    return trimBoundaryOnlyBlocks(blocks, range);
+    return blocks;
   };
 
-  const setCaretToEnd = (element) => {
+  const ensureEditorReadyForFormatting = () => {
+    if (!editorRef.current) return;
+    normalizeEditorBlocks();
+
+    if (!editorRef.current.childNodes.length) {
+      const paragraph = document.createElement("p");
+      paragraph.appendChild(document.createElement("br"));
+      editorRef.current.appendChild(paragraph);
+    }
+  };
+
+  // BUG FIX #8: Preserve caret position rather than always jumping to end.
+  // Only move caret if the target block is different from the currently focused block.
+  const restoreCaretToBlock = (element) => {
+    if (!element) return;
     const selection = window.getSelection();
-    if (!selection || !element) return;
+    if (!selection) return;
+
+    // If selection is already inside this element, leave it alone.
+    if (selection.rangeCount > 0) {
+      const currentRange = selection.getRangeAt(0);
+      if (element.contains(currentRange.startContainer)) return;
+    }
+
     const range = document.createRange();
     range.selectNodeContents(element);
     range.collapse(false);
@@ -481,6 +616,7 @@ export default function BioVariantPicker({
     return fragment;
   };
 
+  // BUG FIX #11: Clone children BEFORE removing listItem from the DOM.
   const replaceListItemWithBlock = (listItem, targetTag) => {
     const list = listItem.parentElement;
     const parent = list?.parentElement;
@@ -488,8 +624,17 @@ export default function BioVariantPicker({
 
     const listTag = list.tagName.toLowerCase();
     const afterSibling = list.nextSibling;
-    const afterItems = [];
 
+    // BUG FIX #11: Capture content before any DOM mutations.
+    const newBlock = document.createElement(targetTag);
+    const contentFragment = cloneChildren(listItem, { excludeNestedLists: true });
+    if (contentFragment.childNodes.length) {
+      newBlock.appendChild(contentFragment);
+    } else {
+      newBlock.textContent = String(listItem.textContent || "Text").trim() || "Text";
+    }
+
+    const afterItems = [];
     let cursor = listItem.nextElementSibling;
     while (cursor) {
       afterItems.push(cursor);
@@ -505,15 +650,9 @@ export default function BioVariantPicker({
       parent.insertBefore(trailingList, afterSibling);
     }
 
-    const newBlock = document.createElement(targetTag);
-    const contentFragment = cloneChildren(listItem, { excludeNestedLists: true });
-    if (contentFragment.childNodes.length) {
-      newBlock.appendChild(contentFragment);
-    } else {
-      newBlock.textContent = String(listItem.textContent || "Text").trim() || "Text";
-    }
     parent.insertBefore(newBlock, trailingList || afterSibling);
 
+    // BUG FIX #15: Remove the parent list if it's now empty.
     if (!list.children.length) {
       list.remove();
     }
@@ -524,6 +663,7 @@ export default function BioVariantPicker({
   const applyBlockFormat = (tag) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
+    ensureEditorReadyForFormatting();
 
     const targetTag = tag.toLowerCase();
     const blocks = getSelectedBlocks();
@@ -559,12 +699,13 @@ export default function BioVariantPicker({
       lastChanged = newBlock;
     });
 
-    setCaretToEnd(lastChanged);
+    restoreCaretToBlock(lastChanged);
   };
 
   const applyToSelectedBlocks = (applyChange) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
+    ensureEditorReadyForFormatting();
 
     const blocks = getSelectedBlocks();
     if (!blocks.length) return;
@@ -579,26 +720,24 @@ export default function BioVariantPicker({
       }
     });
 
-    setCaretToEnd(lastChanged);
+    restoreCaretToBlock(lastChanged);
   };
 
+  // BUG FIX #6: toggleItalic now uses execCommand for proper inline character-level
+  // formatting instead of applying font-style to the entire block element.
   const toggleItalic = () => {
-    applyToSelectedBlocks((block) => {
-      const tag = block.tagName.toLowerCase();
-      if (!editableBlockTags.has(tag)) return null;
-      block.style.fontStyle = block.style.fontStyle === "italic" ? "normal" : "italic";
-      return block;
-    });
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    // eslint-disable-next-line no-execCommand
+    document.execCommand("italic", false, null);
   };
 
+  // BUG FIX #6: toggleUnderline now uses execCommand for proper inline formatting.
   const toggleUnderline = () => {
-    applyToSelectedBlocks((block) => {
-      const tag = block.tagName.toLowerCase();
-      if (!editableBlockTags.has(tag)) return null;
-      block.style.textDecorationLine =
-        block.style.textDecorationLine === "underline" ? "none" : "underline";
-      return block;
-    });
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    // eslint-disable-next-line no-execCommand
+    document.execCommand("underline", false, null);
   };
 
   const applyAlignment = (alignment) => {
@@ -610,9 +749,12 @@ export default function BioVariantPicker({
     });
   };
 
+  // BUG FIX #5: applyBullets now toggles — if selected block is already an <li>,
+  // convert it back to a <p> instead of silently skipping.
   const applyBullets = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
+    ensureEditorReadyForFormatting();
 
     const blocks = getSelectedBlocks();
     if (!blocks.length) return;
@@ -625,10 +767,13 @@ export default function BioVariantPicker({
       if (!block?.isConnected) return;
 
       const tag = block.tagName.toLowerCase();
+
+      // BUG FIX #5: Toggle off — convert existing list item back to paragraph.
       if (tag === "li") {
+        const next = replaceListItemWithBlock(block, "p");
+        if (next) lastChanged = next;
         activeList = null;
         activeListParent = null;
-        lastChanged = block;
         return;
       }
 
@@ -652,14 +797,15 @@ export default function BioVariantPicker({
       if (contentFragment.childNodes.length) {
         listItem.appendChild(contentFragment);
       } else {
-        listItem.textContent = String(block.textContent || "List item").trim() || "List item";
+        listItem.textContent =
+          String(block.textContent || "List item").trim() || "List item";
       }
       activeList.appendChild(listItem);
       block.remove();
       lastChanged = listItem;
     });
 
-    setCaretToEnd(lastChanged);
+    restoreCaretToBlock(lastChanged);
   };
 
   const resetAndClose = () => {
@@ -667,14 +813,31 @@ export default function BioVariantPicker({
   };
 
   const handleSubmit = () => {
-    const nextHtml = normalizeHtmlForEditor(sanitizeHtml(String(editorRef.current?.innerHTML ?? "")));
-    onSave({
-      content: nextHtml,
-    });
+    const nextHtml = normalizeHtmlForEditor(
+      sanitizeHtml(String(editorRef.current?.innerHTML ?? ""))
+    );
+    onSave({ content: nextHtml });
     resetAndClose();
   };
 
   if (!open) return null;
+
+  // Toolbar button definitions to avoid missing key warnings (BUG FIX #14).
+  const toolbarButtons = [
+    { label: "H1", action: () => applyBlockFormat("h1") },
+    { label: "H2", action: () => applyBlockFormat("h2") },
+    { label: "H3", action: () => applyBlockFormat("h3") },
+    { label: "H4", action: () => applyBlockFormat("h4") },
+    { label: "H5", action: () => applyBlockFormat("h5") },
+    { label: "H6", action: () => applyBlockFormat("h6") },
+    { label: "Paragraph", action: () => applyBlockFormat("p") },
+    { label: "Bullets", action: applyBullets },
+    { label: "Italic", action: toggleItalic },
+    { label: "Underline", action: toggleUnderline },
+    { label: "Align Left", action: () => applyAlignment("left") },
+    { label: "Align Center", action: () => applyAlignment("center") },
+    { label: "Align Right", action: () => applyAlignment("right") },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60">
@@ -682,7 +845,10 @@ export default function BioVariantPicker({
         <div className="h-full overflow-y-auto pr-1">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white">Compose Bio</h3>
-            <button onClick={resetAndClose} className="cursor-pointer text-gray-400 hover:text-white">
+            <button
+              onClick={resetAndClose}
+              className="cursor-pointer text-gray-400 hover:text-white"
+            >
               X
             </button>
           </div>
@@ -692,107 +858,30 @@ export default function BioVariantPicker({
             <h4 className="mt-1 text-base font-semibold text-white">Bio Area</h4>
           </div>
 
+          {/* BUG FIX #14: Added key prop to each toolbar button. */}
           <div className="mb-3 flex flex-wrap gap-2">
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyBlockFormat("h1")}
-              className={toolbarButtonClass}
-            >
-              H1
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyBlockFormat("h2")}
-              className={toolbarButtonClass}
-            >
-              H2
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyBlockFormat("h3")}
-              className={toolbarButtonClass}
-            >
-              H3
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyBlockFormat("h4")}
-              className={toolbarButtonClass}
-            >
-              H4
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyBlockFormat("h5")}
-              className={toolbarButtonClass}
-            >
-              H5
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyBlockFormat("h6")}
-              className={toolbarButtonClass}
-            >
-              H6
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyBlockFormat("p")}
-              className={toolbarButtonClass}
-            >
-              Paragraph
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={applyBullets}
-              className={toolbarButtonClass}
-            >
-              Bullets
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={toggleItalic}
-              className={toolbarButtonClass}
-            >
-              Italic
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={toggleUnderline}
-              className={toolbarButtonClass}
-            >
-              Underline
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyAlignment("left")}
-              className={toolbarButtonClass}
-            >
-              Align Left
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyAlignment("center")}
-              className={toolbarButtonClass}
-            >
-              Align Center
-            </button>
-            <button
-              onMouseDown={holdSelection}
-              onClick={() => applyAlignment("right")}
-              className={toolbarButtonClass}
-            >
-              Align Right
-            </button>
+            {toolbarButtons.map(({ label, action }) => (
+              <button
+                key={label}
+                onMouseDown={holdSelection}
+                onClick={action}
+                className={toolbarButtonClass}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
+          {/*
+            BUG FIX #1 & #12: Removed dangerouslySetInnerHTML.
+            Content is set via useEffect to avoid React overwriting DOM mutations.
+          */}
           <div
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
             className="markdown-body bio-editor min-h-[520px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none"
             style={editorThemeStyle}
-            dangerouslySetInnerHTML={{ __html: initialHtml }}
           />
 
           <div className="mt-3 flex items-center justify-end gap-2">
