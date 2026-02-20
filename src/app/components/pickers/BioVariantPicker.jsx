@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 
 const DEFAULT_BIO_HTML = `<h2>About Me</h2>
 <p>I build modern web apps, experiment with AI tooling, and care about great DX.</p>
@@ -11,12 +11,192 @@ const DEFAULT_BIO_HTML = `<h2>About Me</h2>
 </ul>`;
 
 const hasHtmlTags = (value) => /<\/?[a-z][\s\S]*>/i.test(value);
+const hasMarkdownSyntax = (value) =>
+  /(^|\n)\s*(#{1,6}\s+.+|[-*]\s+.+|\d+\.\s+.+)\s*($|\n)/m.test(String(value || ""));
+const isLikelyHtmlLine = (value) => /^<\/?[a-z][\w:-]*(\s+[^>]*)?>$/i.test(String(value || "").trim());
+const hasOwnContent = (data) => Boolean(data && Object.prototype.hasOwnProperty.call(data, "content"));
 
 const escapeHtml = (value) =>
   String(value || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+
+const sanitizeStyleAttribute = (value) => {
+  const safeDeclarations = [];
+
+  String(value || "")
+    .split(";")
+    .forEach((entry) => {
+      const [rawProperty, ...rawValueParts] = entry.split(":");
+      if (!rawProperty || !rawValueParts.length) return;
+
+      const property = rawProperty.trim().toLowerCase();
+      const propertyValue = rawValueParts.join(":").trim().toLowerCase();
+      if (!propertyValue) return;
+
+      if (property === "text-align" && ["left", "center", "right", "justify", "start", "end"].includes(propertyValue)) {
+        safeDeclarations.push(`text-align: ${propertyValue}`);
+        return;
+      }
+
+      if (property === "font-style" && ["italic", "normal"].includes(propertyValue)) {
+        safeDeclarations.push(`font-style: ${propertyValue}`);
+        return;
+      }
+
+      if (property === "text-decoration-line" && ["underline", "none"].includes(propertyValue)) {
+        safeDeclarations.push(`text-decoration-line: ${propertyValue}`);
+        return;
+      }
+
+      if (property === "text-decoration" && ["underline", "none"].includes(propertyValue)) {
+        safeDeclarations.push(`text-decoration-line: ${propertyValue}`);
+      }
+    });
+
+  return safeDeclarations.join("; ");
+};
+
+const sanitizeUrl = (value, { allowDataImage = false } = {}) => {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+
+  if (allowDataImage && /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^\s*javascript:/i.test(trimmed)) {
+    return "";
+  }
+
+  if (typeof window === "undefined") return trimmed;
+
+  try {
+    const parsed = new URL(trimmed, window.location.origin);
+    const protocol = parsed.protocol.toLowerCase();
+    if (["http:", "https:", "mailto:"].includes(protocol)) {
+      return trimmed;
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+};
+
+const ALLOWED_TAGS = new Set([
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "p",
+  "ul",
+  "ol",
+  "li",
+  "em",
+  "i",
+  "strong",
+  "b",
+  "u",
+  "a",
+  "br",
+  "code",
+  "span",
+  "div",
+  "img",
+]);
+
+const GLOBAL_ALLOWED_ATTRS = new Set(["style"]);
+
+const ALLOWED_ATTRS = {
+  a: new Set(["href", "title", "target", "rel"]),
+  img: new Set(["src", "alt", "title", "width", "height"]),
+  div: new Set(["align"]),
+  p: new Set(["align"]),
+  h1: new Set(["align"]),
+  h2: new Set(["align"]),
+  h3: new Set(["align"]),
+  h4: new Set(["align"]),
+  h5: new Set(["align"]),
+  h6: new Set(["align"]),
+};
+
+const sanitizeHtml = (html) => {
+  if (typeof window === "undefined") return String(html || "");
+
+  const root = document.createElement("div");
+  root.innerHTML = String(html || "");
+
+  const elements = Array.from(root.querySelectorAll("*"));
+  elements.forEach((element) => {
+    if (!element?.isConnected) return;
+
+    const tag = element.tagName.toLowerCase();
+    if (!ALLOWED_TAGS.has(tag)) {
+      const parent = element.parentNode;
+      if (!parent) return;
+      while (element.firstChild) {
+        parent.insertBefore(element.firstChild, element);
+      }
+      element.remove();
+      return;
+    }
+
+    const allowedAttrs = ALLOWED_ATTRS[tag] || new Set();
+
+    Array.from(element.attributes).forEach((attribute) => {
+      const attrName = attribute.name.toLowerCase();
+      const isAllowed = GLOBAL_ALLOWED_ATTRS.has(attrName) || allowedAttrs.has(attrName);
+      if (!isAllowed) {
+        element.removeAttribute(attribute.name);
+        return;
+      }
+
+      if (attrName === "style") {
+        const safeStyle = sanitizeStyleAttribute(attribute.value);
+        if (safeStyle) {
+          element.setAttribute("style", safeStyle);
+        } else {
+          element.removeAttribute("style");
+        }
+      }
+    });
+
+    if (tag === "a") {
+      const safeHref = sanitizeUrl(element.getAttribute("href"));
+      if (safeHref) {
+        element.setAttribute("href", safeHref);
+      } else {
+        element.removeAttribute("href");
+      }
+
+      const target = element.getAttribute("target");
+      if (target && target !== "_blank") {
+        element.removeAttribute("target");
+      }
+
+      if (element.getAttribute("target") === "_blank") {
+        element.setAttribute("rel", "noopener noreferrer");
+      } else {
+        element.removeAttribute("rel");
+      }
+    }
+
+    if (tag === "img") {
+      const safeSrc = sanitizeUrl(element.getAttribute("src"), { allowDataImage: true });
+      if (safeSrc) {
+        element.setAttribute("src", safeSrc);
+      } else {
+        element.remove();
+      }
+    }
+  });
+
+  return root.innerHTML.trim();
+};
 
 const markdownToHtml = (markdown) => {
   const lines = String(markdown || "").split(/\r?\n/);
@@ -46,27 +226,19 @@ const markdownToHtml = (markdown) => {
       return;
     }
 
-    const h1 = trimmed.match(/^#\s+(.+)$/);
-    if (h1) {
+    if (isLikelyHtmlLine(trimmed)) {
       flushList();
       flushParagraph();
-      html.push(`<h1>${escapeHtml(h1[1])}</h1>`);
+      html.push(trimmed);
       return;
     }
 
-    const h2 = trimmed.match(/^##\s+(.+)$/);
-    if (h2) {
+    const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
       flushList();
       flushParagraph();
-      html.push(`<h2>${escapeHtml(h2[1])}</h2>`);
-      return;
-    }
-
-    const h3 = trimmed.match(/^###\s+(.+)$/);
-    if (h3) {
-      flushList();
-      flushParagraph();
-      html.push(`<h3>${escapeHtml(h3[1])}</h3>`);
+      const level = heading[1].length;
+      html.push(`<h${level}>${escapeHtml(heading[2])}</h${level}>`);
       return;
     }
 
@@ -93,8 +265,8 @@ const normalizeHtmlForEditor = (html) => {
   const root = document.createElement("div");
   root.innerHTML = String(html || "");
 
-  root.querySelectorAll("h1,h2,h3").forEach((heading) => {
-    const nested = heading.querySelector("h1,h2,h3");
+  root.querySelectorAll("h1,h2,h3,h4,h5,h6").forEach((heading) => {
+    const nested = heading.querySelector("h1,h2,h3,h4,h5,h6");
     if (nested) {
       heading.innerHTML = nested.innerHTML;
     }
@@ -123,23 +295,28 @@ const normalizeHtmlForEditor = (html) => {
   });
 
   const normalized = root.innerHTML.trim();
-  return normalized || DEFAULT_BIO_HTML;
+  return normalized;
 };
 
 const buildInitialHtml = (initialData) => {
-  const raw = String(initialData?.content || "").trim();
-  if (!raw) return DEFAULT_BIO_HTML;
-  if (hasHtmlTags(raw)) return normalizeHtmlForEditor(raw);
-  return markdownToHtml(raw);
+  const raw = String(initialData?.content ?? "").trim();
+  if (!raw) {
+    return hasOwnContent(initialData) ? "" : DEFAULT_BIO_HTML;
+  }
+
+  if (hasMarkdownSyntax(raw)) {
+    return normalizeHtmlForEditor(sanitizeHtml(markdownToHtml(raw)));
+  }
+
+  if (hasHtmlTags(raw)) {
+    return normalizeHtmlForEditor(sanitizeHtml(raw));
+  }
+
+  return normalizeHtmlForEditor(sanitizeHtml(markdownToHtml(raw)));
 };
 
-const alignmentCommandMap = {
-  left: "justifyLeft",
-  center: "justifyCenter",
-  right: "justifyRight",
-};
-
-const editableBlockTags = new Set(["h1", "h2", "h3", "p", "li", "div"]);
+const editableBlockTags = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "div"]);
+const blockConvertibleTags = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "div"]);
 
 export default function BioVariantPicker({
   open,
@@ -148,16 +325,17 @@ export default function BioVariantPicker({
   initialData,
   submitLabel = "Add to Canvas",
 }) {
-  const initialHtml = buildInitialHtml(initialData);
+  const initialHtml = useMemo(() => buildInitialHtml(initialData), [initialData]);
   const editorRef = useRef(null);
   const holdSelection = (e) => e.preventDefault();
   const toolbarButtonClass =
     "rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]";
-
-  const runCommand = (command, value = null) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand(command, false, value);
+  const editorThemeStyle = {
+    color: "#111827",
+    backgroundColor: "#ffffff",
+    "--fgColor-default": "#111827",
+    "--bgColor-default": "#ffffff",
+    "--borderColor-muted": "#d1d9e0",
   };
 
   const getBlockFromNode = (node) => {
@@ -184,6 +362,44 @@ export default function BioVariantPicker({
       cursor = cursor.parentElement;
     }
     return false;
+  };
+
+  const isBoundaryPointAtBlockEdge = (container, offset, block, edge) => {
+    if (!block) return false;
+
+    try {
+      const pointRange = document.createRange();
+      pointRange.setStart(container, offset);
+      pointRange.collapse(true);
+
+      const edgeRange = document.createRange();
+      edgeRange.selectNodeContents(block);
+      edgeRange.collapse(edge === "start");
+
+      return pointRange.compareBoundaryPoints(Range.START_TO_START, edgeRange) === 0;
+    } catch {
+      return false;
+    }
+  };
+
+  const trimBoundaryOnlyBlocks = (blocks, range) => {
+    if (!blocks.length || blocks.length === 1) return blocks;
+
+    const trimmed = [...blocks];
+
+    const firstBlock = trimmed[0];
+    if (isBoundaryPointAtBlockEdge(range.startContainer, range.startOffset, firstBlock, "end")) {
+      trimmed.shift();
+    }
+
+    if (trimmed.length > 1) {
+      const lastBlock = trimmed[trimmed.length - 1];
+      if (isBoundaryPointAtBlockEdge(range.endContainer, range.endOffset, lastBlock, "start")) {
+        trimmed.pop();
+      }
+    }
+
+    return trimmed;
   };
 
   const getSelectedBlocks = () => {
@@ -234,7 +450,7 @@ export default function BioVariantPicker({
       return fallback ? [fallback] : [];
     }
 
-    return blocks;
+    return trimBoundaryOnlyBlocks(blocks, range);
   };
 
   const setCaretToEnd = (element) => {
@@ -245,6 +461,24 @@ export default function BioVariantPicker({
     range.collapse(false);
     selection.removeAllRanges();
     selection.addRange(range);
+  };
+
+  const cloneChildren = (node, { excludeNestedLists = false } = {}) => {
+    const fragment = document.createDocumentFragment();
+
+    Array.from(node?.childNodes || []).forEach((child) => {
+      if (
+        excludeNestedLists &&
+        child.nodeType === Node.ELEMENT_NODE &&
+        ["ul", "ol"].includes(child.tagName.toLowerCase())
+      ) {
+        return;
+      }
+
+      fragment.appendChild(child.cloneNode(true));
+    });
+
+    return fragment;
   };
 
   const replaceListItemWithBlock = (listItem, targetTag) => {
@@ -272,7 +506,12 @@ export default function BioVariantPicker({
     }
 
     const newBlock = document.createElement(targetTag);
-    newBlock.textContent = String(listItem.textContent || "Text").trim();
+    const contentFragment = cloneChildren(listItem, { excludeNestedLists: true });
+    if (contentFragment.childNodes.length) {
+      newBlock.appendChild(contentFragment);
+    } else {
+      newBlock.textContent = String(listItem.textContent || "Text").trim() || "Text";
+    }
     parent.insertBefore(newBlock, trailingList || afterSibling);
 
     if (!list.children.length) {
@@ -307,10 +546,15 @@ export default function BioVariantPicker({
         return;
       }
 
-      if (!["h1", "h2", "h3", "p", "div"].includes(currentTag)) return;
+      if (!blockConvertibleTags.has(currentTag)) return;
 
       const newBlock = document.createElement(targetTag);
-      newBlock.textContent = String(block.textContent || "Text").trim();
+      const contentFragment = cloneChildren(block);
+      if (contentFragment.childNodes.length) {
+        newBlock.appendChild(contentFragment);
+      } else {
+        newBlock.textContent = String(block.textContent || "Text").trim() || "Text";
+      }
       block.replaceWith(newBlock);
       lastChanged = newBlock;
     });
@@ -318,7 +562,7 @@ export default function BioVariantPicker({
     setCaretToEnd(lastChanged);
   };
 
-  const applyBullets = () => {
+  const applyToSelectedBlocks = (applyChange) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
 
@@ -329,19 +573,89 @@ export default function BioVariantPicker({
 
     blocks.forEach((block) => {
       if (!block?.isConnected) return;
+      const changed = applyChange(block);
+      if (changed) {
+        lastChanged = changed;
+      }
+    });
+
+    setCaretToEnd(lastChanged);
+  };
+
+  const toggleItalic = () => {
+    applyToSelectedBlocks((block) => {
+      const tag = block.tagName.toLowerCase();
+      if (!editableBlockTags.has(tag)) return null;
+      block.style.fontStyle = block.style.fontStyle === "italic" ? "normal" : "italic";
+      return block;
+    });
+  };
+
+  const toggleUnderline = () => {
+    applyToSelectedBlocks((block) => {
+      const tag = block.tagName.toLowerCase();
+      if (!editableBlockTags.has(tag)) return null;
+      block.style.textDecorationLine =
+        block.style.textDecorationLine === "underline" ? "none" : "underline";
+      return block;
+    });
+  };
+
+  const applyAlignment = (alignment) => {
+    applyToSelectedBlocks((block) => {
+      const tag = block.tagName.toLowerCase();
+      if (!editableBlockTags.has(tag)) return null;
+      block.style.textAlign = alignment;
+      return block;
+    });
+  };
+
+  const applyBullets = () => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    const blocks = getSelectedBlocks();
+    if (!blocks.length) return;
+
+    let lastChanged = null;
+    let activeList = null;
+    let activeListParent = null;
+
+    blocks.forEach((block) => {
+      if (!block?.isConnected) return;
 
       const tag = block.tagName.toLowerCase();
       if (tag === "li") {
+        activeList = null;
+        activeListParent = null;
         lastChanged = block;
         return;
       }
-      if (!["h1", "h2", "h3", "p", "div"].includes(tag)) return;
 
-      const list = document.createElement("ul");
+      if (!blockConvertibleTags.has(tag)) {
+        activeList = null;
+        activeListParent = null;
+        return;
+      }
+
+      const parent = block.parentElement;
+      if (!parent) return;
+
+      if (!activeList || activeListParent !== parent) {
+        activeList = document.createElement("ul");
+        activeListParent = parent;
+        parent.insertBefore(activeList, block);
+      }
+
       const listItem = document.createElement("li");
-      listItem.textContent = String(block.textContent || "List item").trim();
-      list.appendChild(listItem);
-      block.replaceWith(list);
+      const contentFragment = cloneChildren(block);
+      if (contentFragment.childNodes.length) {
+        listItem.appendChild(contentFragment);
+      } else {
+        listItem.textContent = String(block.textContent || "List item").trim() || "List item";
+      }
+      activeList.appendChild(listItem);
+      block.remove();
       lastChanged = listItem;
     });
 
@@ -353,9 +667,9 @@ export default function BioVariantPicker({
   };
 
   const handleSubmit = () => {
-    const nextHtml = String(editorRef.current?.innerHTML || initialHtml).trim();
+    const nextHtml = normalizeHtmlForEditor(sanitizeHtml(String(editorRef.current?.innerHTML ?? "")));
     onSave({
-      content: nextHtml || DEFAULT_BIO_HTML,
+      content: nextHtml,
     });
     resetAndClose();
   };
@@ -375,7 +689,7 @@ export default function BioVariantPicker({
 
           <div className="mb-2">
             <p className="text-xs uppercase tracking-[0.24em] text-white/40">Edit Mode</p>
-            <h4 className="mt-1 text-base font-semibold text-white">Single Bio Area</h4>
+            <h4 className="mt-1 text-base font-semibold text-white">Bio Area</h4>
           </div>
 
           <div className="mb-3 flex flex-wrap gap-2">
@@ -402,6 +716,27 @@ export default function BioVariantPicker({
             </button>
             <button
               onMouseDown={holdSelection}
+              onClick={() => applyBlockFormat("h4")}
+              className={toolbarButtonClass}
+            >
+              H4
+            </button>
+            <button
+              onMouseDown={holdSelection}
+              onClick={() => applyBlockFormat("h5")}
+              className={toolbarButtonClass}
+            >
+              H5
+            </button>
+            <button
+              onMouseDown={holdSelection}
+              onClick={() => applyBlockFormat("h6")}
+              className={toolbarButtonClass}
+            >
+              H6
+            </button>
+            <button
+              onMouseDown={holdSelection}
               onClick={() => applyBlockFormat("p")}
               className={toolbarButtonClass}
             >
@@ -416,35 +751,35 @@ export default function BioVariantPicker({
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand("italic")}
+              onClick={toggleItalic}
               className={toolbarButtonClass}
             >
               Italic
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand("underline")}
+              onClick={toggleUnderline}
               className={toolbarButtonClass}
             >
               Underline
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand(alignmentCommandMap.left)}
+              onClick={() => applyAlignment("left")}
               className={toolbarButtonClass}
             >
               Align Left
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand(alignmentCommandMap.center)}
+              onClick={() => applyAlignment("center")}
               className={toolbarButtonClass}
             >
               Align Center
             </button>
             <button
               onMouseDown={holdSelection}
-              onClick={() => runCommand(alignmentCommandMap.right)}
+              onClick={() => applyAlignment("right")}
               className={toolbarButtonClass}
             >
               Align Right
@@ -456,6 +791,7 @@ export default function BioVariantPicker({
             contentEditable
             suppressContentEditableWarning
             className="markdown-body bio-editor min-h-[520px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none"
+            style={editorThemeStyle}
             dangerouslySetInnerHTML={{ __html: initialHtml }}
           />
 

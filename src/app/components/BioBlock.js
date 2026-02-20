@@ -12,6 +12,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
 export default function BioBlock({ item }) {
   const data = item?.data || {};
+  const hasExplicitContent = Object.prototype.hasOwnProperty.call(data, "content");
 
   const legacyTitle = String(data.title || "About Me").trim();
   const legacySummary = String(data.summary || "").trim();
@@ -24,7 +25,9 @@ ${legacySummary}
 
 ${legacyFocus.map((point) => `- ${point}`).join("\n")}`.trim();
 
-  const content = String(data.content || legacyContent || fallbackContent).trim();
+  const content = hasExplicitContent
+    ? String(data.content ?? "").trim()
+    : String(legacyContent || fallbackContent).trim();
 
   return (
     <div className="w-full rounded-xl border border-white/10 bg-[#0f1115] p-3">

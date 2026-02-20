@@ -188,17 +188,21 @@ export default function generateMarkdown(canvasItems) {
     }
 
     if (block === "bio") {
-      const content = String(item.data?.content || "").trim();
+      const bioData = item.data || {};
+      const hasExplicitContent = Object.prototype.hasOwnProperty.call(bioData, "content");
+      const content = hasExplicitContent ? String(bioData.content ?? "").trim() : "";
 
-      if (content) {
-        markdown += `
+      if (hasExplicitContent) {
+        if (content) {
+          markdown += `
 ${content}
 
 `;
+        }
       } else {
-        const title = (item.data?.title || "About Me").trim();
-        const summary = (item.data?.summary || "").trim();
-        const focus = (item.data?.focus || [])
+        const title = (bioData.title || "About Me").trim();
+        const summary = (bioData.summary || "").trim();
+        const focus = (bioData.focus || [])
           .map((point) => String(point || "").trim())
           .filter(Boolean);
 

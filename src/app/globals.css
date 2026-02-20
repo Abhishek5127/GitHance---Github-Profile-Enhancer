@@ -24,31 +24,49 @@
   font-family: var(--font-yuji-boku);
 }
 
-/* Tamer typography for the editable bio area to avoid jumpy huge blocks */
+/* Keep editable bio typography aligned with markdown preview/canvas output */
 .bio-editor.markdown-body {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
 }
 
 .bio-editor.markdown-body h1,
 .bio-editor.markdown-body h2,
-.bio-editor.markdown-body h3 {
-  border-bottom: 0;
-  padding-bottom: 0;
-  margin-top: 0.45em;
+.bio-editor.markdown-body h3,
+.bio-editor.markdown-body h4,
+.bio-editor.markdown-body h5,
+.bio-editor.markdown-body h6 {
+  margin-top: 0.5em;
   margin-bottom: 0.35em;
 }
 
 .bio-editor.markdown-body h1 {
-  font-size: 1.6em;
+  font-size: 2em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--borderColor-muted);
 }
 
 .bio-editor.markdown-body h2 {
-  font-size: 1.35em;
+  font-size: 1.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--borderColor-muted);
 }
 
 .bio-editor.markdown-body h3 {
-  font-size: 1.18em;
+  font-size: 1.25em;
+}
+
+.bio-editor.markdown-body h4 {
+  font-size: 1em;
+}
+
+.bio-editor.markdown-body h5 {
+  font-size: 0.875em;
+}
+
+.bio-editor.markdown-body h6 {
+  font-size: 0.85em;
+  color: var(--fgColor-muted);
 }
 
 .bio-editor.markdown-body p,
