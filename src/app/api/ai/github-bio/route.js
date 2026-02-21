@@ -1,3 +1,4 @@
+import { log } from "console";
 import { NextResponse } from "next/server";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -183,6 +184,8 @@ FINAL BIO:
       result?.choices?.[0]?.message?.content ||
       result?.choices?.[0]?.text ||
       "";
+      console.log(rawBio);
+      
 
     const bio = sanitizeBio(rawBio);
 
