@@ -5,7 +5,7 @@ const DEFAULT_MODEL =
   process.env.OPENROUTER_MODEL ||
   "meta-llama/llama-3.1-8b-instruct";
 const GENERATION_RULES = [
-  "Write exactly 2 to 4 lines.",
+  "Write exactly 8 to 9 lines.",
   "Mention main languages/stack only when detectable from data.",
   "Mention project types/domains only when detectable from data.",
   "Mention deployment only if deployed_projects contains values.",
