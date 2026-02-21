@@ -56,7 +56,7 @@ BIO STYLE:
 - confident but realistic
 
 OUTPUT RULES:
-- 2–3 lines only
+- 10-15 lines only
 - ≤160 characters per line
 - no explanations
 - no reasoning
