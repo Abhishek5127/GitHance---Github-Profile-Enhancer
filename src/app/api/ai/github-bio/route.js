@@ -5,7 +5,7 @@ const DEFAULT_MODEL =
   process.env.OPENROUTER_MODEL ||
   "meta-llama/llama-3.1-8b-instruct";
 const GENERATION_RULES = [
-  "Write exactly 8 to 9 lines.",
+  "Write structured paragraphs and lines.",
   "Mention main languages/stack only when detectable from data.",
   "Mention project types/domains only when detectable from data.",
   "Mention deployment only if deployed_projects contains values.",
@@ -80,7 +80,7 @@ export async function POST(req) {
           {
             role: "system",
             content:
-              "You write concise GitHub profile bios from structured repository data. Return text with bullet points headings and casing.",
+              "You write concise GitHub profile bios from structured repository data. Return text only.",
           },
           {
             role: "user",
