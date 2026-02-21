@@ -80,7 +80,7 @@ export async function POST(req) {
           {
             role: "system",
             content:
-              "You write concise GitHub profile bios from structured repository data. Return plain text only.",
+              "You write concise GitHub profile bios from structured repository data. Return text with bullet points headings and casing.",
           },
           {
             role: "user",
