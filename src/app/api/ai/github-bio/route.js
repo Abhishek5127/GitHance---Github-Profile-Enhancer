@@ -1,72 +1,75 @@
 import { NextResponse } from "next/server";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+
 const DEFAULT_MODEL =
   process.env.OPENROUTER_MODEL ||
   "meta-llama/llama-3.1-8b-instruct";
+
+/**
+ * Smart professional bio rules
+ */
 const GENERATION_RULES = [
-  "Output 2–3 short lines only (max 160 characters per line).",
-  "Line 1: developer role + main stack/languages.",
-  "Line 2: project types or domains inferred from repos.",
-  "Line 3 (optional): deployment or focus area if detectable.",
-  "Use concrete technologies (e.g., MERN, JavaScript, Node.js) when present.",
-  "Use only facts derivable from JSON.",
-  "No generic phrases (passionate, dedicated, motivated, enthusiastic).",
-  "No buzzwords (cutting-edge, innovative, dynamic).",
+  "Write 2–3 concise professional GitHub bio lines.",
+  "Infer developer role from languages and stack (JS+React → web/full-stack).",
+  "Infer domains from repo names/descriptions (auth → security, resume → AI/productivity).",
+  "Infer problems solved from project purpose when possible.",
+  "Mention stack using concrete technologies (JavaScript, MERN, Node.js, React).",
+  "Mention deployment if deployed_projects exist.",
+  "Professional tone: senior, product-focused, builder mindset.",
   "No emojis.",
   "No hashtags.",
   "No first-person pronouns.",
-  "GitHub bio style: concise, factual, builder-oriented.",
+  "No generic fluff (passionate, dedicated, enthusiastic).",
+  "Do not explain reasoning.",
+  "Return only the bio.",
 ];
 
+/**
+ * System prompt: predictive professional summary mode
+ */
 const SYSTEM_PROMPT = `
-You are a technical recruiter writing GitHub bios.
+You are an expert technical recruiter and developer portfolio writer.
 
-Goal: produce strong, concise GitHub profile bios from repository data.
+Goal:
+Generate strong professional GitHub bios from repository metadata.
 
-Style requirements:
-- extremely concise
-- factual
-- technical
-- no fluff
-- no marketing language
-- no personality traits
-- no claims not supported by data
+You MUST infer and predict from weak signals:
+- languages → developer role
+- stack → specialization
+- repo names → domains
+- project types → problems solved
+- deployment → production experience
 
-Output format:
-2–3 short lines.
-Each line ≤160 characters.
-No extra text.
-No labels.
-No explanations.
+Examples of inference:
+JS + React → web or full-stack developer
+Auth repo → authentication/security systems
+AI repo → AI tools or automation
+Resume builder → productivity tools
+College/Syllabus → education platforms
 
-Bad words to avoid:
-passionate, dedicated, enthusiastic, motivated, skilled, experienced, innovative, dynamic.
+BIO STYLE:
+- senior professional tone
+- product and impact oriented
+- concise GitHub profile style
+- confident but realistic
 
-Prefer concrete stack and project terms:
-MERN, JavaScript, Node.js, React, AI tools, authentication systems, web apps, APIs, SaaS, full-stack.
+OUTPUT RULES:
+- 2–3 lines only
+- ≤160 characters per line
+- no explanations
+- no reasoning
+- no analysis text
+- no prefixes
+- no markdown
+- no quotes
 
-If data is weak, keep bio minimal and factual.
-Return text only.
+Return ONLY the bio text.
 `;
 
-const userPrompt = `
-Generate GitHub bio following rules:
-- ${GENERATION_RULES.join("\n- ")}
-
-Infer from data:
-- main languages from stats.top_languages
-- stack from stats.primary_stack
-- domains from stats.domains
-- deployment if stats.deployed_projects not empty
-- activity from stats.recent_activity
-
-Input JSON:
-${JSON.stringify(payload, null, 2)}
-
-Bio:
-`;
-
+/**
+ * Helpers
+ */
 function isObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);
 }
@@ -80,15 +83,18 @@ function removeEmojis(value) {
 function sanitizeBio(value) {
   const clean = removeEmojis(String(value || ""))
     .replace(/```[\s\S]*?```/g, "")
-    .replace(/^["']|["']$/g, "");
+    .replace(/^["']|["']$/g, "")
+    .replace(/^bio:\s*/i, "")
+    .replace(/^final bio:\s*/i, "")
+    .trim();
 
   const lines = clean
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((l) => l.trim())
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, 3);
 
-  return lines.join("\n").trim();
+  return lines.join("\n");
 }
 
 function validatePayload(payload) {
@@ -99,9 +105,13 @@ function validatePayload(payload) {
   return null;
 }
 
+/**
+ * POST /api/ai/github-bio
+ */
 export async function POST(req) {
   try {
     const payload = await req.json();
+
     const validationError = validatePayload(payload);
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
@@ -115,6 +125,24 @@ export async function POST(req) {
       );
     }
 
+    // Trim repos to avoid token overflow
+    const trimmedPayload = {
+      ...payload,
+      repos: payload.repos.slice(0, 50),
+    };
+
+    const userPrompt = `
+Generate GitHub bio.
+
+Rules:
+- ${GENERATION_RULES.join("\n- ")}
+
+Data:
+${JSON.stringify(trimmedPayload)}
+
+FINAL BIO:
+`;
+
     const response = await fetch(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
@@ -126,15 +154,15 @@ export async function POST(req) {
       },
       body: JSON.stringify({
         model: DEFAULT_MODEL,
-        temperature: 0.3,
-        max_tokens: 180,
+        temperature: 0.25,
+        max_tokens: 120,
+        stop: ["\n\n", "Explanation:", "Analysis:"],
         messages: [
           {
             role: "system",
-            content: SYSTEM_PROMPT
+            content: SYSTEM_PROMPT,
           },
           {
-            role: "user",
             role: "user",
             content: userPrompt,
           },
@@ -143,6 +171,7 @@ export async function POST(req) {
     });
 
     const result = await response.json();
+
     if (!response.ok) {
       return NextResponse.json(
         { error: result?.error?.message || "AI request failed" },
@@ -150,10 +179,18 @@ export async function POST(req) {
       );
     }
 
-    const rawBio = result?.choices?.[0]?.message?.content;
+    const rawBio =
+      result?.choices?.[0]?.message?.content ||
+      result?.choices?.[0]?.text ||
+      "";
+
     const bio = sanitizeBio(rawBio);
+
     if (!bio) {
-      return NextResponse.json({ error: "AI returned empty bio" }, { status: 502 });
+      return NextResponse.json(
+        { error: "AI returned empty bio" },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({ bio });
