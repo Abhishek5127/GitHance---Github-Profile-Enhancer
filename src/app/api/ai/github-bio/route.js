@@ -11,7 +11,7 @@ const DEFAULT_MODEL =
  * Smart professional bio rules
  */
 const GENERATION_RULES = [
-  "Write 6-7 concise professional GitHub bio lines.",
+  "Write 12-15 concise professional GitHub bio lines.",
   "Infer developer role from languages and stack (JS+React → web/full-stack).",
   "Infer domains from repo names/descriptions (auth → security, resume → AI/productivity).",
   "Infer problems solved from project purpose when possible.",
