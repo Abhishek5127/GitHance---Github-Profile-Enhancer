@@ -5,15 +5,67 @@ const DEFAULT_MODEL =
   process.env.OPENROUTER_MODEL ||
   "meta-llama/llama-3.1-8b-instruct";
 const GENERATION_RULES = [
-  "Write structured paragraphs and lines.",
-  "Mention main languages/stack only when detectable from data.",
-  "Mention project types/domains only when detectable from data.",
-  "Mention deployment only if deployed_projects contains values.",
-  "Use factual statements only from the provided JSON.",
+  "Output 2–3 short lines only (max 160 characters per line).",
+  "Line 1: developer role + main stack/languages.",
+  "Line 2: project types or domains inferred from repos.",
+  "Line 3 (optional): deployment or focus area if detectable.",
+  "Use concrete technologies (e.g., MERN, JavaScript, Node.js) when present.",
+  "Use only facts derivable from JSON.",
+  "No generic phrases (passionate, dedicated, motivated, enthusiastic).",
+  "No buzzwords (cutting-edge, innovative, dynamic).",
   "No emojis.",
-  "No exaggeration or hype wording.",
-  "Natural GitHub profile style.",
+  "No hashtags.",
+  "No first-person pronouns.",
+  "GitHub bio style: concise, factual, builder-oriented.",
 ];
+
+const SYSTEM_PROMPT = `
+You are a technical recruiter writing GitHub bios.
+
+Goal: produce strong, concise GitHub profile bios from repository data.
+
+Style requirements:
+- extremely concise
+- factual
+- technical
+- no fluff
+- no marketing language
+- no personality traits
+- no claims not supported by data
+
+Output format:
+2–3 short lines.
+Each line ≤160 characters.
+No extra text.
+No labels.
+No explanations.
+
+Bad words to avoid:
+passionate, dedicated, enthusiastic, motivated, skilled, experienced, innovative, dynamic.
+
+Prefer concrete stack and project terms:
+MERN, JavaScript, Node.js, React, AI tools, authentication systems, web apps, APIs, SaaS, full-stack.
+
+If data is weak, keep bio minimal and factual.
+Return text only.
+`;
+
+const userPrompt = `
+Generate GitHub bio following rules:
+- ${GENERATION_RULES.join("\n- ")}
+
+Infer from data:
+- main languages from stats.top_languages
+- stack from stats.primary_stack
+- domains from stats.domains
+- deployment if stats.deployed_projects not empty
+- activity from stats.recent_activity
+
+Input JSON:
+${JSON.stringify(payload, null, 2)}
+
+Bio:
+`;
 
 function isObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);
@@ -79,14 +131,12 @@ export async function POST(req) {
         messages: [
           {
             role: "system",
-            content:
-              "You write concise GitHub profile bios from structured repository data. Return text only.",
+            content: SYSTEM_PROMPT
           },
           {
             role: "user",
-            content: `Generate a GitHub bio using these rules:\n- ${GENERATION_RULES.join(
-              "\n- "
-            )}\n\nInput JSON:\n${JSON.stringify(payload, null, 2)}`,
+            role: "user",
+            content: userPrompt,
           },
         ],
       }),
