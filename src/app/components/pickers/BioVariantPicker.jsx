@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
+import {
+  buildBioPayload,
+  generateBioFromPayload,
+} from "@/app/services/githubData.service";
 
 const DEFAULT_BIO_HTML = `<h2>About Me</h2>
 <p>I build modern web apps, experiment with AI tooling, and care about great DX.</p>
@@ -332,6 +337,7 @@ const buildInitialHtml = (initialData) => {
 const editableBlockTags = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "div"]);
 const blockConvertibleTags = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "div"]);
 const rootBlockTags = new Set([...editableBlockTags, "ul", "ol", "blockquote", "pre", "hr"]);
+const TOAST_TIMEOUT_MS = 3500;
 
 export default function BioVariantPicker({
   open,
@@ -340,7 +346,12 @@ export default function BioVariantPicker({
   initialData,
   submitLabel = "Add to Canvas",
 }) {
+  const { data: session, status } = useSession();
   const editorRef = useRef(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [toastState, setToastState] = useState(null);
+  const toastTimerRef = useRef(null);
+  const editVersionRef = useRef(0);
 
   // BUG FIX #1 & #12: Replace dangerouslySetInnerHTML + ref combo with useEffect
   // to set innerHTML imperatively. This avoids React overwriting DOM mutations
@@ -348,17 +359,46 @@ export default function BioVariantPicker({
   useEffect(() => {
     if (open && editorRef.current) {
       editorRef.current.innerHTML = buildInitialHtml(initialData);
+      editVersionRef.current = 0;
+      setToastState(null);
+      setIsGenerating(false);
     }
   }, [open]); // Only re-initialize when the panel opens, not on every initialData change.
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const showToast = (message, type = "error") => {
+    setToastState({ message, type });
+
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = setTimeout(() => {
+      setToastState(null);
+      toastTimerRef.current = null;
+    }, TOAST_TIMEOUT_MS);
+  };
+
+  const markEditorDirty = () => {
+    editVersionRef.current += 1;
+  };
 
   const holdSelection = (e) => e.preventDefault();
 
   const toolbarButtonClass =
-    "rounded-md border border-white/15 bg-[#10141a] px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]";
+    "rounded-md border border-white/15 bg-[#10141a] cursor-pointer px-2 py-1 text-xs text-white/85 hover:bg-[#151b23]";
 
   const editorThemeStyle = {
-    color: "#111827",
-    backgroundColor: "#ffffff",
+    color: "#ffffff",
+    backgroundColor: "#0d1117",
     "--fgColor-default": "#111827",
     "--bgColor-default": "#ffffff",
     "--borderColor-muted": "#d1d9e0",
@@ -820,6 +860,65 @@ export default function BioVariantPicker({
     resetAndClose();
   };
 
+  const handleBuildWithAi = async () => {
+    if (isGenerating) return;
+
+    if (status === "loading") {
+      console.error("Build with AI blocked: session is still loading.");
+      showToast("Session is still loading. Please try again.");
+      return;
+    }
+
+    if (!session?.accessToken) {
+      console.error("Build with AI blocked: missing GitHub session token.");
+      showToast("Sign in with GitHub to use Build with AI");
+      return;
+    }
+
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const requestEditVersion = editVersionRef.current;
+    const requestStartHtml = String(editor.innerHTML ?? "");
+
+    try {
+      setIsGenerating(true);
+
+      const payload = await buildBioPayload({
+        username: session?.username || "",
+        token: session?.accessToken,
+        repoLimit: 50,
+      });
+
+      const { bio } = await generateBioFromPayload(payload);
+
+      const changedDuringRequest =
+        editVersionRef.current !== requestEditVersion ||
+        String(editor.innerHTML ?? "") !== requestStartHtml;
+
+      if (changedDuringRequest) {
+        showToast("Bio generated but not applied because you edited text.", "info");
+        return;
+      }
+
+      const aiLines = String(bio || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 4);
+      const aiHtml = aiLines.map((line) => `<p>${escapeHtml(line)}</p>`).join("");
+      const generatedHtml = normalizeHtmlForEditor(sanitizeHtml(aiHtml));
+      editor.innerHTML = generatedHtml || `<p>${escapeHtml(String(bio || ""))}</p>`;
+      editVersionRef.current += 1;
+      showToast("Bio generated.", "success");
+    } catch (error) {
+      console.error("Failed to generate AI bio:", error);
+      showToast(error?.message || "Failed to generate bio");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   if (!open) return null;
 
   // Toolbar button definitions to avoid missing key warnings (BUG FIX #14).
@@ -855,7 +954,6 @@ export default function BioVariantPicker({
 
           <div className="mb-2">
             <p className="text-xs uppercase tracking-[0.24em] text-white/40">Edit Mode</p>
-            <h4 className="mt-1 text-base font-semibold text-white">Bio Area</h4>
           </div>
 
           {/* BUG FIX #14: Added key prop to each toolbar button. */}
@@ -879,24 +977,45 @@ export default function BioVariantPicker({
           <div
             ref={editorRef}
             contentEditable
+            onInput={markEditorDirty}
             suppressContentEditableWarning
             className="markdown-body bio-editor min-h-[520px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none"
             style={editorThemeStyle}
           />
 
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <button
-              onClick={resetAndClose}
-              className="rounded-xl border border-white/15 px-4 py-2 text-sm text-white/75 hover:text-white"
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <p
+              className={`text-xs ${
+                toastState?.type === "success"
+                  ? "text-emerald-300"
+                  : toastState?.type === "info"
+                    ? "text-cyan-300"
+                    : "text-red-300"
+              }`}
             >
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black hover:bg-[#ff8c3a]"
-            >
-              {submitLabel}
-            </button>
+              {toastState?.message || ""}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={resetAndClose}
+                className="rounded-xl border border-white/15 px-4 py-2 text-sm text-white/75 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBuildWithAi}
+                disabled={isGenerating}
+                className="rounded-xl border border-cyan-500/50 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-400 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGenerating ? "Generating bio..." : "Build with AI"}
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black hover:bg-[#ff8c3a]"
+              >
+                {submitLabel}
+              </button>
+            </div>
           </div>
         </div>
       </div>
