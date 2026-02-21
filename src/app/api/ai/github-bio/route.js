@@ -11,7 +11,7 @@ const DEFAULT_MODEL =
  * Smart professional bio rules
  */
 const GENERATION_RULES = [
-  "Write 12-15 concise professional GitHub bio lines.",
+  "Write 14-15 concise professional GitHub bio lines.",
   "Infer developer role from languages and stack (JS+React → web/full-stack).",
   "Infer domains from repo names/descriptions (auth → security, resume → AI/productivity).",
   "Infer problems solved from project purpose when possible.",
@@ -56,8 +56,8 @@ BIO STYLE:
 - confident but realistic
 
 OUTPUT RULES:
-- 10-15 lines only
-- ≤160 characters per line
+- 14-15 lines only
+- ≤200 characters per line
 - no explanations
 - no reasoning
 - no analysis text
