@@ -12,14 +12,52 @@
 .markdown-body p:has(img):not(:has(a)):not(:has(code)) {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
+}
+
+.markdown-body p[align="center"]:has(img):not(:has(a)):not(:has(code)) {
+  justify-content: center;
+}
+
+.markdown-body p[align="right"]:has(img):not(:has(a)):not(:has(code)) {
+  justify-content: flex-end;
 }
 
 .markdown-body p:has(img) img {
   display: inline-block !important;
   margin: 0 !important;
 }
+
+/* Global thin dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a313b #05080d;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #05080d;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #1a2028 0%, #2b313b 100%);
+  border: 1px solid #05080d;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #26303b 0%, #3a444f 100%);
+}
+
+*::-webkit-scrollbar-corner {
+  background: #05080d;
+}
+
 .font-yuji {
   font-family: var(--font-yuji-boku);
 }

@@ -7,10 +7,14 @@ const TECH_CATEGORY_CONFIG = [
 
 const DEFAULT_THEME = "midnight";
 const DEFAULT_VARIANT = "categorized";
+const DEFAULT_ALIGNMENT = "left";
+const TECH_STACK_ALIGNMENT_OPTIONS = new Set(["left", "center", "right"]);
 
 export const TECH_STACK_CATEGORY_ORDER = TECH_CATEGORY_CONFIG.map(
   (category) => category.id
 );
+
+export const TECH_STACK_ALIGNMENTS = ["left", "center", "right"];
 
 export const TECH_STACK_CATEGORY_LABELS = TECH_CATEGORY_CONFIG.reduce(
   (result, category) => {
@@ -35,6 +39,10 @@ const slugify = (value) =>
     .slice(0, 60) || "tech";
 
 const isValidCategory = (value) => TECH_STACK_CATEGORY_ORDER.includes(value);
+const normalizeAlignment = (value) =>
+  TECH_STACK_ALIGNMENT_OPTIONS.has(String(value || "").trim().toLowerCase())
+    ? String(value || "").trim().toLowerCase()
+    : DEFAULT_ALIGNMENT;
 
 const tech = ({ id, name, category, iconId = id, aliases = [] }) => ({
   id,
@@ -837,6 +845,7 @@ export function normalizeTechStackData(
     typeof rawData?.theme === "string" && rawData.theme.trim()
       ? rawData.theme.trim()
       : DEFAULT_THEME;
+  const alignment = normalizeAlignment(rawData?.alignment || rawData?.align);
 
   const collected = [];
 
@@ -880,6 +889,7 @@ export function normalizeTechStackData(
   return {
     variant,
     theme,
+    alignment,
     items: normalizedItems,
     stack,
     ...categories,
@@ -893,6 +903,7 @@ export function buildTechStackPayload(rawData = {}) {
   return {
     variant: normalized.variant,
     theme: normalized.theme,
+    alignment: normalized.alignment,
     items: cloneItems(normalized.items),
     stack: [...normalized.stack],
     languages: cloneItems(categories.languages),
@@ -1030,6 +1041,7 @@ export function inferTechStackDataFromRepos(repos = [], options = {}) {
   return buildTechStackPayload({
     variant: DEFAULT_VARIANT,
     theme: DEFAULT_THEME,
+    alignment: DEFAULT_ALIGNMENT,
     items: inferredItems,
   });
 }

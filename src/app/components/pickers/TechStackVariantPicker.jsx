@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { buildBioPayload } from "@/app/services/githubData.service";
 import {
+  TECH_STACK_ALIGNMENTS,
   TECH_STACK_CATEGORY_LABELS,
   TECH_STACK_CATEGORY_ORDER,
   buildTechStackPayload,
@@ -16,6 +17,8 @@ import {
   groupTechStackItems,
 } from "@/app/lib/techStackCatalog";
 
+const TECH_DRAG_MIME = "application/x-githance-tech";
+
 const CATEGORY_FILTERS = [
   { id: "all", label: "All" },
   ...TECH_STACK_CATEGORY_ORDER.map((category) => ({
@@ -23,6 +26,17 @@ const CATEGORY_FILTERS = [
     label: TECH_STACK_CATEGORY_LABELS[category],
   })),
 ];
+
+const ALIGNMENT_OPTIONS = TECH_STACK_ALIGNMENTS.map((alignment) => ({
+  id: alignment,
+  label: alignment.charAt(0).toUpperCase() + alignment.slice(1),
+}));
+
+const ALIGNMENT_JUSTIFY_CLASS = {
+  left: "justify-start",
+  center: "justify-center",
+  right: "justify-end",
+};
 
 const isStackDataEmpty = (data) => {
   if (!data || typeof data !== "object") return true;
@@ -62,6 +76,29 @@ function TechIcon({ item, size = 30, className = "" }) {
   );
 }
 
+const parseDragPayload = (event) => {
+  const serialized =
+    event.dataTransfer.getData(TECH_DRAG_MIME) ||
+    event.dataTransfer.getData("text/plain");
+  if (!serialized) return null;
+
+  try {
+    const parsed = JSON.parse(serialized);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const setDragPayload = (event, payload) => {
+  const serialized = JSON.stringify(payload);
+  event.dataTransfer.setData(TECH_DRAG_MIME, serialized);
+  event.dataTransfer.setData("text/plain", serialized);
+  event.dataTransfer.effectAllowed =
+    payload?.source === "selected" ? "move" : "copyMove";
+};
+
 export default function TechStackVariantPicker({
   open,
   onClose,
@@ -72,7 +109,7 @@ export default function TechStackVariantPicker({
   const { data: session, status } = useSession();
 
   const [variant, setVariant] = useState("categorized");
-  const [theme, setTheme] = useState("midnight");
+  const [alignment, setAlignment] = useState("left");
   const [items, setItems] = useState([]);
 
   const [query, setQuery] = useState("");
@@ -80,6 +117,7 @@ export default function TechStackVariantPicker({
 
   const [isScanning, setIsScanning] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [dragHoverKey, setDragHoverKey] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -89,12 +127,13 @@ export default function TechStackVariantPicker({
     });
 
     setVariant(normalized.variant || "categorized");
-    setTheme(normalized.theme || "midnight");
+    setAlignment(normalized.alignment || "left");
     setItems(normalized.items || []);
     setQuery("");
     setActiveCategory("all");
     setIsScanning(false);
     setFeedback(null);
+    setDragHoverKey("");
   }, [open, initialData]);
 
   const groupedItems = useMemo(() => groupTechStackItems(items), [items]);
@@ -108,79 +147,128 @@ export default function TechStackVariantPicker({
     [query, activeCategory]
   );
 
-  const addCatalogItem = (entry) => {
-    if (!entry) return;
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return undefined;
 
-    const alreadyExists = items.some((item) => item.id === entry.id);
-    if (alreadyExists) {
-      setFeedback({
-        type: "info",
-        message: `${entry.name} is already included.`,
-      });
-      return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
     }
 
-    setItems((prev) =>
-      mergeTechStackItems(prev, [
-        {
-          id: entry.id,
-          name: entry.name,
-          category: entry.category,
-          iconId: entry.iconId,
-          custom: false,
-        },
-      ])
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [open]);
+
+  const upsertItemInCategory = (rawItem, targetCategory) => {
+    if (!rawItem) return false;
+
+    const fallbackCategory = targetCategory || rawItem?.category || "frameworks";
+    const normalized = normalizeTechItem(
+      { ...rawItem, category: fallbackCategory },
+      fallbackCategory
     );
-  };
+    if (!normalized) return false;
 
-  const addCustomItem = () => {
-    const trimmed = String(query || "").trim();
-    if (!trimmed) return;
+    setItems((prev) => {
+      const existingIndex = prev.findIndex((entry) => entry.id === normalized.id);
+      if (existingIndex === -1) {
+        return mergeTechStackItems(prev, [normalized]);
+      }
 
-    const customCategory =
-      activeCategory === "all" ? "frameworks" : activeCategory;
-    const customItem = normalizeTechItem(
-      {
-        name: trimmed,
-        category: customCategory,
-      },
-      customCategory
-    );
+      const current = prev[existingIndex];
+      if (current.category === normalized.category) {
+        return prev;
+      }
 
-    if (!customItem) return;
+      const next = [...prev];
+      next[existingIndex] = {
+        ...current,
+        category: normalized.category,
+      };
 
-    setItems((prev) => mergeTechStackItems(prev, [customItem]));
-    setQuery("");
-    setFeedback({
-      type: "success",
-      message: `Added custom technology "${trimmed}".`,
+      return mergeTechStackItems(next, []);
     });
+
+    return true;
   };
 
-  const updateItemAt = (index, nextValue) => {
+  const moveSelectedItemToCategory = (itemId, category) => {
+    if (!itemId || !category) return;
+
     setItems((prev) => {
       const next = [...prev];
+      const index = next.findIndex((entry) => entry.id === itemId);
+      if (index === -1) return prev;
+
       const current = next[index];
       if (!current) return prev;
+      if (current.category === category) return prev;
 
-      const fallbackCategory = nextValue?.category || current.category;
-      const normalized = normalizeTechItem(
-        { ...current, ...nextValue },
-        fallbackCategory
-      );
-
-      if (!normalized) {
-        next.splice(index, 1);
-      } else {
-        next[index] = normalized;
-      }
+      next[index] = { ...current, category };
 
       return mergeTechStackItems(next, []);
     });
   };
 
-  const removeItemAt = (index) => {
-    setItems((prev) => prev.filter((_, cursor) => cursor !== index));
+  const removeItemById = (itemId) => {
+    setItems((prev) => prev.filter((entry) => entry.id !== itemId));
+  };
+
+  const draftCustomItem = useMemo(() => {
+    const trimmed = String(query || "").trim();
+    if (!trimmed) return null;
+
+    const category = activeCategory === "all" ? "frameworks" : activeCategory;
+    return normalizeTechItem({ name: trimmed, category }, category);
+  }, [query, activeCategory]);
+
+  const handleDropOnCategory = (event, category) => {
+    event.preventDefault();
+    setDragHoverKey("");
+
+    const payload = parseDragPayload(event);
+    if (!payload) return;
+
+    if (payload.source === "selected") {
+      moveSelectedItemToCategory(payload.itemId, category);
+      return;
+    }
+
+    if (payload.source === "catalog" || payload.source === "custom") {
+      const itemAdded = upsertItemInCategory(payload.item, category);
+      if (itemAdded && payload.source === "custom") {
+        setQuery("");
+      }
+    }
+  };
+
+  const handleDropOnTrash = (event) => {
+    event.preventDefault();
+    setDragHoverKey("");
+
+    const payload = parseDragPayload(event);
+    if (!payload) return;
+
+    if (payload.source !== "selected") {
+      setFeedback({
+        type: "info",
+        message: "Only selected technologies can be removed here.",
+      });
+      return;
+    }
+
+    removeItemById(payload.itemId);
+    setFeedback({
+      type: "success",
+      message: "Technology removed.",
+    });
   };
 
   const handleAnalyzeRepositories = async () => {
@@ -236,20 +324,22 @@ export default function TechStackVariantPicker({
   const handleSubmit = () => {
     const payload = buildTechStackPayload({
       variant,
-      theme,
+      alignment,
       items,
     });
 
     onSave(payload);
     onClose();
   };
+  const iconAlignmentClass =
+    ALIGNMENT_JUSTIFY_CLASS[alignment] || ALIGNMENT_JUSTIFY_CLASS.left;
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm">
-      <div className="h-full w-full p-3 sm:p-5">
-        <div className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b0f14]">
+      <div className="h-full p-3 sm:p-5">
+        <div className="mx-auto flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b0f14]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
             <div>
               <p className="text-xs uppercase tracking-[0.28em] text-white/40">
@@ -259,7 +349,7 @@ export default function TechStackVariantPicker({
                 Tech Stack Variant Picker
               </h3>
               <p className="mt-1 text-sm text-white/60">
-                Scan repositories, then fine-tune technologies with add, edit, and delete.
+                Drag technologies into category buckets. Drag selected items to Trash to remove.
               </p>
             </div>
 
@@ -276,13 +366,15 @@ export default function TechStackVariantPicker({
               </select>
 
               <select
-                value={theme}
-                onChange={(event) => setTheme(event.target.value)}
+                value={alignment}
+                onChange={(event) => setAlignment(event.target.value)}
                 className="rounded-xl border border-white/15 bg-[#111824] px-3 py-2 text-sm text-white focus:outline-none"
               >
-                <option value="midnight">Midnight</option>
-                <option value="aurora">Aurora</option>
-                <option value="ember">Ember</option>
+                {ALIGNMENT_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    Align {option.label}
+                  </option>
+                ))}
               </select>
 
               <button
@@ -295,7 +387,7 @@ export default function TechStackVariantPicker({
           </div>
 
           <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]">
-            <div className="border-b border-white/10 p-4 xl:border-b-0 xl:border-r">
+            <div className="min-h-[320px] border-b border-white/10 p-4 xl:min-h-0 xl:border-b-0 xl:border-r">
               <div className="flex h-full min-h-0 flex-col gap-3">
                 <button
                   onClick={handleAnalyzeRepositories}
@@ -328,22 +420,50 @@ export default function TechStackVariantPicker({
                   ))}
                 </div>
 
-                <button
-                  onClick={addCustomItem}
-                  disabled={!String(query || "").trim()}
-                  className="rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  Add custom: {String(query || "").trim() || "technology"}
-                </button>
+                {draftCustomItem ? (
+                  <div
+                    draggable
+                    onDragStart={(event) =>
+                      setDragPayload(event, {
+                        source: "custom",
+                        item: draftCustomItem,
+                      })
+                    }
+                    onDragEnd={() => setDragHoverKey("")}
+                    className="cursor-grab rounded-xl border border-dashed border-cyan-400/60 bg-cyan-500/10 p-3 text-sm text-cyan-100 active:cursor-grabbing"
+                    title="Drag to a category bucket"
+                  >
+                    Drag custom item to add: {draftCustomItem.name}
+                  </div>
+                ) : null}
 
-                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
                   <div className="space-y-2">
                     {catalogResults.map((entry) => {
                       const isAdded = items.some((item) => item.id === entry.id);
                       return (
                         <div
                           key={entry.id}
-                          className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-2"
+                          draggable
+                          onDragStart={(event) =>
+                            setDragPayload(event, {
+                              source: "catalog",
+                              item: {
+                                id: entry.id,
+                                name: entry.name,
+                                category: entry.category,
+                                iconId: entry.iconId,
+                                custom: false,
+                              },
+                            })
+                          }
+                          onDragEnd={() => setDragHoverKey("")}
+                          className={`flex cursor-grab items-center justify-between gap-2 rounded-xl border bg-white/5 p-2 active:cursor-grabbing ${
+                            isAdded
+                              ? "border-emerald-500/40"
+                              : "border-white/10 hover:border-cyan-400/40"
+                          }`}
+                          title="Drag to a category bucket"
                         >
                           <TechIcon item={entry} />
                           <div className="flex items-center gap-2">
@@ -351,14 +471,16 @@ export default function TechStackVariantPicker({
                               {TECH_STACK_CATEGORY_LABELS[entry.category]}
                             </span>
                             <button
-                              onClick={() => addCatalogItem(entry)}
-                              className={`rounded-lg px-2 py-1 text-xs font-medium ${
+                              onClick={() =>
+                                upsertItemInCategory(entry, entry.category)
+                              }
+                              className={`rounded-lg px-2 py-1 text-xs font-medium transition ${
                                 isAdded
                                   ? "border border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
                                   : "border border-cyan-500/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
                               }`}
                             >
-                              {isAdded ? "Added" : "Add"}
+                              {isAdded ? "In Stack" : "Quick Add"}
                             </button>
                           </div>
                         </div>
@@ -370,8 +492,117 @@ export default function TechStackVariantPicker({
             </div>
 
             <div className="flex min-h-0 flex-col p-4">
-              <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                <div className="min-h-0 overflow-y-auto rounded-2xl border border-white/10 bg-[#05090f] p-4">
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 2xl:grid-cols-2">
+                <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-[#0d131d] p-4">
+                  <p className="text-xs uppercase tracking-[0.24em] text-white/45">
+                    Technologies
+                  </p>
+                  <h4 className="mt-2 text-lg font-semibold text-white">
+                    Drag and Drop
+                  </h4>
+                  <p className="mt-1 text-sm text-white/60">
+                    Drag from left panel into a category. Drag selected items between categories to edit.
+                  </p>
+
+                  <div
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setDragHoverKey("trash");
+                    }}
+                    onDrop={handleDropOnTrash}
+                    onDragLeave={() => {
+                      if (dragHoverKey === "trash") setDragHoverKey("");
+                    }}
+                    className={`mt-4 rounded-xl border border-dashed p-3 text-center text-sm transition ${
+                      dragHoverKey === "trash"
+                        ? "border-red-400/70 bg-red-500/20 text-red-100"
+                        : "border-red-500/40 bg-red-500/10 text-red-200"
+                    }`}
+                  >
+                    Drop Here To Remove
+                  </div>
+
+                  <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1">
+                    {TECH_STACK_CATEGORY_ORDER.map((category) => {
+                      const categoryItems = groupedItems[category] || [];
+                      const dropKey = `category:${category}`;
+
+                      return (
+                        <div
+                          key={`bucket-${category}`}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            setDragHoverKey(dropKey);
+                            event.dataTransfer.dropEffect = "move";
+                          }}
+                          onDrop={(event) => handleDropOnCategory(event, category)}
+                          onDragLeave={() => {
+                            if (dragHoverKey === dropKey) setDragHoverKey("");
+                          }}
+                          className={`rounded-xl border p-3 transition ${
+                            dragHoverKey === dropKey
+                              ? "border-cyan-400/70 bg-cyan-500/15"
+                              : "border-white/10 bg-white/5"
+                          }`}
+                        >
+                          <p className="text-xs uppercase tracking-[0.2em] text-white/55">
+                            {TECH_STACK_CATEGORY_LABELS[category]}
+                          </p>
+                          <div
+                            className={`mt-2 flex min-h-12 flex-wrap content-start gap-2 ${iconAlignmentClass}`}
+                          >
+                            {categoryItems.map((item) => (
+                              <div
+                                key={`${category}-${item.id}-${item.name}`}
+                                draggable
+                                onDragStart={(event) =>
+                                  setDragPayload(event, {
+                                    source: "selected",
+                                    itemId: item.id,
+                                  })
+                                }
+                                onDragEnd={() => setDragHoverKey("")}
+                                className="group relative flex cursor-grab items-center gap-2 rounded-xl border border-white/10 bg-[#121b2a] px-2.5 py-1.5 text-xs text-white/85 active:cursor-grabbing"
+                                title={`${item.name} (drag to move or trash)`}
+                              >
+                                <button
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    removeItemById(item.id);
+                                  }}
+                                  className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-red-500/60 bg-[#0b0f14] text-[10px] text-red-200 opacity-0 transition group-hover:opacity-100"
+                                  aria-label={`Delete ${item.name}`}
+                                  title={`Delete ${item.name}`}
+                                >
+                                  x
+                                </button>
+
+                                <img
+                                  src={getTechIconUrl(item)}
+                                  alt={item.name}
+                                  width={22}
+                                  height={22}
+                                  className="h-5 w-5 shrink-0 object-contain"
+                                  onError={(event) => {
+                                    event.currentTarget.style.display = "none";
+                                  }}
+                                />
+                                <span>{item.name}</span>
+                              </div>
+                            ))}
+                            {!categoryItems.length ? (
+                              <p className="w-full text-xs text-white/45">
+                                Drop technologies here
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-[#05090f] p-4">
                   <p className="text-xs uppercase tracking-[0.24em] text-white/45">
                     Preview
                   </p>
@@ -379,17 +610,22 @@ export default function TechStackVariantPicker({
                     Tech Stack
                   </h4>
 
-                  <div className="mt-5 space-y-7">
+                  <div className="mt-5 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1">
                     {TECH_STACK_CATEGORY_ORDER.map((category) => {
                       const categoryItems = groupedItems[category] || [];
                       if (!categoryItems.length) return null;
 
                       return (
-                        <div key={`preview-${category}`}>
-                          <p className="mb-3 text-sm font-semibold text-white/90">
+                        <div
+                          key={`preview-${category}`}
+                          className="rounded-xl border border-white/10 bg-white/5 p-3"
+                        >
+                          <p className="mb-2 text-sm font-semibold text-white/90">
                             {TECH_STACK_CATEGORY_LABELS[category]}:
                           </p>
-                          <div className="flex flex-wrap gap-3">
+                          <div
+                            className={`flex flex-wrap content-start gap-3 ${iconAlignmentClass}`}
+                          >
                             {categoryItems.map((item) => (
                               <div
                                 key={`${category}-${item.id}-${item.name}`}
@@ -418,69 +654,6 @@ export default function TechStackVariantPicker({
                         No technologies selected yet.
                       </div>
                     ) : null}
-                  </div>
-                </div>
-
-                <div className="min-h-0 overflow-y-auto rounded-2xl border border-white/10 bg-[#0d131d] p-4">
-                  <p className="text-xs uppercase tracking-[0.24em] text-white/45">
-                    Technologies
-                  </p>
-                  <h4 className="mt-2 text-lg font-semibold text-white">
-                    Add, Edit, Delete
-                  </h4>
-
-                  <div className="mt-4 space-y-3">
-                    {items.map((item, index) => (
-                      <div
-                        key={`${item.id}-${index}`}
-                        className="rounded-xl border border-white/10 bg-white/5 p-3"
-                      >
-                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_minmax(0,1fr)_200px_auto]">
-                          <div className="flex items-center justify-start">
-                            <img
-                              src={getTechIconUrl(item)}
-                              alt={item.name}
-                              width={34}
-                              height={34}
-                              className="h-8 w-8 object-contain"
-                              onError={(event) => {
-                                event.currentTarget.style.display = "none";
-                              }}
-                            />
-                          </div>
-
-                          <input
-                            value={item.name}
-                            onChange={(event) =>
-                              updateItemAt(index, { name: event.target.value })
-                            }
-                            placeholder="Technology name"
-                            className="w-full rounded-lg border border-white/15 bg-[#101725] px-3 py-2 text-sm text-white focus:outline-none"
-                          />
-
-                          <select
-                            value={item.category}
-                            onChange={(event) =>
-                              updateItemAt(index, { category: event.target.value })
-                            }
-                            className="w-full rounded-lg border border-white/15 bg-[#101725] px-3 py-2 text-sm text-white focus:outline-none"
-                          >
-                            {TECH_STACK_CATEGORY_ORDER.map((category) => (
-                              <option key={`${item.id}-${category}`} value={category}>
-                                {TECH_STACK_CATEGORY_LABELS[category]}
-                              </option>
-                            ))}
-                          </select>
-
-                          <button
-                            onClick={() => removeItemAt(index)}
-                            className="rounded-lg border border-red-500/45 bg-red-500/15 px-3 py-2 text-sm text-red-200 hover:bg-red-500/25"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
               </div>

@@ -32,7 +32,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   };
   const techStackDefaults = buildTechStackPayload({
     variant: "categorized",
-    theme: "midnight",
+    alignment: "left",
     items: [
       { id: "javascript" },
       { id: "typescript" },
