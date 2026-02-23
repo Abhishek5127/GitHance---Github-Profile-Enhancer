@@ -21,7 +21,7 @@ export default function AchievementHeaderPreview({
   return (
     <div
       className={`overflow-hidden rounded-xl border border-white/10 bg-white/5 p-1 ${
-        compact ? "h-[150px]" : ""
+        compact ? "h-[190px]" : ""
       }`}
     >
       <div className={`overflow-hidden rounded-lg border border-white/10 bg-[#0f1115] p-1 ${compact ? "h-full" : ""}`}>

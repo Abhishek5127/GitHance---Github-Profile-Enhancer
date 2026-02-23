@@ -5,15 +5,19 @@ import AchievementHeaderPreview from "../previews/headers/AchievementHeaderPrevi
 import TrophyHeaderPreview from "../previews/headers/TrophyHeaderPreview";
 import RenderHeaderPreview from "../previews/headers/RenderHeaderPreview";
 
-function SimpleBadgeHeader({ item }) {
+function SimpleBadgeHeader({ item, compact = false }) {
   const heading = item.data?.text || "Hi, I'm Your Name";
   const subheading = item.data?.subText || "Building delightful products";
   const headingColor = item.data?.color || "#ffffff";
   const subheadingColor = item.data?.subcolor || "#373d35";
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0f1115] p-1.5">
-      <div className="flex flex-col gap-2">
+    <div
+      className={`rounded-xl border border-white/10 bg-[#0f1115] p-1.5 ${
+        compact ? "h-[190px]" : ""
+      }`}
+    >
+      <div className={`flex flex-col gap-2 ${compact ? "h-full justify-center" : ""}`}>
         <span
           className="inline-block w-fit rounded px-3 py-1 text-sm font-semibold text-black"
           style={{ backgroundColor: headingColor }}
@@ -43,7 +47,7 @@ export default function HeaderBlock({ item }) {
   }
 
   if (variant === "simple") {
-    return <SimpleBadgeHeader item={item} />;
+    return <SimpleBadgeHeader item={item} compact />;
   }
 
   if (variant === "signature") {
@@ -96,8 +100,8 @@ export default function HeaderBlock({ item }) {
 
   if (variant === "typingHeader") {
     return (
-      <div className="text-white">
-        <TypingHeaderPreview />
+      <div className="h-[190px] overflow-hidden rounded-xl border border-white/10 bg-[#0f1115] p-1.5 text-white">
+        <TypingHeaderPreview compact />
       </div>
     );
   }

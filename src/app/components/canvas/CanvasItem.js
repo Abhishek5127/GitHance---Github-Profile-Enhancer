@@ -10,7 +10,8 @@ import TechStackBlock from "../blocks/TechStackBlock";
 export default function CanvasItem({ item, setItems, onEditItem }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
-  const canEdit = Boolean(onEditItem) && ["header", "bio"].includes(item.type);
+  const canEdit =
+    Boolean(onEditItem) && ["header", "bio", "skills"].includes(item.type);
 
   const normalizedTransform = transform
     ? { ...transform, scaleX: 1, scaleY: 1 }

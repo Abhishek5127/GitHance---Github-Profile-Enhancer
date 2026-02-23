@@ -30,8 +30,10 @@ ${legacyFocus.map((point) => `- ${point}`).join("\n")}`.trim();
     : String(legacyContent || fallbackContent).trim();
 
   return (
-    <div className="w-full rounded-xl border border-white/10 bg-[#0f1115] p-3">
-      <ReadmeRenderer readme={content} compact />
+    <div className="h-[190px] w-full overflow-hidden rounded-xl border border-white/10 bg-[#0f1115] p-3">
+      <div className="h-full overflow-y-auto pr-1">
+        <ReadmeRenderer readme={content} compact />
+      </div>
     </div>
   );
 }

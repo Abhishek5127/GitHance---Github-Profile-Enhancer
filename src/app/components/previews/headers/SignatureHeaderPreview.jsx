@@ -16,7 +16,7 @@ export default function SignatureHeaderPreview({ name, role, theme, compact = fa
   return (
     <div
       className={`overflow-hidden rounded-xl border border-white/10 bg-white/5 p-1 ${
-        compact ? "h-[150px]" : ""
+        compact ? "h-[190px]" : ""
       }`}
     >
       <img

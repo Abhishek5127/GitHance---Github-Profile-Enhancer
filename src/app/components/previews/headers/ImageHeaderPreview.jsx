@@ -17,7 +17,7 @@ export default function ImageHeaderPreview({ name, compact = false }) {
     <div
       onClick={exportSvg}
       className={`relative w-full cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-[#0b0d0f] ${
-        compact ? "h-[150px]" : ""
+        compact ? "h-[190px]" : ""
       }`}
       title="Click to export SVG"
     >

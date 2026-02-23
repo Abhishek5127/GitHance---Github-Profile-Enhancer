@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import generateMarkdown from "../lib/genrateMarkdown";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
+import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker";
 import {
   DndContext,
   closestCorners,
@@ -16,6 +17,7 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
+import { buildTechStackPayload } from "../lib/techStackCatalog";
 
 export default function Page() {
   const { data: session, status } = useSession();
@@ -28,6 +30,20 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 - AI tooling
 - Design systems`,
   };
+  const techStackDefaults = buildTechStackPayload({
+    variant: "categorized",
+    theme: "midnight",
+    items: [
+      { id: "javascript" },
+      { id: "typescript" },
+      { id: "react" },
+      { id: "nextjs" },
+      { id: "nodejs" },
+      { id: "tailwindcss" },
+      { id: "postgresql" },
+      { id: "git" },
+    ],
+  });
 
   const [canvasItems, setCanvasItems] = useState([]);
   const [readme, setReadme] = useState("");
@@ -42,6 +58,12 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   });
   const [showBioPicker, setShowBioPicker] = useState(false);
   const [bioPickerContext, setBioPickerContext] = useState({
+    itemId: null,
+    initialData: null,
+    pickerKey: 0,
+  });
+  const [showTechStackPicker, setShowTechStackPicker] = useState(false);
+  const [techStackPickerContext, setTechStackPickerContext] = useState({
     itemId: null,
     initialData: null,
     pickerKey: 0,
@@ -143,11 +165,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         bio: {
           content: bioDefaults.content,
         },
-        skills: {
-          variant: "grid",
-          theme: "midnight",
-          stack: ["Next.js", "React", "Node.js", "Tailwind CSS"],
-        },
+        skills: buildTechStackPayload(techStackDefaults),
         contributions: { username: "your-github-username" },
       };
 
@@ -230,8 +248,22 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setCanvasItems((prev) => [...prev, newItem]);
   };
 
+  const addTechStackToCanvas = (overrides = {}) => {
+    const newItem = {
+      id: `canvas-skills-${Date.now()}`,
+      type: "skills",
+      data: buildTechStackPayload({
+        ...techStackDefaults,
+        ...overrides,
+      }),
+    };
+
+    setCanvasItems((prev) => [...prev, newItem]);
+  };
+
   const openHeaderPickerForAdd = () => {
     setShowBioPicker(false);
+    setShowTechStackPicker(false);
     setHeaderPickerContext({
       itemId: null,
       initialVariant: null,
@@ -245,6 +277,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     if (item.type !== "header") return;
 
     setShowBioPicker(false);
+    setShowTechStackPicker(false);
     setHeaderPickerContext({
       itemId: item.id,
       initialVariant: item.variant || null,
@@ -260,6 +293,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const openBioPickerForAdd = () => {
     setShowHeaderPicker(false);
+    setShowTechStackPicker(false);
     setBioPickerContext({
       itemId: null,
       initialData: null,
@@ -272,6 +306,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     if (item.type !== "bio") return;
 
     setShowHeaderPicker(false);
+    setShowTechStackPicker(false);
     setBioPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -282,6 +317,34 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const closeBioPicker = () => {
     setShowBioPicker(false);
+  };
+
+  const openTechStackPickerForAdd = () => {
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setTechStackPickerContext({
+      itemId: null,
+      initialData: null,
+      pickerKey: Date.now(),
+    });
+    setShowTechStackPicker(true);
+  };
+
+  const openTechStackPickerForEdit = (item) => {
+    if (item.type !== "skills") return;
+
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setTechStackPickerContext({
+      itemId: item.id,
+      initialData: item.data || null,
+      pickerKey: Date.now(),
+    });
+    setShowTechStackPicker(true);
+  };
+
+  const closeTechStackPicker = () => {
+    setShowTechStackPicker(false);
   };
 
   const handleHeaderSelect = (variant, data) => {
@@ -323,6 +386,31 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     closeBioPicker();
   };
 
+  const handleTechStackSelect = (data) => {
+    const payload = buildTechStackPayload(data);
+
+    if (techStackPickerContext.itemId) {
+      setCanvasItems((prev) =>
+        prev.map((item) =>
+          item.id === techStackPickerContext.itemId
+            ? {
+                ...item,
+                data: {
+                  ...techStackDefaults,
+                  ...item.data,
+                  ...payload,
+                },
+              }
+            : item
+        )
+      );
+    } else {
+      addTechStackToCanvas(payload);
+    }
+
+    closeTechStackPicker();
+  };
+
   const handleEditItem = (item) => {
     if (item.type === "header") {
       openHeaderPickerForEdit(item);
@@ -331,6 +419,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     if (item.type === "bio") {
       openBioPickerForEdit(item);
+      return;
+    }
+
+    if (item.type === "skills") {
+      openTechStackPickerForEdit(item);
     }
   };
 
@@ -350,6 +443,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
               if (blockId === "bio") {
                 openBioPickerForAdd();
+                return;
+              }
+
+              if (blockId === "skills") {
+                openTechStackPickerForAdd();
                 return;
               }
 
@@ -405,6 +503,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             onSave={handleBioSelect}
             initialData={bioPickerContext.initialData}
             submitLabel={bioPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+          />
+
+          <TechStackVariantPicker
+            key={`skills-${techStackPickerContext.pickerKey}`}
+            open={showTechStackPicker}
+            onClose={closeTechStackPicker}
+            onSave={handleTechStackSelect}
+            initialData={techStackPickerContext.initialData}
+            submitLabel={techStackPickerContext.itemId ? "Update Item" : "Add to Canvas"}
           />
         </DndContext>
       </div>

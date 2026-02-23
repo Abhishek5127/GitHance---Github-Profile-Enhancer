@@ -968,12 +968,15 @@ export default function BioVariantPicker({
                 {label}
               </button>
             ))}
+            <button
+              onClick={handleBuildWithAi}
+              disabled={isGenerating}
+              className="rounded-xl border cursor-pointer border-cyan-500/50 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-400 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isGenerating ? "Generating bio..." : "Build with AI"}
+            </button>
           </div>
 
-          {/*
-            BUG FIX #1 & #12: Removed dangerouslySetInnerHTML.
-            Content is set via useEffect to avoid React overwriting DOM mutations.
-          */}
           <div
             ref={editorRef}
             contentEditable
@@ -985,13 +988,12 @@ export default function BioVariantPicker({
 
           <div className="mt-3 flex items-center justify-between gap-2">
             <p
-              className={`text-xs ${
-                toastState?.type === "success"
+              className={`text-xs ${toastState?.type === "success"
                   ? "text-emerald-300"
                   : toastState?.type === "info"
                     ? "text-cyan-300"
                     : "text-red-300"
-              }`}
+                }`}
             >
               {toastState?.message || ""}
             </p>
@@ -1002,13 +1004,7 @@ export default function BioVariantPicker({
               >
                 Cancel
               </button>
-              <button
-                onClick={handleBuildWithAi}
-                disabled={isGenerating}
-                className="rounded-xl border border-cyan-500/50 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-400 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isGenerating ? "Generating bio..." : "Build with AI"}
-              </button>
+
               <button
                 onClick={handleSubmit}
                 className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black hover:bg-[#ff8c3a]"

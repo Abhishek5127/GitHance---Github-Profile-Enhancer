@@ -1,53 +1,19 @@
 import { buildRenderUrl, buildTrophyUrl } from "./generateBlockSvg";
+import {
+  TECH_STACK_CATEGORY_LABELS,
+  TECH_STACK_CATEGORY_ORDER,
+  getTechIconUrl,
+  normalizeTechStackData,
+} from "./techStackCatalog";
 
 export default function generateMarkdown(canvasItems) {
   let markdown = "";
-
-  const techLogoMap = {
-    "next.js": "nextdotjs",
-    "react": "react",
-    "node.js": "nodedotjs",
-    "tailwind css": "tailwindcss",
-    "tailwind": "tailwindcss",
-    "typescript": "typescript",
-    "javascript": "javascript",
-    "python": "python",
-    "postgresql": "postgresql",
-    "mongodb": "mongodb",
-    "docker": "docker",
-    "git": "git",
-    "github": "github",
-    "vercel": "vercel",
-  };
-
-  const techColorMap = {
-    nextdotjs: "000000",
-    react: "61DAFB",
-    nodedotjs: "339933",
-    tailwindcss: "06B6D4",
-    typescript: "3178C6",
-    javascript: "F7DF1E",
-    python: "3776AB",
-    postgresql: "4169E1",
-    mongodb: "47A248",
-    docker: "2496ED",
-    git: "F05032",
-    github: "181717",
-    vercel: "000000",
-  };
-
-  const buildBadgeUrl = (label) => {
-    const key = (label || "").trim().toLowerCase();
-    const logo = techLogoMap[key];
-    const color = logo ? techColorMap[logo] || "111111" : "111111";
-    const safeLabel = encodeURIComponent(label.trim());
-
-    if (logo) {
-      return `https://img.shields.io/badge/${safeLabel}-${color}?style=for-the-badge&logo=${logo}&logoColor=white`;
-    }
-
-    return `https://img.shields.io/badge/${safeLabel}-${color}?style=for-the-badge`;
-  };
+  const escapeHtmlAttribute = (value) =>
+    String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
   const resolveBaseUrl = () => {
     const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -218,24 +184,59 @@ ${focus.length ? `${focus.map((point) => `- ${point}`).join("\n")}` : ""}
     }
 
     if (block === "skills") {
-      const baseUrl = resolveBaseUrl();
-      const variant = item.data?.variant || "grid";
-      const url = buildRenderUrl({
-        baseUrl,
-        type: "stack",
-        variant,
-        params: {
-          theme: item.data?.theme || "midnight",
-          s: item.data?.stack || [],
-        },
-      });
+      const normalizedStack = normalizeTechStackData(item.data || {});
+      if (normalizedStack.items.length) {
+        const sections = TECH_STACK_CATEGORY_ORDER.map((category) => {
+          const categoryItems = normalizedStack[category] || [];
+          if (!categoryItems.length) return "";
 
-      markdown += `
+          const icons = categoryItems
+            .map((tech) => {
+              const iconUrl = getTechIconUrl(tech);
+              const safeName = escapeHtmlAttribute(tech.name);
+
+              if (iconUrl) {
+                return `  <img src="${iconUrl}" alt="${safeName}" width="44" height="44" style="margin-right: 10px; margin-bottom: 8px;" />`;
+              }
+
+              const badgeLabel = encodeURIComponent(tech.name || "Tech");
+              return `  <img src="https://img.shields.io/badge/${badgeLabel}-111111?style=for-the-badge" alt="${safeName}" style="margin-right: 10px; margin-bottom: 8px;" />`;
+            })
+            .join("\n");
+
+          return `### ${TECH_STACK_CATEGORY_LABELS[category]}:\n\n<p align="left">\n${icons}\n</p>`;
+        })
+          .filter(Boolean)
+          .join("\n\n");
+
+        if (sections) {
+          markdown += `
+## Tech Stack
+
+${sections}
+
+`;
+        }
+      } else {
+        const baseUrl = resolveBaseUrl();
+        const variant = item.data?.variant || "grid";
+        const url = buildRenderUrl({
+          baseUrl,
+          type: "stack",
+          variant,
+          params: {
+            theme: item.data?.theme || "midnight",
+            s: item.data?.stack || [],
+          },
+        });
+
+        markdown += `
 <div align="center">
   <img src="${url}" alt="Tech Stack" />
 </div>
 
 `;
+      }
     }
 
     if (block === "contribution") {

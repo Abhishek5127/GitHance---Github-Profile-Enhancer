@@ -26,7 +26,7 @@ export default function RenderHeaderPreview({
   return (
     <div
       className={`overflow-hidden rounded-xl border border-white/10 bg-[#0f1115] p-1 ${
-        compact ? "h-[150px]" : ""
+        compact ? "h-[190px]" : ""
       }`}
     >
       <img

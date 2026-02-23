@@ -36,6 +36,7 @@ function mapRepository(repo, readmeValue = null) {
     fork: Boolean(repo.fork),
     readme: readmeValue,
   };
+  console.log(language);
 }
 
 export async function POST(req) {
