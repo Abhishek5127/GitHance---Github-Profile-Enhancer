@@ -27,11 +27,16 @@ function isGitHanceReadmeSyncPush(payload) {
   const commits = Array.isArray(payload?.commits) ? payload.commits : [];
   if (!commits.length) return false;
 
-  return commits.some((commit) =>
-    String(commit?.message || "")
-      .toLowerCase()
-      .includes("chore: refresh githance stats")
-  );
+  const ignoredMarkers = [
+    "chore: refresh githance stats",
+    "updated via analyzer app",
+    "update readme via githance",
+  ];
+
+  return commits.some((commit) => {
+    const message = String(commit?.message || "").toLowerCase();
+    return ignoredMarkers.some((marker) => message.includes(marker));
+  });
 }
 
 export async function POST(req) {

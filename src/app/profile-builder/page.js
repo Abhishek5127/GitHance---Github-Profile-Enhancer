@@ -71,7 +71,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const token = session?.accessToken;
   const [markdown, setMarkdown] = useState([]);
 
-  const bootstrapCommitStatsSnapshot = async (username) => {
+  const bootstrapCommitStatsSnapshot = async (username, installationId = null) => {
     if (!username || !token) return null;
 
     try {
@@ -81,6 +81,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         body: JSON.stringify({
           username,
           token,
+          installationId,
+          force: true,
         }),
       });
 
@@ -99,16 +101,18 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     const commitBlocks = items.filter((item) => item.type === "commits");
     if (!commitBlocks.length) return items;
 
-    const statsByUsername = new Map();
+    const statsByIdentity = new Map();
 
     await Promise.all(
       commitBlocks.map(async (item) => {
         const username = String(item?.data?.username || session?.username || "").trim();
-        if (!username || statsByUsername.has(username)) return;
+        const installationId = Number(item?.data?.installationId || 0) || null;
+        const identityKey = `${username}:${installationId ?? "auto"}`;
+        if (!username || statsByIdentity.has(identityKey)) return;
 
-        const snapshot = await bootstrapCommitStatsSnapshot(username);
+        const snapshot = await bootstrapCommitStatsSnapshot(username, installationId);
         if (snapshot) {
-          statsByUsername.set(username, snapshot);
+          statsByIdentity.set(identityKey, snapshot);
         }
       })
     );
@@ -117,7 +121,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       if (item.type !== "commits") return item;
 
       const username = String(item?.data?.username || session?.username || "").trim();
-      const snapshot = statsByUsername.get(username);
+      const installationId = Number(item?.data?.installationId || 0) || null;
+      const identityKey = `${username}:${installationId ?? "auto"}`;
+      const snapshot = statsByIdentity.get(identityKey);
       if (!snapshot) return item;
 
       return {
@@ -126,6 +132,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           ...item.data,
           username,
           statsSnapshot: snapshot,
+          installationId: Number(snapshot?.installation_id || item?.data?.installationId || 0) || null,
         },
       };
     });
@@ -231,6 +238,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         skills: buildTechStackPayload(techStackDefaults),
         commits: {
           username: session?.username || "your-github-username",
+          installationId: null,
         },
         contributions: { username: "your-github-username" },
       };
@@ -333,6 +341,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       type: "commits",
       data: {
         username: session?.username || "your-github-username",
+        installationId: null,
         ...overrides,
       },
     };

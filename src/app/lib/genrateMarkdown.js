@@ -260,6 +260,7 @@ ${techStackSection}
     if (block === "commits") {
       const baseUrl = resolveBaseUrl();
       const username = String(item.data?.username || "").trim();
+      const installationId = Number(item.data?.installationId || 0) || null;
 
       if (username) {
         const contributionUrl = buildRenderUrl({
@@ -268,6 +269,7 @@ ${techStackSection}
           variant: "summary",
           params: {
             user: username,
+            ...(installationId ? { installation_id: installationId } : {}),
           },
         });
         const streakUrl = buildRenderUrl({
@@ -276,6 +278,7 @@ ${techStackSection}
           variant: "default",
           params: {
             user: username,
+            ...(installationId ? { installation_id: installationId } : {}),
           },
         });
         const lastRepoUrl = buildRenderUrl({
@@ -284,6 +287,7 @@ ${techStackSection}
           variant: "metric",
           params: {
             user: username,
+            ...(installationId ? { installation_id: installationId } : {}),
             metric: "last_repo",
           },
         });
@@ -293,6 +297,7 @@ ${techStackSection}
           variant: "metric",
           params: {
             user: username,
+            ...(installationId ? { installation_id: installationId } : {}),
             metric: "total_commits",
           },
         });
@@ -302,6 +307,7 @@ ${techStackSection}
           variant: "metric",
           params: {
             user: username,
+            ...(installationId ? { installation_id: installationId } : {}),
             metric: "active_days",
           },
         });
@@ -311,6 +317,7 @@ ${techStackSection}
           variant: "metric",
           params: {
             user: username,
+            ...(installationId ? { installation_id: installationId } : {}),
             metric: "top_repo",
           },
         });

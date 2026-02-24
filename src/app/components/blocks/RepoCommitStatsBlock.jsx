@@ -12,32 +12,14 @@ const COMMIT_STAT_BLOCKS = [
   { id: "top_repo", type: "repo", metric: "top_repo", label: "Top Repo (Recent)" },
 ];
 
-function encodeStatsSnapshot(stats) {
-  try {
-    const payload = {
-      github_username: stats.github_username,
-      total_commits: Number(stats.total_commits || 0),
-      current_streak: Number(stats.current_streak || 0),
-      longest_streak: Number(stats.longest_streak || 0),
-      last_repo: String(stats.last_repo || ""),
-      active_days_30: Number(stats.active_days_30 || 0),
-      active_days_90: Number(stats.active_days_90 || 0),
-      top_repo_recent: String(stats.top_repo_recent || ""),
-      recent_commits_7: Number(stats.recent_commits_7 || 0),
-      recent_commits_30: Number(stats.recent_commits_30 || 0),
-      last_updated: String(stats.last_updated || ""),
-    };
-
-    return encodeURIComponent(JSON.stringify(payload));
-  } catch {
-    return "";
-  }
-}
-
-function buildBlockUrl({ username, type, metric, version, snapshot }) {
+function buildBlockUrl({ username, installationId, type, metric, version }) {
   const params = new URLSearchParams();
   params.set("type", type);
   params.set("user", username);
+
+  if (installationId) {
+    params.set("installation_id", String(installationId));
+  }
 
   if (metric) {
     params.set("metric", metric);
@@ -45,10 +27,6 @@ function buildBlockUrl({ username, type, metric, version, snapshot }) {
 
   if (version) {
     params.set("v", String(version));
-  }
-
-  if (snapshot) {
-    params.set("snapshot", snapshot);
   }
 
   return `/api/render?${params.toString()}`;
@@ -85,6 +63,7 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
           body: JSON.stringify({
             username,
             token,
+            force: true,
           }),
         });
 
@@ -120,6 +99,7 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
                         ...entry.data,
                         username,
                         statsSnapshot: nextSnapshot,
+                        installationId: Number(nextSnapshot?.installation_id || 0) || null,
                       },
                     }
                   : entry
@@ -147,23 +127,21 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
 
   const statsBlocks = useMemo(() => {
     if (!username) return [];
-
-    const snapshotSource = bootstrapStatus.stats || persistedSnapshot || null;
-    const snapshot = snapshotSource
-      ? encodeStatsSnapshot(snapshotSource)
-      : "";
+    const resolvedInstallationId =
+      Number(item?.data?.installationId || bootstrapStatus?.stats?.installation_id || 0) ||
+      null;
 
     return COMMIT_STAT_BLOCKS.map((block) => ({
       ...block,
       src: buildBlockUrl({
         username,
+        installationId: resolvedInstallationId,
         type: block.type,
         metric: block.metric,
         version: bootstrapStatus.version,
-        snapshot,
       }),
     }));
-  }, [bootstrapStatus.stats, bootstrapStatus.version, persistedSnapshot, username]);
+  }, [bootstrapStatus.stats?.installation_id, bootstrapStatus.version, item?.data?.installationId, username]);
 
   if (!username) {
     return (
