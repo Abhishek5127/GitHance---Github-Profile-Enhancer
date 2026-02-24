@@ -13,30 +13,6 @@ const escapeHtmlAttribute = (value) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-const encodeStatsSnapshotForUrl = (stats) => {
-  if (!stats || typeof stats !== "object") return "";
-
-  try {
-    const payload = {
-      github_username: String(stats.github_username || ""),
-      total_commits: Number(stats.total_commits || 0),
-      current_streak: Number(stats.current_streak || 0),
-      longest_streak: Number(stats.longest_streak || 0),
-      last_repo: String(stats.last_repo || ""),
-      active_days_30: Number(stats.active_days_30 || 0),
-      active_days_90: Number(stats.active_days_90 || 0),
-      top_repo_recent: String(stats.top_repo_recent || ""),
-      recent_commits_7: Number(stats.recent_commits_7 || 0),
-      recent_commits_30: Number(stats.recent_commits_30 || 0),
-      last_updated: String(stats.last_updated || ""),
-    };
-
-    return encodeURIComponent(JSON.stringify(payload));
-  } catch {
-    return "";
-  }
-};
-
 export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
   const {
     includeHeading = true,
@@ -116,16 +92,7 @@ export default function generateMarkdown(canvasItems) {
     }
 
     if (typeof window !== "undefined") {
-      const origin = window.location.origin.replace(/\/$/, "");
-      const host = window.location.hostname;
-      const isLocal =
-        host === "localhost" ||
-        host === "127.0.0.1" ||
-        host === "::1";
-
-      if (!isLocal) {
-        return origin;
-      }
+      return window.location.origin.replace(/\/$/, "");
     }
 
     return "https://githance.vercel.app";
@@ -293,7 +260,6 @@ ${techStackSection}
     if (block === "commits") {
       const baseUrl = resolveBaseUrl();
       const username = String(item.data?.username || "").trim();
-      const snapshot = encodeStatsSnapshotForUrl(item.data?.statsSnapshot);
 
       if (username) {
         const contributionUrl = buildRenderUrl({
@@ -302,7 +268,6 @@ ${techStackSection}
           variant: "summary",
           params: {
             user: username,
-            ...(snapshot ? { snapshot } : {}),
           },
         });
         const streakUrl = buildRenderUrl({
@@ -311,7 +276,6 @@ ${techStackSection}
           variant: "default",
           params: {
             user: username,
-            ...(snapshot ? { snapshot } : {}),
           },
         });
         const lastRepoUrl = buildRenderUrl({
@@ -321,7 +285,6 @@ ${techStackSection}
           params: {
             user: username,
             metric: "last_repo",
-            ...(snapshot ? { snapshot } : {}),
           },
         });
         const totalCommitsUrl = buildRenderUrl({
@@ -331,7 +294,6 @@ ${techStackSection}
           params: {
             user: username,
             metric: "total_commits",
-            ...(snapshot ? { snapshot } : {}),
           },
         });
         const activeDaysUrl = buildRenderUrl({
@@ -341,7 +303,6 @@ ${techStackSection}
           params: {
             user: username,
             metric: "active_days",
-            ...(snapshot ? { snapshot } : {}),
           },
         });
         const topRepoUrl = buildRenderUrl({
@@ -351,7 +312,6 @@ ${techStackSection}
           params: {
             user: username,
             metric: "top_repo",
-            ...(snapshot ? { snapshot } : {}),
           },
         });
 
