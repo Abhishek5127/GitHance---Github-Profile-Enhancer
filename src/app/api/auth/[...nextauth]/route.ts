@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import { NextAuthOptions } from "next-auth";
+import { upsertGithubUserIdentity } from "@/app/lib/githubStats";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -19,11 +20,37 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account, profile }) {
       if (account) {
         token.accessToken = account.access_token;
+        const githubProfile = profile as
+          | {
+              login?: string;
+              name?: string;
+              email?: string;
+              avatar_url?: string;
+              id?: number;
+            }
+          | null
+          | undefined;
+
         const login =
-          (profile as { login?: string } | null | undefined)?.login ??
+          githubProfile?.login ??
           (token as { username?: string } | null | undefined)?.username;
         if (login) {
           token.username = login;
+        }
+
+        if (login) {
+          try {
+            await upsertGithubUserIdentity({
+              username: login,
+              name: githubProfile?.name || "",
+              email: githubProfile?.email || "",
+              avatarUrl: githubProfile?.avatar_url || "",
+              githubId: githubProfile?.id || null,
+              source: "auth_signin",
+            });
+          } catch {
+            // Ignore profile persistence failures so auth flow never breaks.
+          }
         }
       }
       return token;

@@ -8,6 +8,7 @@ const DELIVERY_TTL_MS = 14 * DAY_MS;
 const WEBHOOK_DELIVERY_TTL_DAYS = 14;
 const STATS_COLLECTION = "github_user_stats";
 const DELIVERIES_COLLECTION = "github_webhook_deliveries";
+const USERS_COLLECTION = "github_users";
 
 function createStore() {
   return {
@@ -40,6 +41,7 @@ async function getMongoCollections() {
   if (!mongoIndexesEnsured) {
     const statsCollection = db.collection(STATS_COLLECTION);
     const deliveriesCollection = db.collection(DELIVERIES_COLLECTION);
+    const usersCollection = db.collection(USERS_COLLECTION);
 
     await Promise.all([
       statsCollection.createIndex({ github_username: 1, installation_id: 1 }),
@@ -47,6 +49,8 @@ async function getMongoCollections() {
         { expiresAt: 1 },
         { expireAfterSeconds: 0 }
       ),
+      usersCollection.createIndex({ github_username: 1 }, { unique: true }),
+      usersCollection.createIndex({ github_email: 1 }, { sparse: true }),
     ]);
 
     mongoIndexesEnsured = true;
@@ -55,6 +59,7 @@ async function getMongoCollections() {
   return {
     statsCollection: db.collection(STATS_COLLECTION),
     deliveriesCollection: db.collection(DELIVERIES_COLLECTION),
+    usersCollection: db.collection(USERS_COLLECTION),
   };
 }
 
@@ -62,6 +67,18 @@ function normalizeUsername(value) {
   return String(value || "")
     .trim()
     .toLowerCase();
+}
+
+function normalizeDisplayName(value) {
+  const cleaned = String(value || "").trim();
+  return cleaned || "";
+}
+
+function normalizeEmail(value) {
+  const cleaned = String(value || "")
+    .trim()
+    .toLowerCase();
+  return cleaned || "";
 }
 
 function normalizeInstallationId(value) {
@@ -120,10 +137,17 @@ function isoToEpoch(value) {
   return parsed;
 }
 
-//stupid line
+function safeIsoString(value) {
+  const parsed = new Date(value || "");
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString();
+}
+
 function makeEmptyStats({ username, installationId }) {
   return {
     github_username: username,
+    github_name: "",
+    github_email: "",
     installation_id: installationId,
     total_commits: 0,
     current_streak: 0,
@@ -179,6 +203,8 @@ function normalizeStatsFromRecord(record, { username, installationId }) {
     return normalized;
   }
 
+  normalized.github_name = normalizeDisplayName(record.github_name);
+  normalized.github_email = normalizeEmail(record.github_email);
   normalized.total_commits = Number(record.total_commits || 0);
   normalized.current_streak = Number(record.current_streak || 0);
   normalized.longest_streak = Number(record.longest_streak || 0);
@@ -208,6 +234,8 @@ function toStatsPersistenceDoc(stats) {
       installationId: normalizeInstallationId(stats.installation_id),
     }),
     github_username: normalizeUsername(stats.github_username),
+    github_name: normalizeDisplayName(stats.github_name),
+    github_email: normalizeEmail(stats.github_email),
     installation_id: normalizeInstallationId(stats.installation_id),
     total_commits: Number(stats.total_commits || 0),
     current_streak: Number(stats.current_streak || 0),
@@ -294,6 +322,182 @@ async function loadStatsRecordsFromMongo(
 async function saveStatsRecordToMongo(statsCollection, stats) {
   const doc = toStatsPersistenceDoc(stats);
   await statsCollection.replaceOne({ _id: doc._id }, doc, { upsert: true });
+}
+
+function pickPreferredRecordsForAggregation(records = []) {
+  const installationScoped = records.filter(
+    (record) => normalizeInstallationId(record?.installation_id) !== null
+  );
+  return installationScoped.length ? installationScoped : records;
+}
+
+function applyGithubIdentityToStats(stats, profile = null) {
+  if (!stats || !profile) return stats;
+
+  const name = normalizeDisplayName(profile.github_name || profile.name);
+  const email = normalizeEmail(profile.github_email || profile.email);
+
+  if (name) {
+    stats.github_name = name;
+  }
+  if (email) {
+    stats.github_email = email;
+  }
+
+  return stats;
+}
+
+function toPublicGithubIdentity(profile) {
+  if (!profile) return null;
+
+  return {
+    github_username: normalizeUsername(profile.github_username),
+    github_name: normalizeDisplayName(profile.github_name),
+    github_email: normalizeEmail(profile.github_email),
+    avatar_url: String(profile.avatar_url || "").trim(),
+    github_id: Number(profile.github_id || 0) || null,
+    installation_ids: Array.isArray(profile.installation_ids)
+      ? profile.installation_ids
+          .map((value) => normalizeInstallationId(value))
+          .filter((value) => value !== null)
+      : [],
+    updated_at: safeIsoString(profile.updatedAt),
+  };
+}
+
+async function loadGithubIdentityFromMongo(usersCollection, username) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) return null;
+
+  const profile = await usersCollection.findOne({
+    github_username: normalizedUsername,
+  });
+  return toPublicGithubIdentity(profile);
+}
+
+function buildGithubIdentityFromPushPayload(payload, fallbackUsername = "") {
+  const username = normalizeUsername(
+    payload?.sender?.login || payload?.repository?.owner?.login || fallbackUsername
+  );
+  const name = normalizeDisplayName(
+    payload?.pusher?.name || payload?.head_commit?.author?.name || ""
+  );
+  const email = normalizeEmail(
+    payload?.pusher?.email || payload?.head_commit?.author?.email || ""
+  );
+  const avatarUrl = String(payload?.sender?.avatar_url || "").trim();
+  const githubId = Number(payload?.sender?.id || 0) || null;
+  const installationId = normalizeInstallationId(payload?.installation?.id);
+
+  return {
+    github_username: username,
+    github_name: name,
+    github_email: email,
+    avatar_url: avatarUrl,
+    github_id: githubId,
+    installation_id: installationId,
+    source: "webhook_push",
+  };
+}
+
+async function upsertGithubIdentityInMongo(
+  usersCollection,
+  statsCollection,
+  {
+    username = "",
+    name = "",
+    email = "",
+    avatarUrl = "",
+    githubId = null,
+    installationId = null,
+    source = "unknown",
+  }
+) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) return null;
+
+  const normalizedName = normalizeDisplayName(name);
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedAvatarUrl = String(avatarUrl || "").trim();
+  const normalizedGithubId = Number(githubId || 0) || null;
+  const normalizedInstallationId = normalizeInstallationId(installationId);
+
+  const setPayload = {
+    updatedAt: new Date(),
+    last_seen_at: new Date(),
+    last_source: String(source || "unknown"),
+  };
+  if (normalizedName) setPayload.github_name = normalizedName;
+  if (normalizedEmail) setPayload.github_email = normalizedEmail;
+  if (normalizedAvatarUrl) setPayload.avatar_url = normalizedAvatarUrl;
+  if (normalizedGithubId) setPayload.github_id = normalizedGithubId;
+
+  const updatePayload = {
+    $setOnInsert: {
+      github_username: normalizedUsername,
+      createdAt: new Date(),
+    },
+    $set: setPayload,
+  };
+  if (normalizedInstallationId !== null) {
+    updatePayload.$addToSet = {
+      installation_ids: normalizedInstallationId,
+    };
+  }
+
+  await usersCollection.updateOne(
+    { github_username: normalizedUsername },
+    updatePayload,
+    { upsert: true }
+  );
+
+  const profile = await usersCollection.findOne({
+    github_username: normalizedUsername,
+  });
+  const publicProfile = toPublicGithubIdentity(profile);
+
+  if (publicProfile) {
+    const identitySet = {};
+    if (publicProfile.github_name) {
+      identitySet.github_name = publicProfile.github_name;
+    }
+    if (publicProfile.github_email) {
+      identitySet.github_email = publicProfile.github_email;
+    }
+
+    if (Object.keys(identitySet).length) {
+      await statsCollection.updateMany(
+        { github_username: normalizedUsername },
+        {
+          $set: {
+            ...identitySet,
+            updatedAt: new Date(),
+          },
+        }
+      );
+    }
+  }
+
+  return publicProfile;
+}
+
+async function cleanupLegacyNullStatsRecordsForUsername(statsCollection, username) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) return 0;
+
+  const hasInstallationScopedRecord = await statsCollection.findOne({
+    github_username: normalizedUsername,
+    installation_id: { $ne: null },
+  });
+
+  if (!hasInstallationScopedRecord) return 0;
+
+  const deletion = await statsCollection.deleteMany({
+    github_username: normalizedUsername,
+    installation_id: null,
+  });
+
+  return Number(deletion?.deletedCount || 0);
 }
 
 function cleanupProcessedDeliveries(store) {
@@ -596,6 +800,8 @@ function toPublicStats(stats) {
   if (!stats) {
     return {
       github_username: "",
+      github_name: "",
+      github_email: "",
       installation_id: null,
       total_commits: 0,
       current_streak: 0,
@@ -618,6 +824,8 @@ function toPublicStats(stats) {
 
   return {
     github_username: stats.github_username,
+    github_name: String(stats.github_name || ""),
+    github_email: String(stats.github_email || ""),
     installation_id: stats.installation_id,
     total_commits: Number(stats.total_commits || 0),
     current_streak: Number(stats.current_streak || 0),
@@ -648,6 +856,8 @@ function mergeStatsRecords(records, { username, installationId }) {
   let latestUpdatedEpoch = 0;
 
   records.forEach((record) => {
+    applyGithubIdentityToStats(merged, record);
+
     merged.total_commits += Number(record.total_commits || 0);
     merged.longest_streak = Math.max(
       Number(merged.longest_streak || 0),
@@ -668,6 +878,7 @@ function mergeStatsRecords(records, { username, installationId }) {
       latestUpdatedEpoch = updatedEpoch;
       latestUpdated = record.last_updated || latestUpdated;
       merged.last_repo = record.last_repo || merged.last_repo;
+      applyGithubIdentityToStats(merged, record);
     }
   });
 
@@ -681,8 +892,12 @@ function mergeStatsRecords(records, { username, installationId }) {
   return merged;
 }
 
-function upsertPushStats(store, { username, installationId, repoFullName, dayIncrements, commitCount }) {
+function upsertPushStats(
+  store,
+  { username, installationId, repoFullName, dayIncrements, commitCount, profile = null }
+) {
   const stats = ensureStatsRecord(store, { username, installationId });
+  applyGithubIdentityToStats(stats, profile);
 
   stats.total_commits = Number(stats.total_commits || 0) + Number(commitCount || 0);
   stats.last_updated = new Date().toISOString();
@@ -828,6 +1043,16 @@ function recordPushEventInMemory({ deliveryId, payload }) {
   }
 
   const installationId = normalizeInstallationId(payload?.installation?.id);
+  if (installationId === null) {
+    return {
+      ok: false,
+      idempotent: false,
+      error: "Missing installation id in push webhook payload",
+      status: 400,
+    };
+  }
+
+  const profileFromPayload = buildGithubIdentityFromPushPayload(payload, username);
   const repoFullName = normalizeRepoFullName(payload?.repository);
   const { dayIncrements, commitCount } = buildDayIncrementsFromPush(payload);
 
@@ -837,6 +1062,7 @@ function recordPushEventInMemory({ deliveryId, payload }) {
     repoFullName,
     dayIncrements,
     commitCount,
+    profile: profileFromPayload,
   });
 
   markDeliveryProcessed(store, deliveryId);
@@ -874,6 +1100,15 @@ function recordRepositoryEventInMemory({ deliveryId, payload }) {
       ok: false,
       idempotent: false,
       error: "Unable to resolve GitHub username for repository event",
+    };
+  }
+
+  if (installationId === null) {
+    return {
+      ok: false,
+      idempotent: false,
+      error: "Missing installation id in repository webhook payload",
+      status: 400,
     };
   }
 
@@ -937,6 +1172,54 @@ function bootstrapGithubStatsFromEventsInMemory({
   });
   const existing = store.userStats.get(key);
 
+  if (normalizedInstallationId === null) {
+    const records = getMatchingRecords(store, {
+      username: normalizedUsername,
+      installationId: null,
+    });
+    const preferredRecords = pickPreferredRecordsForAggregation(records);
+    const existingMerged = preferredRecords.length
+      ? mergeStatsRecords(preferredRecords, {
+          username: normalizedUsername,
+          installationId: normalizedInstallationId,
+        })
+      : null;
+
+    if (existingMerged && !force && hasMeaningfulStats(existingMerged)) {
+      return {
+        ok: true,
+        bootstrapped: false,
+        source: "cache",
+        push_events_count: 0,
+        stats: toPublicStats(existingMerged),
+      };
+    }
+
+    const { snapshot, pushEventsCount } = buildSnapshotFromPushEvents({
+      username: normalizedUsername,
+      installationId: normalizedInstallationId,
+      events,
+    });
+
+    if (!hasMeaningfulStats(snapshot) && existingMerged && hasMeaningfulStats(existingMerged)) {
+      return {
+        ok: true,
+        bootstrapped: false,
+        source: "cache",
+        push_events_count: pushEventsCount,
+        stats: toPublicStats(existingMerged),
+      };
+    }
+
+    return {
+      ok: true,
+      bootstrapped: true,
+      source: "events_ephemeral",
+      push_events_count: pushEventsCount,
+      stats: toPublicStats(snapshot),
+    };
+  }
+
   if (existing && !force && hasMeaningfulStats(existing)) {
     return {
       ok: true,
@@ -987,8 +1270,12 @@ function getGithubStatsForUserInMemory({ username, installationId = null }) {
     username: normalizedUsername,
     installationId: normalizedInstallationId,
   });
+  const preferredRecords =
+    normalizedInstallationId === null
+      ? pickPreferredRecordsForAggregation(records)
+      : records;
 
-  if (!records.length) {
+  if (!preferredRecords.length) {
     return toPublicStats(
       makeEmptyStats({
         username: normalizedUsername,
@@ -997,7 +1284,7 @@ function getGithubStatsForUserInMemory({ username, installationId = null }) {
     );
   }
 
-  const merged = mergeStatsRecords(records, {
+  const merged = mergeStatsRecords(preferredRecords, {
     username: normalizedUsername,
     installationId: normalizedInstallationId,
   });
@@ -1029,6 +1316,16 @@ export async function recordPushEvent({ deliveryId, payload }) {
   }
 
   const installationId = normalizeInstallationId(payload?.installation?.id);
+  if (installationId === null) {
+    return {
+      ok: false,
+      idempotent: false,
+      error: "Missing installation id in push webhook payload",
+      status: 400,
+    };
+  }
+
+  const profileFromPayload = buildGithubIdentityFromPushPayload(payload, username);
   const repoFullName = normalizeRepoFullName(payload?.repository);
   const { dayIncrements, commitCount } = buildDayIncrementsFromPush(payload);
 
@@ -1037,8 +1334,22 @@ export async function recordPushEvent({ deliveryId, payload }) {
 
   try {
     const collections = await getMongoCollections();
-    const { statsCollection } = collections;
+    const { statsCollection, usersCollection } = collections;
     deliveriesCollection = collections.deliveriesCollection;
+
+    const profile = await upsertGithubIdentityInMongo(
+      usersCollection,
+      statsCollection,
+      {
+        username,
+        name: profileFromPayload.github_name,
+        email: profileFromPayload.github_email,
+        avatarUrl: profileFromPayload.avatar_url,
+        githubId: profileFromPayload.github_id,
+        installationId,
+        source: "webhook_push",
+      }
+    );
 
     const reservation = await reserveWebhookDelivery(
       deliveriesCollection,
@@ -1070,9 +1381,11 @@ export async function recordPushEvent({ deliveryId, payload }) {
       repoFullName,
       dayIncrements,
       commitCount,
+      profile,
     });
 
     await saveStatsRecordToMongo(statsCollection, stats);
+    await cleanupLegacyNullStatsRecordsForUsername(statsCollection, username);
 
     return {
       ok: true,
@@ -1117,13 +1430,32 @@ export async function recordRepositoryEvent({ deliveryId, payload }) {
     };
   }
 
+  if (installationId === null) {
+    return {
+      ok: false,
+      idempotent: false,
+      error: "Missing installation id in repository webhook payload",
+      status: 400,
+    };
+  }
+
   let reservedDelivery = false;
   let deliveriesCollection = null;
 
   try {
     const collections = await getMongoCollections();
-    const { statsCollection } = collections;
+    const { statsCollection, usersCollection } = collections;
     deliveriesCollection = collections.deliveriesCollection;
+
+    await upsertGithubIdentityInMongo(usersCollection, statsCollection, {
+      username,
+      name: normalizeDisplayName(payload?.repository?.owner?.name || ""),
+      email: "",
+      avatarUrl: String(payload?.repository?.owner?.avatar_url || "").trim(),
+      githubId: Number(payload?.repository?.owner?.id || 0) || null,
+      installationId,
+      source: `webhook_repository_${action || "event"}`,
+    });
 
     const reservation = await reserveWebhookDelivery(
       deliveriesCollection,
@@ -1218,11 +1550,85 @@ export async function bootstrapGithubStatsFromEvents({
   }
 
   try {
-    const { statsCollection } = await getMongoCollections();
+    const { statsCollection, usersCollection } = await getMongoCollections();
+    const profile = await loadGithubIdentityFromMongo(
+      usersCollection,
+      normalizedUsername
+    );
+
+    if (normalizedInstallationId === null) {
+      const records = await loadStatsRecordsFromMongo(statsCollection, {
+        username: normalizedUsername,
+      });
+      const hasInstallationScoped = records.some(
+        (record) => normalizeInstallationId(record.installation_id) !== null
+      );
+      const hasLegacyNull = records.some(
+        (record) => normalizeInstallationId(record.installation_id) === null
+      );
+      if (hasInstallationScoped && hasLegacyNull) {
+        await cleanupLegacyNullStatsRecordsForUsername(
+          statsCollection,
+          normalizedUsername
+        );
+      }
+      const preferredRecords = pickPreferredRecordsForAggregation(records);
+      const existingMerged = preferredRecords.length
+        ? mergeStatsRecords(preferredRecords, {
+            username: normalizedUsername,
+            installationId: normalizedInstallationId,
+          })
+        : null;
+
+      if (existingMerged) {
+        applyGithubIdentityToStats(existingMerged, profile);
+      }
+
+      if (existingMerged && !force && hasMeaningfulStats(existingMerged)) {
+        return {
+          ok: true,
+          bootstrapped: false,
+          source: "cache",
+          push_events_count: 0,
+          stats: toPublicStats(existingMerged),
+        };
+      }
+
+      const { snapshot, pushEventsCount } = buildSnapshotFromPushEvents({
+        username: normalizedUsername,
+        installationId: normalizedInstallationId,
+        events,
+      });
+      applyGithubIdentityToStats(snapshot, profile);
+
+      if (!hasMeaningfulStats(snapshot) && existingMerged && hasMeaningfulStats(existingMerged)) {
+        return {
+          ok: true,
+          bootstrapped: false,
+          source: "cache",
+          push_events_count: pushEventsCount,
+          stats: toPublicStats(existingMerged),
+        };
+      }
+
+      // Do not persist null-installation snapshots; they cause duplicate aggregate rows.
+      return {
+        ok: true,
+        bootstrapped: true,
+        source: "events_ephemeral",
+        push_events_count: pushEventsCount,
+        stats: toPublicStats(snapshot),
+      };
+    }
+
     const existing = await loadStatsRecordFromMongo(statsCollection, {
       username: normalizedUsername,
       installationId: normalizedInstallationId,
     });
+
+    if (existing) {
+      applyGithubIdentityToStats(existing, profile);
+    }
 
     if (existing && !force && hasMeaningfulStats(existing)) {
       return {
@@ -1239,6 +1645,7 @@ export async function bootstrapGithubStatsFromEvents({
       installationId: normalizedInstallationId,
       events,
     });
+    applyGithubIdentityToStats(snapshot, profile);
 
     if (!hasMeaningfulStats(snapshot) && existing && hasMeaningfulStats(existing)) {
       return {
@@ -1281,13 +1688,31 @@ export async function getGithubStatsForUser({ username, installationId = null })
   }
 
   try {
-    const { statsCollection } = await getMongoCollections();
+    const { statsCollection, usersCollection } = await getMongoCollections();
     const records = await loadStatsRecordsFromMongo(statsCollection, {
       username: normalizedUsername,
       installationId: normalizedInstallationId,
     });
+    if (normalizedInstallationId === null) {
+      const hasInstallationScoped = records.some(
+        (record) => normalizeInstallationId(record.installation_id) !== null
+      );
+      const hasLegacyNull = records.some(
+        (record) => normalizeInstallationId(record.installation_id) === null
+      );
+      if (hasInstallationScoped && hasLegacyNull) {
+        await cleanupLegacyNullStatsRecordsForUsername(
+          statsCollection,
+          normalizedUsername
+        );
+      }
+    }
+    const preferredRecords =
+      normalizedInstallationId === null
+        ? pickPreferredRecordsForAggregation(records)
+        : records;
 
-    if (!records.length) {
+    if (!preferredRecords.length) {
       return toPublicStats(
         makeEmptyStats({
           username: normalizedUsername,
@@ -1296,10 +1721,15 @@ export async function getGithubStatsForUser({ username, installationId = null })
       );
     }
 
-    const merged = mergeStatsRecords(records, {
+    const merged = mergeStatsRecords(preferredRecords, {
       username: normalizedUsername,
       installationId: normalizedInstallationId,
     });
+    const profile = await loadGithubIdentityFromMongo(
+      usersCollection,
+      normalizedUsername
+    );
+    applyGithubIdentityToStats(merged, profile);
 
     return toPublicStats(merged);
   } catch {
@@ -1331,6 +1761,66 @@ export async function getAllGithubStats() {
   }
 }
 
+export async function upsertGithubUserIdentity({
+  username = "",
+  name = "",
+  email = "",
+  avatarUrl = "",
+  githubId = null,
+  installationId = null,
+  source = "manual",
+}) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) {
+    return {
+      ok: false,
+      error: "GitHub username is required",
+      status: 400,
+    };
+  }
+
+  if (!isMongoConfigured()) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "mongo_not_configured",
+      status: 412,
+    };
+  }
+
+  try {
+    const { usersCollection, statsCollection } = await getMongoCollections();
+    const profile = await upsertGithubIdentityInMongo(
+      usersCollection,
+      statsCollection,
+      {
+        username: normalizedUsername,
+        name,
+        email,
+        avatarUrl,
+        githubId,
+        installationId,
+        source,
+      }
+    );
+    await cleanupLegacyNullStatsRecordsForUsername(
+      statsCollection,
+      normalizedUsername
+    );
+
+    return {
+      ok: true,
+      profile,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || "Failed to upsert GitHub user profile",
+      status: 500,
+    };
+  }
+}
+
 export function clearGithubStatsStore() {
   globalThis.__githanceGithubStatsStore = createStore();
 }
@@ -1351,6 +1841,8 @@ export function hydrateGithubStatsStore(records = []) {
       installationId,
     });
 
+    hydrated.github_name = normalizeDisplayName(record?.github_name);
+    hydrated.github_email = normalizeEmail(record?.github_email);
     hydrated.total_commits = Number(record?.total_commits || 0);
     hydrated.current_streak = Number(record?.current_streak || 0);
     hydrated.longest_streak = Number(record?.longest_streak || 0);
