@@ -13,6 +13,18 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function hasMeaningfulStats(stats) {
+  if (!stats) return false;
+
+  return (
+    Number(stats.total_commits || 0) > 0 ||
+    Number(stats.recent_commits_30 || 0) > 0 ||
+    Number(stats.active_days_30 || 0) > 0 ||
+    Boolean(String(stats.last_repo || "").trim()) ||
+    Boolean(String(stats.top_repo_recent || "").trim())
+  );
+}
+
 function parseStatsSnapshot(searchParams) {
   const raw = searchParams.get("snapshot");
   if (!raw) return null;
@@ -55,17 +67,19 @@ export async function GET(request) {
     const username = searchParams.get("user") || searchParams.get("username") || "";
     const installationId =
       searchParams.get("installation_id") || searchParams.get("installationId") || "";
-    const stats = getGithubStatsForUser({
+    const stats = await getGithubStatsForUser({
       username,
       installationId,
     });
     const snapshotStats = parseStatsSnapshot(searchParams);
-    const resolvedStats = snapshotStats
-      ? {
-          ...stats,
-          ...snapshotStats,
-        }
-      : stats;
+    const resolvedStats = hasMeaningfulStats(stats)
+      ? stats
+      : snapshotStats
+        ? {
+            ...stats,
+            ...snapshotStats,
+          }
+        : stats;
 
     if (type === "contribution") {
       svg = renderContributionSvg(resolvedStats, {

@@ -1,8 +1,13 @@
+import { getMongoDb, isMongoConfigured } from "@/app/lib/mongodb";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HISTORY_WINDOW_DAYS = 180;
 const RECENT_ACTIVITY_WINDOW_DAYS = 30;
 const ACTIVE_DAYS_LONG_WINDOW_DAYS = 90;
 const DELIVERY_TTL_MS = 14 * DAY_MS;
+const WEBHOOK_DELIVERY_TTL_DAYS = 14;
+const STATS_COLLECTION = "github_user_stats";
+const DELIVERIES_COLLECTION = "github_webhook_deliveries";
 
 function createStore() {
   return {
@@ -17,6 +22,40 @@ function getStore() {
   }
 
   return globalThis.__githanceGithubStatsStore;
+}
+
+function createStatsDocId({ username, installationId }) {
+  return statsKey({ username, installationId });
+}
+
+function deliveryExpiryDate() {
+  return new Date(Date.now() + WEBHOOK_DELIVERY_TTL_DAYS * DAY_MS);
+}
+
+let mongoIndexesEnsured = false;
+
+async function getMongoCollections() {
+  const db = await getMongoDb();
+
+  if (!mongoIndexesEnsured) {
+    const statsCollection = db.collection(STATS_COLLECTION);
+    const deliveriesCollection = db.collection(DELIVERIES_COLLECTION);
+
+    await Promise.all([
+      statsCollection.createIndex({ github_username: 1, installation_id: 1 }),
+      deliveriesCollection.createIndex(
+        { expiresAt: 1 },
+        { expireAfterSeconds: 0 }
+      ),
+    ]);
+
+    mongoIndexesEnsured = true;
+  }
+
+  return {
+    statsCollection: db.collection(STATS_COLLECTION),
+    deliveriesCollection: db.collection(DELIVERIES_COLLECTION),
+  };
 }
 
 function normalizeUsername(value) {
@@ -127,6 +166,133 @@ function cloneRepoDayCounts(repoDayCounts = {}) {
     }
     return result;
   }, {});
+}
+
+function normalizeStatsFromRecord(record, { username, installationId }) {
+  const normalized = makeEmptyStats({
+    username,
+    installationId,
+  });
+
+  if (!record || typeof record !== "object") {
+    return normalized;
+  }
+
+  normalized.total_commits = Number(record.total_commits || 0);
+  normalized.current_streak = Number(record.current_streak || 0);
+  normalized.longest_streak = Number(record.longest_streak || 0);
+  normalized.last_repo = String(record.last_repo || "")
+    .trim()
+    .toLowerCase();
+  normalized.active_days_30 = Number(record.active_days_30 || 0);
+  normalized.active_days_90 = Number(record.active_days_90 || 0);
+  normalized.top_repo_recent = String(record.top_repo_recent || "")
+    .trim()
+    .toLowerCase();
+  normalized.recent_commits_7 = Number(record.recent_commits_7 || 0);
+  normalized.recent_commits_30 = Number(record.recent_commits_30 || 0);
+  normalized.last_updated = String(record.last_updated || "");
+  normalized.day_counts = cloneDayCounts(record.day_counts || {});
+  normalized.repo_day_counts = cloneRepoDayCounts(record.repo_day_counts || {});
+
+  pruneStatsHistory(normalized);
+  deriveStats(normalized);
+  return normalized;
+}
+
+function toStatsPersistenceDoc(stats) {
+  return {
+    _id: createStatsDocId({
+      username: normalizeUsername(stats.github_username),
+      installationId: normalizeInstallationId(stats.installation_id),
+    }),
+    github_username: normalizeUsername(stats.github_username),
+    installation_id: normalizeInstallationId(stats.installation_id),
+    total_commits: Number(stats.total_commits || 0),
+    current_streak: Number(stats.current_streak || 0),
+    longest_streak: Number(stats.longest_streak || 0),
+    last_repo: String(stats.last_repo || "")
+      .trim()
+      .toLowerCase(),
+    active_days_30: Number(stats.active_days_30 || 0),
+    active_days_90: Number(stats.active_days_90 || 0),
+    top_repo_recent: String(stats.top_repo_recent || "")
+      .trim()
+      .toLowerCase(),
+    recent_commits_7: Number(stats.recent_commits_7 || 0),
+    recent_commits_30: Number(stats.recent_commits_30 || 0),
+    last_updated: String(stats.last_updated || ""),
+    day_counts: cloneDayCounts(stats.day_counts || {}),
+    repo_day_counts: cloneRepoDayCounts(stats.repo_day_counts || {}),
+    updatedAt: new Date(),
+  };
+}
+
+async function reserveWebhookDelivery(deliveriesCollection, deliveryId) {
+  if (!deliveryId) {
+    return { reserved: true, idempotent: false };
+  }
+
+  const result = await deliveriesCollection.updateOne(
+    { _id: deliveryId },
+    {
+      $setOnInsert: {
+        _id: deliveryId,
+        createdAt: new Date(),
+        expiresAt: deliveryExpiryDate(),
+      },
+    },
+    { upsert: true }
+  );
+
+  const reserved = Boolean(result.upsertedCount);
+  return {
+    reserved,
+    idempotent: !reserved,
+  };
+}
+
+async function releaseWebhookDelivery(deliveriesCollection, deliveryId) {
+  if (!deliveryId) return;
+  await deliveriesCollection.deleteOne({ _id: deliveryId });
+}
+
+async function loadStatsRecordFromMongo(statsCollection, { username, installationId }) {
+  const record = await statsCollection.findOne({
+    _id: createStatsDocId({ username, installationId }),
+  });
+
+  if (!record) return null;
+  return normalizeStatsFromRecord(record, {
+    username,
+    installationId,
+  });
+}
+
+async function loadStatsRecordsFromMongo(
+  statsCollection,
+  { username, installationId = null }
+) {
+  const query = {
+    github_username: username,
+  };
+
+  if (installationId !== null) {
+    query.installation_id = installationId;
+  }
+
+  const records = await statsCollection.find(query).toArray();
+  return records.map((record) =>
+    normalizeStatsFromRecord(record, {
+      username: normalizeUsername(record.github_username),
+      installationId: normalizeInstallationId(record.installation_id),
+    })
+  );
+}
+
+async function saveStatsRecordToMongo(statsCollection, stats) {
+  const doc = toStatsPersistenceDoc(stats);
+  await statsCollection.replaceOne({ _id: doc._id }, doc, { upsert: true });
 }
 
 function cleanupProcessedDeliveries(store) {
@@ -637,7 +803,7 @@ function getMatchingRecords(store, { username, installationId = null }) {
   return entries;
 }
 
-export function recordPushEvent({ deliveryId, payload }) {
+function recordPushEventInMemory({ deliveryId, payload }) {
   const store = getStore();
 
   if (hasProcessedDelivery(store, deliveryId)) {
@@ -685,7 +851,7 @@ export function recordPushEvent({ deliveryId, payload }) {
   };
 }
 
-export function recordRepositoryEvent({ deliveryId, payload }) {
+function recordRepositoryEventInMemory({ deliveryId, payload }) {
   const store = getStore();
 
   if (hasProcessedDelivery(store, deliveryId)) {
@@ -747,7 +913,7 @@ export function recordRepositoryEvent({ deliveryId, payload }) {
   };
 }
 
-export function bootstrapGithubStatsFromEvents({
+function bootstrapGithubStatsFromEventsInMemory({
   username,
   installationId = null,
   events = [],
@@ -807,7 +973,7 @@ export function bootstrapGithubStatsFromEvents({
   };
 }
 
-export function getGithubStatsForUser({ username, installationId = null }) {
+function getGithubStatsForUserInMemory({ username, installationId = null }) {
   const normalizedUsername = normalizeUsername(username);
   const normalizedInstallationId = normalizeInstallationId(installationId);
 
@@ -838,9 +1004,330 @@ export function getGithubStatsForUser({ username, installationId = null }) {
   return toPublicStats(merged);
 }
 
-export function getAllGithubStats() {
+function getAllGithubStatsInMemory() {
   const store = getStore();
   return [...store.userStats.values()].map((entry) => toPublicStats(entry));
+}
+
+export async function recordPushEvent({ deliveryId, payload }) {
+  if (!isMongoConfigured()) {
+    return recordPushEventInMemory({ deliveryId, payload });
+  }
+
+  const username = normalizeUsername(
+    payload?.sender?.login || payload?.repository?.owner?.login || payload?.pusher?.name
+  );
+
+  if (!username) {
+    return {
+      ok: false,
+      idempotent: false,
+      error: "Unable to resolve GitHub username from webhook payload",
+      status: 400,
+    };
+  }
+
+  const installationId = normalizeInstallationId(payload?.installation?.id);
+  const repoFullName = normalizeRepoFullName(payload?.repository);
+  const { dayIncrements, commitCount } = buildDayIncrementsFromPush(payload);
+
+  let reservedDelivery = false;
+  let deliveriesCollection = null;
+
+  try {
+    const collections = await getMongoCollections();
+    const { statsCollection } = collections;
+    deliveriesCollection = collections.deliveriesCollection;
+
+    const reservation = await reserveWebhookDelivery(
+      deliveriesCollection,
+      deliveryId
+    );
+    if (!reservation.reserved) {
+      return {
+        ok: true,
+        idempotent: true,
+        reason: "duplicate_delivery",
+      };
+    }
+    reservedDelivery = true;
+
+    const existing = await loadStatsRecordFromMongo(statsCollection, {
+      username,
+      installationId,
+    });
+
+    const eventStore = createStore();
+    if (existing) {
+      const key = statsKey({ username, installationId });
+      eventStore.userStats.set(key, existing);
+    }
+
+    const stats = upsertPushStats(eventStore, {
+      username,
+      installationId,
+      repoFullName,
+      dayIncrements,
+      commitCount,
+    });
+
+    await saveStatsRecordToMongo(statsCollection, stats);
+
+    return {
+      ok: true,
+      idempotent: false,
+      github_username: username,
+      installation_id: installationId,
+      repo: repoFullName,
+      commits_applied: Number(commitCount || 0),
+      stats: toPublicStats(stats),
+    };
+  } catch (error) {
+    if (reservedDelivery && deliveriesCollection) {
+      await releaseWebhookDelivery(deliveriesCollection, deliveryId);
+    }
+
+    return {
+      ok: false,
+      idempotent: false,
+      error: error?.message || "Failed to persist push event",
+      status: 500,
+    };
+  }
+}
+
+export async function recordRepositoryEvent({ deliveryId, payload }) {
+  if (!isMongoConfigured()) {
+    return recordRepositoryEventInMemory({ deliveryId, payload });
+  }
+
+  const action = String(payload?.action || "").toLowerCase();
+  const installationId = normalizeInstallationId(payload?.installation?.id);
+  const username = normalizeUsername(
+    payload?.repository?.owner?.login || payload?.sender?.login
+  );
+
+  if (!username) {
+    return {
+      ok: false,
+      idempotent: false,
+      error: "Unable to resolve GitHub username for repository event",
+      status: 400,
+    };
+  }
+
+  let reservedDelivery = false;
+  let deliveriesCollection = null;
+
+  try {
+    const collections = await getMongoCollections();
+    const { statsCollection } = collections;
+    deliveriesCollection = collections.deliveriesCollection;
+
+    const reservation = await reserveWebhookDelivery(
+      deliveriesCollection,
+      deliveryId
+    );
+    if (!reservation.reserved) {
+      return {
+        ok: true,
+        idempotent: true,
+        reason: "duplicate_delivery",
+      };
+    }
+    reservedDelivery = true;
+
+    const records = await loadStatsRecordsFromMongo(statsCollection, {
+      username,
+      installationId,
+    });
+
+    let updatedRecords = 0;
+
+    if (action === "renamed") {
+      const previousName = String(payload?.changes?.repository?.name?.from || "")
+        .trim()
+        .toLowerCase();
+      const oldRepoFullName = previousName ? `${username}/${previousName}` : "";
+      const newRepoFullName = normalizeRepoFullName(payload?.repository);
+
+      for (const record of records) {
+        if (renameRepoForStats(record, oldRepoFullName, newRepoFullName)) {
+          updatedRecords += 1;
+          await saveStatsRecordToMongo(statsCollection, record);
+        }
+      }
+    } else if (action === "deleted") {
+      const repoFullName = normalizeRepoFullName(payload?.repository);
+
+      for (const record of records) {
+        if (removeRepoFromStats(record, repoFullName)) {
+          updatedRecords += 1;
+          await saveStatsRecordToMongo(statsCollection, record);
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      idempotent: false,
+      action,
+      installation_id: installationId,
+      github_username: username,
+      updated_records: updatedRecords,
+    };
+  } catch (error) {
+    if (reservedDelivery && deliveriesCollection) {
+      await releaseWebhookDelivery(deliveriesCollection, deliveryId);
+    }
+
+    return {
+      ok: false,
+      idempotent: false,
+      error: error?.message || "Failed to persist repository event",
+      status: 500,
+    };
+  }
+}
+
+export async function bootstrapGithubStatsFromEvents({
+  username,
+  installationId = null,
+  events = [],
+  force = false,
+}) {
+  if (!isMongoConfigured()) {
+    return bootstrapGithubStatsFromEventsInMemory({
+      username,
+      installationId,
+      events,
+      force,
+    });
+  }
+
+  const normalizedUsername = normalizeUsername(username);
+  const normalizedInstallationId = normalizeInstallationId(installationId);
+
+  if (!normalizedUsername) {
+    return {
+      ok: false,
+      error: "GitHub username is required to bootstrap stats",
+      status: 400,
+    };
+  }
+
+  try {
+    const { statsCollection } = await getMongoCollections();
+    const existing = await loadStatsRecordFromMongo(statsCollection, {
+      username: normalizedUsername,
+      installationId: normalizedInstallationId,
+    });
+
+    if (existing && !force && hasMeaningfulStats(existing)) {
+      return {
+        ok: true,
+        bootstrapped: false,
+        source: "cache",
+        push_events_count: 0,
+        stats: toPublicStats(existing),
+      };
+    }
+
+    const { snapshot, pushEventsCount } = buildSnapshotFromPushEvents({
+      username: normalizedUsername,
+      installationId: normalizedInstallationId,
+      events,
+    });
+
+    if (!hasMeaningfulStats(snapshot) && existing && hasMeaningfulStats(existing)) {
+      return {
+        ok: true,
+        bootstrapped: false,
+        source: "cache",
+        push_events_count: pushEventsCount,
+        stats: toPublicStats(existing),
+      };
+    }
+
+    await saveStatsRecordToMongo(statsCollection, snapshot);
+
+    return {
+      ok: true,
+      bootstrapped: true,
+      source: "events",
+      push_events_count: pushEventsCount,
+      stats: toPublicStats(snapshot),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || "Failed to bootstrap GitHub stats",
+      status: 500,
+    };
+  }
+}
+
+export async function getGithubStatsForUser({ username, installationId = null }) {
+  if (!isMongoConfigured()) {
+    return getGithubStatsForUserInMemory({ username, installationId });
+  }
+
+  const normalizedUsername = normalizeUsername(username);
+  const normalizedInstallationId = normalizeInstallationId(installationId);
+
+  if (!normalizedUsername) {
+    return toPublicStats(null);
+  }
+
+  try {
+    const { statsCollection } = await getMongoCollections();
+    const records = await loadStatsRecordsFromMongo(statsCollection, {
+      username: normalizedUsername,
+      installationId: normalizedInstallationId,
+    });
+
+    if (!records.length) {
+      return toPublicStats(
+        makeEmptyStats({
+          username: normalizedUsername,
+          installationId: normalizedInstallationId,
+        })
+      );
+    }
+
+    const merged = mergeStatsRecords(records, {
+      username: normalizedUsername,
+      installationId: normalizedInstallationId,
+    });
+
+    return toPublicStats(merged);
+  } catch {
+    return getGithubStatsForUserInMemory({
+      username: normalizedUsername,
+      installationId: normalizedInstallationId,
+    });
+  }
+}
+
+export async function getAllGithubStats() {
+  if (!isMongoConfigured()) {
+    return getAllGithubStatsInMemory();
+  }
+
+  try {
+    const { statsCollection } = await getMongoCollections();
+    const records = await statsCollection.find({}).toArray();
+    return records.map((record) =>
+      toPublicStats(
+        normalizeStatsFromRecord(record, {
+          username: normalizeUsername(record.github_username),
+          installationId: normalizeInstallationId(record.installation_id),
+        })
+      )
+    );
+  } catch {
+    return getAllGithubStatsInMemory();
+  }
 }
 
 export function clearGithubStatsStore() {

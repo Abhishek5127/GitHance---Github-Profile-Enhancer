@@ -119,7 +119,7 @@ export async function POST(req) {
       token,
     });
 
-    const result = bootstrapGithubStatsFromEvents({
+    const result = await bootstrapGithubStatsFromEvents({
       username: resolvedUsername,
       installationId,
       events,
@@ -127,7 +127,7 @@ export async function POST(req) {
     });
 
     if (!result.ok) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json(result, { status: Number(result?.status) || 400 });
     }
 
     return NextResponse.json({

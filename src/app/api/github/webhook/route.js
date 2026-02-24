@@ -77,12 +77,12 @@ export async function POST(req) {
   }
 
   if (eventName === "push") {
-    const result = recordPushEvent({
+    const result = await recordPushEvent({
       deliveryId,
       payload,
     });
 
-    const status = result.ok ? 200 : 400;
+    const status = Number(result?.status) || (result.ok ? 200 : 400);
     return NextResponse.json(
       {
         event: eventName,
@@ -94,12 +94,12 @@ export async function POST(req) {
   }
 
   if (eventName === "repository") {
-    const result = recordRepositoryEvent({
+    const result = await recordRepositoryEvent({
       deliveryId,
       payload,
     });
 
-    const status = result.ok ? 200 : 400;
+    const status = Number(result?.status) || (result.ok ? 200 : 400);
     return NextResponse.json(
       {
         event: eventName,
