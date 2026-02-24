@@ -13,6 +13,33 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function parseStatsSnapshot(searchParams) {
+  const raw = searchParams.get("snapshot");
+  if (!raw) return null;
+
+  try {
+    const decoded = decodeURIComponent(raw);
+    const parsed = JSON.parse(decoded);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    return {
+      github_username: String(parsed.github_username || ""),
+      total_commits: Number(parsed.total_commits || 0),
+      current_streak: Number(parsed.current_streak || 0),
+      longest_streak: Number(parsed.longest_streak || 0),
+      last_repo: String(parsed.last_repo || ""),
+      active_days_30: Number(parsed.active_days_30 || 0),
+      active_days_90: Number(parsed.active_days_90 || 0),
+      top_repo_recent: String(parsed.top_repo_recent || ""),
+      recent_commits_7: Number(parsed.recent_commits_7 || 0),
+      recent_commits_30: Number(parsed.recent_commits_30 || 0),
+      last_updated: String(parsed.last_updated || ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
 
@@ -32,21 +59,28 @@ export async function GET(request) {
       username,
       installationId,
     });
+    const snapshotStats = parseStatsSnapshot(searchParams);
+    const resolvedStats = snapshotStats
+      ? {
+          ...stats,
+          ...snapshotStats,
+        }
+      : stats;
 
     if (type === "contribution") {
-      svg = renderContributionSvg(stats, {
+      svg = renderContributionSvg(resolvedStats, {
         width,
         height,
       });
     } else if (type === "streak") {
-      svg = renderStreakSvg(stats, {
+      svg = renderStreakSvg(resolvedStats, {
         width,
         height,
       });
     } else {
       const metric = searchParams.get("metric") || "last_repo";
       const window = Number(searchParams.get("window") || 0);
-      svg = renderRepoSvg(stats, {
+      svg = renderRepoSvg(resolvedStats, {
         metric,
         window,
         width,

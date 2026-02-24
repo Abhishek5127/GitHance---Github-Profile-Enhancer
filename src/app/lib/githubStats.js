@@ -80,7 +80,7 @@ function isoToEpoch(value) {
   if (!Number.isFinite(parsed)) return 0;
   return parsed;
 }
-//things
+
 function makeEmptyStats({ username, installationId }) {
   return {
     github_username: username,
@@ -204,6 +204,34 @@ function buildDayIncrementsFromPush(payload) {
     dayIncrements,
     commitCount,
   };
+}
+
+function getCommitCountFromPushPayload(payload) {
+  const eventSize = Number(payload?.size);
+  if (Number.isFinite(eventSize) && eventSize > 0) {
+    return Math.floor(eventSize);
+  }
+
+  const commits = Array.isArray(payload?.commits) ? payload.commits.length : 0;
+  if (commits > 0) {
+    return commits;
+  }
+
+  return 1;
+}
+
+function normalizeRepoNameFromEvent(repoName, fallbackUsername) {
+  const normalizedRepo = String(repoName || "")
+    .trim()
+    .toLowerCase();
+  if (!normalizedRepo) return "";
+
+  if (normalizedRepo.includes("/")) {
+    return normalizedRepo;
+  }
+
+  if (!fallbackUsername) return normalizedRepo;
+  return `${fallbackUsername}/${normalizedRepo}`;
 }
 
 function pruneDayCountMap(dayCounts, cutoffEpoch) {
@@ -385,6 +413,18 @@ function deriveStats(stats) {
   }
 }
 
+function hasMeaningfulStats(stats) {
+  if (!stats) return false;
+
+  return (
+    Number(stats.total_commits || 0) > 0 ||
+    Number(stats.recent_commits_30 || 0) > 0 ||
+    Number(stats.active_days_30 || 0) > 0 ||
+    Boolean(stats.last_repo) ||
+    Boolean(stats.top_repo_recent)
+  );
+}
+
 function toPublicStats(stats) {
   if (!stats) {
     return {
@@ -499,6 +539,52 @@ function upsertPushStats(store, { username, installationId, repoFullName, dayInc
   pruneStatsHistory(stats);
   deriveStats(stats);
   return stats;
+}
+
+function buildSnapshotFromPushEvents({ username, installationId, events }) {
+  const snapshot = makeEmptyStats({ username, installationId });
+  const pushEvents = Array.isArray(events)
+    ? events.filter((event) => String(event?.type || "") === "PushEvent")
+    : [];
+
+  let latestEventEpoch = 0;
+  let latestRepo = "";
+
+  pushEvents.forEach((event) => {
+    const commitCount = getCommitCountFromPushPayload(event?.payload || {});
+    const day = isoDay(event?.created_at) || todayIsoDay();
+    const repoFullName = normalizeRepoNameFromEvent(event?.repo?.name, username);
+
+    snapshot.total_commits += commitCount;
+    incrementCounter(snapshot.day_counts, day, commitCount);
+
+    if (repoFullName) {
+      if (!snapshot.repo_day_counts[repoFullName]) {
+        snapshot.repo_day_counts[repoFullName] = {};
+      }
+      incrementCounter(snapshot.repo_day_counts[repoFullName], day, commitCount);
+    }
+
+    const eventEpoch = isoToEpoch(event?.created_at);
+    if (eventEpoch >= latestEventEpoch) {
+      latestEventEpoch = eventEpoch;
+      latestRepo = repoFullName || latestRepo;
+    }
+  });
+
+  snapshot.last_repo = latestRepo;
+  snapshot.last_updated = new Date().toISOString();
+  pruneStatsHistory(snapshot);
+  deriveStats(snapshot);
+
+  if (!snapshot.last_repo) {
+    snapshot.last_repo = getMostRecentRepo(snapshot.repo_day_counts) || "";
+  }
+
+  return {
+    snapshot,
+    pushEventsCount: pushEvents.length,
+  };
 }
 
 function renameRepoForStats(stats, oldRepoFullName, newRepoFullName) {
@@ -658,6 +744,66 @@ export function recordRepositoryEvent({ deliveryId, payload }) {
     installation_id: installationId,
     github_username: username,
     updated_records: updatedRecords,
+  };
+}
+
+export function bootstrapGithubStatsFromEvents({
+  username,
+  installationId = null,
+  events = [],
+  force = false,
+}) {
+  const normalizedUsername = normalizeUsername(username);
+  const normalizedInstallationId = normalizeInstallationId(installationId);
+
+  if (!normalizedUsername) {
+    return {
+      ok: false,
+      error: "GitHub username is required to bootstrap stats",
+    };
+  }
+
+  const store = getStore();
+  const key = statsKey({
+    username: normalizedUsername,
+    installationId: normalizedInstallationId,
+  });
+  const existing = store.userStats.get(key);
+
+  if (existing && !force && hasMeaningfulStats(existing)) {
+    return {
+      ok: true,
+      bootstrapped: false,
+      source: "cache",
+      push_events_count: 0,
+      stats: toPublicStats(existing),
+    };
+  }
+
+  const { snapshot, pushEventsCount } = buildSnapshotFromPushEvents({
+    username: normalizedUsername,
+    installationId: normalizedInstallationId,
+    events,
+  });
+
+  if (!hasMeaningfulStats(snapshot) && existing && hasMeaningfulStats(existing)) {
+    return {
+      ok: true,
+      bootstrapped: false,
+      source: "cache",
+      push_events_count: pushEventsCount,
+      stats: toPublicStats(existing),
+    };
+  }
+
+  store.userStats.set(key, snapshot);
+
+  return {
+    ok: true,
+    bootstrapped: true,
+    source: "events",
+    push_events_count: pushEventsCount,
+    stats: toPublicStats(snapshot),
   };
 }
 
