@@ -36,6 +36,7 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
   const { data: session } = useSession();
   const username = (item?.data?.username || session?.username || "").trim();
   const token = session?.accessToken || "";
+  const requestedInstallationId = Number(item?.data?.installationId || 0) || null;
   const persistedSnapshot = item?.data?.statsSnapshot || null;
   const [bootstrapStatus, setBootstrapStatus] = useState({
     loading: false,
@@ -63,7 +64,8 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
           body: JSON.stringify({
             username,
             token,
-            force: true,
+            installationId: requestedInstallationId,
+            force: false,
           }),
         });
 
@@ -88,24 +90,42 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
           nextSnapshot
         ) {
           const serialized = JSON.stringify(nextSnapshot);
-          const existingSerialized = JSON.stringify(item?.data?.statsSnapshot || null);
-          if (serialized !== existingSerialized) {
-            setItems((prev) =>
-              prev.map((entry) =>
-                entry.id === item.id
-                  ? {
-                      ...entry,
-                      data: {
-                        ...entry.data,
-                        username,
-                        statsSnapshot: nextSnapshot,
-                        installationId: Number(nextSnapshot?.installation_id || 0) || null,
-                      },
-                    }
-                  : entry
-              )
-            );
-          }
+          const nextInstallationId =
+            Number(nextSnapshot?.installation_id || 0) || null;
+
+          setItems((prev) => {
+            let changed = false;
+            const nextItems = prev.map((entry) => {
+              if (entry.id !== item.id) return entry;
+
+              const existingSerialized = JSON.stringify(
+                entry?.data?.statsSnapshot || null
+              );
+              const existingInstallationId =
+                Number(entry?.data?.installationId || 0) || null;
+
+              if (
+                existingSerialized === serialized &&
+                existingInstallationId === nextInstallationId &&
+                String(entry?.data?.username || "") === username
+              ) {
+                return entry;
+              }
+
+              changed = true;
+              return {
+                ...entry,
+                data: {
+                  ...entry.data,
+                  username,
+                  statsSnapshot: nextSnapshot,
+                  installationId: nextInstallationId,
+                },
+              };
+            });
+
+            return changed ? nextItems : prev;
+          });
         }
       } catch (error) {
         if (cancelled) return;
@@ -123,12 +143,12 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
     return () => {
       cancelled = true;
     };
-  }, [item?.data?.statsSnapshot, item?.id, setItems, token, username]);
+  }, [item?.id, requestedInstallationId, setItems, token, username]);
 
   const statsBlocks = useMemo(() => {
     if (!username) return [];
     const resolvedInstallationId =
-      Number(item?.data?.installationId || bootstrapStatus?.stats?.installation_id || 0) ||
+      Number(requestedInstallationId || bootstrapStatus?.stats?.installation_id || 0) ||
       null;
 
     return COMMIT_STAT_BLOCKS.map((block) => ({
@@ -141,7 +161,7 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
         version: bootstrapStatus.version,
       }),
     }));
-  }, [bootstrapStatus.stats?.installation_id, bootstrapStatus.version, item?.data?.installationId, username]);
+  }, [bootstrapStatus.stats?.installation_id, bootstrapStatus.version, requestedInstallationId, username]);
 
   if (!username) {
     return (
