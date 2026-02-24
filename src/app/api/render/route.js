@@ -4,6 +4,10 @@ import {
   generateStackSvg,
   generateTrophySvg,
 } from "@/app/lib/generateBlockSvg";
+import { getGithubStatsForUser } from "@/app/lib/githubStats";
+import renderContributionSvg from "@/app/lib/renderers/contributionSvg";
+import renderStreakSvg from "@/app/lib/renderers/streakSvg";
+import renderRepoSvg from "@/app/lib/renderers/repoSvg";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +19,41 @@ export async function GET(request) {
   const type = searchParams.get("type") || "";
   const variant = searchParams.get("variant") || "";
   const theme = searchParams.get("theme") || "midnight";
+  const width = Number(searchParams.get("w") || searchParams.get("width") || 0);
+  const height = Number(searchParams.get("h") || searchParams.get("height") || 0);
 
   let svg = "";
 
-  if (type === "header") {
+  if (type === "contribution" || type === "streak" || type === "repo") {
+    const username = searchParams.get("user") || searchParams.get("username") || "";
+    const installationId =
+      searchParams.get("installation_id") || searchParams.get("installationId") || "";
+    const stats = getGithubStatsForUser({
+      username,
+      installationId,
+    });
+
+    if (type === "contribution") {
+      svg = renderContributionSvg(stats, {
+        width,
+        height,
+      });
+    } else if (type === "streak") {
+      svg = renderStreakSvg(stats, {
+        width,
+        height,
+      });
+    } else {
+      const metric = searchParams.get("metric") || "last_repo";
+      const window = Number(searchParams.get("window") || 0);
+      svg = renderRepoSvg(stats, {
+        metric,
+        window,
+        width,
+        height,
+      });
+    }
+  } else if (type === "header") {
     const name = searchParams.get("name") || "Your Name";
     const subtitle = searchParams.get("subtitle") || "Building thoughtful software";
     const accents = searchParams.getAll("a");

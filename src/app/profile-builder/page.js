@@ -166,6 +166,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           content: bioDefaults.content,
         },
         skills: buildTechStackPayload(techStackDefaults),
+        commits: {
+          username: session?.username || "your-github-username",
+        },
         contributions: { username: "your-github-username" },
       };
 
@@ -256,6 +259,19 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         ...techStackDefaults,
         ...overrides,
       }),
+    };
+
+    setCanvasItems((prev) => [...prev, newItem]);
+  };
+
+  const addCommitStatsToCanvas = (overrides = {}) => {
+    const newItem = {
+      id: `canvas-commits-${Date.now()}`,
+      type: "commits",
+      data: {
+        username: session?.username || "your-github-username",
+        ...overrides,
+      },
     };
 
     setCanvasItems((prev) => [...prev, newItem]);
@@ -448,6 +464,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
               if (blockId === "skills") {
                 openTechStackPickerForAdd();
+                return;
+              }
+
+              if (blockId === "commits") {
+                addCommitStatsToCanvas();
                 return;
               }
 

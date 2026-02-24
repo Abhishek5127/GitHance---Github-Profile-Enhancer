@@ -266,9 +266,74 @@ ${techStackSection}
       }
     }
 
+    if (block === "commits") {
+      const baseUrl = resolveBaseUrl();
+      const username = String(item.data?.username || "").trim();
+
+      if (username) {
+        const contributionUrl = buildRenderUrl({
+          baseUrl,
+          type: "contribution",
+          variant: "summary",
+          params: { user: username },
+        });
+        const streakUrl = buildRenderUrl({
+          baseUrl,
+          type: "streak",
+          variant: "default",
+          params: { user: username },
+        });
+        const lastRepoUrl = buildRenderUrl({
+          baseUrl,
+          type: "repo",
+          variant: "metric",
+          params: { user: username, metric: "last_repo" },
+        });
+        const totalCommitsUrl = buildRenderUrl({
+          baseUrl,
+          type: "repo",
+          variant: "metric",
+          params: { user: username, metric: "total_commits" },
+        });
+        const activeDaysUrl = buildRenderUrl({
+          baseUrl,
+          type: "repo",
+          variant: "metric",
+          params: { user: username, metric: "active_days" },
+        });
+        const topRepoUrl = buildRenderUrl({
+          baseUrl,
+          type: "repo",
+          variant: "metric",
+          params: { user: username, metric: "top_repo" },
+        });
+
+        markdown += `
+## Repo Commit Stats
+
+<p align="center">
+  <img src="${contributionUrl}" alt="Contribution summary" />
+  <img src="${streakUrl}" alt="Commit streak" />
+</p>
+
+<p align="center">
+  <img src="${lastRepoUrl}" alt="Last worked repository" />
+  <img src="${totalCommitsUrl}" alt="Total commits" />
+</p>
+
+<p align="center">
+  <img src="${activeDaysUrl}" alt="Active days in 30 and 90 day windows" />
+  <img src="${topRepoUrl}" alt="Top repository by recent activity" />
+</p>
+
+`;
+      }
+    }
+
     if (block === "contribution") {
+      const contributionUser = String(item.data?.username || "your-github-username").trim();
       markdown += `
-<img src="https://ghchart.rshah.org/abhishek5127" alt="contribution Graph Image" />
+<img src="https://ghchart.rshah.org/${encodeURIComponent(contributionUser)}" alt="Contribution graph" />
 
 `;
     }
