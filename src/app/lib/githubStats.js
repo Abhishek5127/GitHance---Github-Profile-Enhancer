@@ -120,6 +120,7 @@ function isoToEpoch(value) {
   return parsed;
 }
 
+//stupid line
 function makeEmptyStats({ username, installationId }) {
   return {
     github_username: username,
