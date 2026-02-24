@@ -54,15 +54,16 @@ function buildBlockUrl({ username, type, metric, version, snapshot }) {
   return `/api/render?${params.toString()}`;
 }
 
-export default function RepoCommitStatsBlock({ item }) {
+export default function RepoCommitStatsBlock({ item, setItems }) {
   const { data: session } = useSession();
   const username = (item?.data?.username || session?.username || "").trim();
   const token = session?.accessToken || "";
+  const persistedSnapshot = item?.data?.statsSnapshot || null;
   const [bootstrapStatus, setBootstrapStatus] = useState({
     loading: false,
     error: "",
     version: 0,
-    stats: null,
+    stats: persistedSnapshot,
   });
 
   useEffect(() => {
@@ -94,12 +95,38 @@ export default function RepoCommitStatsBlock({ item }) {
           throw new Error(data?.error || "Failed to load commit stats");
         }
 
+        const nextSnapshot = data?.stats || null;
         setBootstrapStatus({
           loading: false,
           error: "",
           version: Date.now(),
-          stats: data?.stats || null,
+          stats: nextSnapshot,
         });
+
+        if (
+          typeof setItems === "function" &&
+          item?.id &&
+          nextSnapshot
+        ) {
+          const serialized = JSON.stringify(nextSnapshot);
+          const existingSerialized = JSON.stringify(item?.data?.statsSnapshot || null);
+          if (serialized !== existingSerialized) {
+            setItems((prev) =>
+              prev.map((entry) =>
+                entry.id === item.id
+                  ? {
+                      ...entry,
+                      data: {
+                        ...entry.data,
+                        username,
+                        statsSnapshot: nextSnapshot,
+                      },
+                    }
+                  : entry
+              )
+            );
+          }
+        }
       } catch (error) {
         if (cancelled) return;
         setBootstrapStatus((prev) => ({
@@ -116,13 +143,14 @@ export default function RepoCommitStatsBlock({ item }) {
     return () => {
       cancelled = true;
     };
-  }, [username, token]);
+  }, [item?.data?.statsSnapshot, item?.id, setItems, token, username]);
 
   const statsBlocks = useMemo(() => {
     if (!username) return [];
 
-    const snapshot = bootstrapStatus.stats
-      ? encodeStatsSnapshot(bootstrapStatus.stats)
+    const snapshotSource = bootstrapStatus.stats || persistedSnapshot || null;
+    const snapshot = snapshotSource
+      ? encodeStatsSnapshot(snapshotSource)
       : "";
 
     return COMMIT_STAT_BLOCKS.map((block) => ({
@@ -135,7 +163,7 @@ export default function RepoCommitStatsBlock({ item }) {
         snapshot,
       }),
     }));
-  }, [username, bootstrapStatus.stats, bootstrapStatus.version]);
+  }, [bootstrapStatus.stats, bootstrapStatus.version, persistedSnapshot, username]);
 
   if (!username) {
     return (

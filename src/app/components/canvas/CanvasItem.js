@@ -47,7 +47,7 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
         return <TechStackBlock item={item} setItems={setItems} />;
 
       case "commits":
-        return <RepoCommitStatsBlock item={item} />;
+        return <RepoCommitStatsBlock item={item} setItems={setItems} />;
 
       case "contribution":
         return <ContributionGraph item={item} />;

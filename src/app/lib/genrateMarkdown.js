@@ -13,6 +13,30 @@ const escapeHtmlAttribute = (value) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
+const encodeStatsSnapshotForUrl = (stats) => {
+  if (!stats || typeof stats !== "object") return "";
+
+  try {
+    const payload = {
+      github_username: String(stats.github_username || ""),
+      total_commits: Number(stats.total_commits || 0),
+      current_streak: Number(stats.current_streak || 0),
+      longest_streak: Number(stats.longest_streak || 0),
+      last_repo: String(stats.last_repo || ""),
+      active_days_30: Number(stats.active_days_30 || 0),
+      active_days_90: Number(stats.active_days_90 || 0),
+      top_repo_recent: String(stats.top_repo_recent || ""),
+      recent_commits_7: Number(stats.recent_commits_7 || 0),
+      recent_commits_30: Number(stats.recent_commits_30 || 0),
+      last_updated: String(stats.last_updated || ""),
+    };
+
+    return encodeURIComponent(JSON.stringify(payload));
+  } catch {
+    return "";
+  }
+};
+
 export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
   const {
     includeHeading = true,
@@ -269,43 +293,66 @@ ${techStackSection}
     if (block === "commits") {
       const baseUrl = resolveBaseUrl();
       const username = String(item.data?.username || "").trim();
+      const snapshot = encodeStatsSnapshotForUrl(item.data?.statsSnapshot);
 
       if (username) {
         const contributionUrl = buildRenderUrl({
           baseUrl,
           type: "contribution",
           variant: "summary",
-          params: { user: username },
+          params: {
+            user: username,
+            ...(snapshot ? { snapshot } : {}),
+          },
         });
         const streakUrl = buildRenderUrl({
           baseUrl,
           type: "streak",
           variant: "default",
-          params: { user: username },
+          params: {
+            user: username,
+            ...(snapshot ? { snapshot } : {}),
+          },
         });
         const lastRepoUrl = buildRenderUrl({
           baseUrl,
           type: "repo",
           variant: "metric",
-          params: { user: username, metric: "last_repo" },
+          params: {
+            user: username,
+            metric: "last_repo",
+            ...(snapshot ? { snapshot } : {}),
+          },
         });
         const totalCommitsUrl = buildRenderUrl({
           baseUrl,
           type: "repo",
           variant: "metric",
-          params: { user: username, metric: "total_commits" },
+          params: {
+            user: username,
+            metric: "total_commits",
+            ...(snapshot ? { snapshot } : {}),
+          },
         });
         const activeDaysUrl = buildRenderUrl({
           baseUrl,
           type: "repo",
           variant: "metric",
-          params: { user: username, metric: "active_days" },
+          params: {
+            user: username,
+            metric: "active_days",
+            ...(snapshot ? { snapshot } : {}),
+          },
         });
         const topRepoUrl = buildRenderUrl({
           baseUrl,
           type: "repo",
           variant: "metric",
-          params: { user: username, metric: "top_repo" },
+          params: {
+            user: username,
+            metric: "top_repo",
+            ...(snapshot ? { snapshot } : {}),
+          },
         });
 
         markdown += `

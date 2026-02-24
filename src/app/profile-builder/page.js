@@ -71,13 +71,76 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const token = session?.accessToken;
   const [markdown, setMarkdown] = useState([]);
 
+  const bootstrapCommitStatsSnapshot = async (username) => {
+    if (!username || !token) return null;
+
+    try {
+      const response = await fetch("/api/github/stats/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          token,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.ok || !data?.stats) {
+        return null;
+      }
+
+      return data.stats;
+    } catch {
+      return null;
+    }
+  };
+
+  const enrichCommitBlocks = async (items) => {
+    const commitBlocks = items.filter((item) => item.type === "commits");
+    if (!commitBlocks.length) return items;
+
+    const statsByUsername = new Map();
+
+    await Promise.all(
+      commitBlocks.map(async (item) => {
+        const username = String(item?.data?.username || session?.username || "").trim();
+        if (!username || statsByUsername.has(username)) return;
+
+        const snapshot = await bootstrapCommitStatsSnapshot(username);
+        if (snapshot) {
+          statsByUsername.set(username, snapshot);
+        }
+      })
+    );
+
+    return items.map((item) => {
+      if (item.type !== "commits") return item;
+
+      const username = String(item?.data?.username || session?.username || "").trim();
+      const snapshot = statsByUsername.get(username);
+      if (!snapshot) return item;
+
+      return {
+        ...item,
+        data: {
+          ...item.data,
+          username,
+          statsSnapshot: snapshot,
+        },
+      };
+    });
+  };
+
   const updateProfileReadme = async () => {
     if (status !== "authenticated" || !session?.username || !token) {
       console.error("Missing authenticated session for README update.");
       return;
     }
 
-    const latestMarkdown = generateMarkdown(canvasItems);
+    const enrichedItems = await enrichCommitBlocks(canvasItems);
+    setCanvasItems(enrichedItems);
+
+    const latestMarkdown = generateMarkdown(enrichedItems);
     setMarkdown(latestMarkdown);
 
     const res = await fetch("/api/update", {
