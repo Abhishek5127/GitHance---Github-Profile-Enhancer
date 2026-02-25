@@ -1,6 +1,5 @@
-const DEFAULT_WIDTH = 520;
-const DEFAULT_HEIGHT = 180;
-
+const DEFAULT_WIDTH = 720;
+const DEFAULT_HEIGHT = 200;
 function escapeXml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -16,8 +15,8 @@ function formatCount(value) {
 }
 
 export default function renderContributionSvg(stats = {}, options = {}) {
-  const width = Number(options.width) || DEFAULT_WIDTH;
-  const height = Number(options.height) || DEFAULT_HEIGHT;
+  const width = DEFAULT_WIDTH;
+  const height = DEFAULT_HEIGHT;
 
   const commits7 = Number(stats.recent_commits_7 || 0);
   const commits30 = Number(stats.recent_commits_30 || 0);
@@ -38,7 +37,7 @@ export default function renderContributionSvg(stats = {}, options = {}) {
     .title { fill: #f8fafc; font: 700 18px 'Segoe UI', Inter, sans-serif; }
     .sub { fill: #94a3b8; font: 500 12px 'Segoe UI', Inter, sans-serif; }
     .label { fill: #cbd5e1; font: 600 12px 'Segoe UI', Inter, sans-serif; }
-    .value { fill: #ffffff; font: 700 24px 'Segoe UI', Inter, sans-serif; }
+    .value { fill: #ffffff; font: 700 18px 'Segoe UI', Inter, sans-serif; }
     .tiny { fill: #93c5fd; font: 600 11px 'Segoe UI', Inter, sans-serif; }
   </style>
   <rect width="${width}" height="${height}" rx="16" fill="url(#githanceContributionBg)" />
@@ -52,7 +51,7 @@ export default function renderContributionSvg(stats = {}, options = {}) {
   <rect x="${Math.floor(width / 2) + 6}" y="72" width="${Math.floor((width - 60) / 2)}" height="88" rx="12" fill="#111827" stroke="#1e293b" />
 
   <text x="40" y="98" class="label">Commits (7 days)</text>
-  <text x="40" y="132" class="value">${escapeXml(formatCount(commits7))}</text>
+  <text x="40" y="132" class="value text-sm">${escapeXml(formatCount(commits7))}</text>
   <text x="40" y="150" class="tiny">Last 30 days: ${escapeXml(formatCount(commits30))}</text>
 
   <text x="${Math.floor(width / 2) + 22}" y="98" class="label">Active days</text>

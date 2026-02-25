@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { bootstrapGithubStatsFromEvents } from "@/app/lib/githubStats";
+import { createGithubAppJwt, isGithubAppConfigured } from "@/app/lib/githubAppAuth";
 
 const GITHUB_API = "https://api.github.com";
+const GITHUB_API_VERSION = "2022-11-28";
 
 function toHeaders(token = "") {
   const headers = {
@@ -90,6 +92,55 @@ async function fetchRecentEvents({ username, token }) {
   return dedupeEvents(merged);
 }
 
+async function resolveInstallationId({ username, installationId }) {
+  const explicit = Number(installationId);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return Math.floor(explicit);
+  }
+
+  if (!username || !isGithubAppConfigured()) {
+    return null;
+  }
+
+  try {
+    const appJwt = createGithubAppJwt();
+    const response = await fetch(`${GITHUB_API}/app/installations?per_page=100`, {
+      headers: {
+        Authorization: `Bearer ${appJwt}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": GITHUB_API_VERSION,
+      },
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) return null;
+
+    const installations = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.installations)
+        ? payload.installations
+        : [];
+
+    const normalizedUsername = String(username || "")
+      .trim()
+      .toLowerCase();
+    if (!normalizedUsername) return null;
+
+    const match = installations.find((installation) => {
+      const accountLogin = String(installation?.account?.login || "")
+        .trim()
+        .toLowerCase();
+      return accountLogin === normalizedUsername;
+    });
+
+    const resolved = Number(match?.id);
+    if (!Number.isFinite(resolved) || resolved <= 0) return null;
+    return Math.floor(resolved);
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req) {
   try {
     const {
@@ -119,9 +170,14 @@ export async function POST(req) {
       token,
     });
 
-    const result = await bootstrapGithubStatsFromEvents({
+    const resolvedInstallationId = await resolveInstallationId({
       username: resolvedUsername,
       installationId,
+    });
+
+    const result = await bootstrapGithubStatsFromEvents({
+      username: resolvedUsername,
+      installationId: resolvedInstallationId,
       events,
       force: Boolean(force),
     });
@@ -133,6 +189,7 @@ export async function POST(req) {
     return NextResponse.json({
       ok: true,
       github_username: resolvedUsername,
+      installation_id: resolvedInstallationId,
       events_fetched: events.length,
       ...result,
     });

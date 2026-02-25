@@ -52,6 +52,13 @@ function parseStatsSnapshot(searchParams) {
   }
 }
 
+function isTruthyParam(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
 
@@ -67,19 +74,36 @@ export async function GET(request) {
     const username = searchParams.get("user") || searchParams.get("username") || "";
     const installationId =
       searchParams.get("installation_id") || searchParams.get("installationId") || "";
-    const stats = await getGithubStatsForUser({
-      username,
-      installationId,
-    });
     const snapshotStats = parseStatsSnapshot(searchParams);
-    const resolvedStats = hasMeaningfulStats(stats)
-      ? stats
-      : snapshotStats
-        ? {
-            ...stats,
-            ...snapshotStats,
-          }
-        : stats;
+    const preferSnapshot = isTruthyParam(searchParams.get("prefer_snapshot"));
+
+    let resolvedStats = null;
+
+    if (preferSnapshot && snapshotStats) {
+      resolvedStats = {
+        ...snapshotStats,
+        github_username:
+          String(snapshotStats.github_username || "").trim() || String(username || "").trim(),
+        installation_id:
+          Number(snapshotStats.installation_id || 0) ||
+          Number(installationId || 0) ||
+          null,
+      };
+    } else {
+      const stats = await getGithubStatsForUser({
+        username,
+        installationId,
+      });
+
+      resolvedStats = hasMeaningfulStats(stats)
+        ? stats
+        : snapshotStats
+          ? {
+              ...stats,
+              ...snapshotStats,
+            }
+          : stats;
+    }
 
     if (type === "contribution") {
       svg = renderContributionSvg(resolvedStats, {

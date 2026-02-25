@@ -1,5 +1,5 @@
-const DEFAULT_WIDTH = 520;
-const DEFAULT_HEIGHT = 180;
+const DEFAULT_WIDTH = 720;
+const DEFAULT_HEIGHT = 200;
 
 function escapeXml(value) {
   return String(value ?? "")
@@ -16,8 +16,8 @@ function formatCount(value) {
 }
 
 export default function renderStreakSvg(stats = {}, options = {}) {
-  const width = Number(options.width) || DEFAULT_WIDTH;
-  const height = Number(options.height) || DEFAULT_HEIGHT;
+  const width = DEFAULT_WIDTH;
+  const height = DEFAULT_HEIGHT;
 
   const currentStreak = Number(stats.current_streak || 0);
   const longestStreak = Number(stats.longest_streak || 0);
@@ -36,7 +36,7 @@ export default function renderStreakSvg(stats = {}, options = {}) {
     .title { fill: #f8fafc; font: 700 18px 'Segoe UI', Inter, sans-serif; }
     .sub { fill: #94a3b8; font: 500 12px 'Segoe UI', Inter, sans-serif; }
     .label { fill: #cbd5e1; font: 600 12px 'Segoe UI', Inter, sans-serif; }
-    .value { fill: #ffffff; font: 700 32px 'Segoe UI', Inter, sans-serif; }
+    .value { fill: #ffffff; font: 700 18px 'Segoe UI', Inter, sans-serif; }
     .tiny { fill: #fdba74; font: 600 12px 'Segoe UI', Inter, sans-serif; }
   </style>
   <rect width="${width}" height="${height}" rx="16" fill="url(#githanceStreakBg)" />
@@ -49,7 +49,7 @@ export default function renderStreakSvg(stats = {}, options = {}) {
   <rect x="${Math.floor(width / 2) + 6}" y="72" width="${Math.floor((width - 60) / 2)}" height="88" rx="12" fill="#111827" stroke="#1e293b" />
 
   <text x="40" y="96" class="label">Current</text>
-  <text x="40" y="134" class="value">${escapeXml(formatCount(currentStreak))}</text>
+  <text x="40" y="134" class="value text-sm">${escapeXml(formatCount(currentStreak))}</text>
   <text x="122" y="134" class="tiny">days</text>
 
   <text x="${Math.floor(width / 2) + 22}" y="96" class="label">Longest</text>

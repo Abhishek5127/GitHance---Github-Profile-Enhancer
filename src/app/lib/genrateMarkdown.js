@@ -5,6 +5,9 @@ import {
   getTechIconUrl,
   normalizeTechStackData,
 } from "./techStackCatalog";
+import { getRepoCommitStatItemById } from "./repoCommitCatalog";
+
+const REPO_COMMIT_MARKDOWN_WIDTH = 180;
 
 const escapeHtmlAttribute = (value) =>
   String(value || "")
@@ -84,6 +87,7 @@ ${sections}`;
 
 export default function generateMarkdown(canvasItems) {
   let markdown = "";
+  let hasRepoCommitHeading = false;
 
   const resolveBaseUrl = () => {
     const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -257,6 +261,51 @@ ${techStackSection}
       }
     }
 
+    if (item.type === "commitStat" || block === "commitstat") {
+      const baseUrl = resolveBaseUrl();
+      const username = String(item.data?.username || "").trim();
+      const installationId = Number(item.data?.installationId || 0) || null;
+      const statId = String(item.data?.statId || "contribution")
+        .trim()
+        .toLowerCase();
+      const selectedStat = getRepoCommitStatItemById(statId);
+
+      if (username && selectedStat) {
+        const statUrl = buildRenderUrl({
+          baseUrl,
+          type: selectedStat.type,
+          variant:
+            selectedStat.type === "contribution"
+              ? "summary"
+              : selectedStat.type === "streak"
+                ? "default"
+                : "metric",
+          params: {
+            user: username,
+            ...(installationId ? { installation_id: installationId } : {}),
+            ...(selectedStat.metric ? { metric: selectedStat.metric } : {}),
+          },
+        });
+
+        if (!hasRepoCommitHeading) {
+          markdown += `
+## Repo Commit Stats
+
+`;
+          hasRepoCommitHeading = true;
+        }
+
+        markdown += `
+<p align="center">
+  <img src="${statUrl}" alt="${selectedStat.alt}" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />
+</p>
+
+`;
+      }
+
+      return;
+    }
+
     if (block === "commits") {
       const baseUrl = resolveBaseUrl();
       const username = String(item.data?.username || "").trim();
@@ -326,18 +375,18 @@ ${techStackSection}
 ## Repo Commit Stats
 
 <p align="center">
-  <img src="${contributionUrl}" alt="Contribution summary" />
-  <img src="${streakUrl}" alt="Commit streak" />
+  <img src="${contributionUrl}" alt="Contribution summary" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />
+  <img src="${streakUrl}" alt="Commit streak" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />
 </p>
 
 <p align="center">
-  <img src="${lastRepoUrl}" alt="Last worked repository" />
-  <img src="${totalCommitsUrl}" alt="Total commits" />
+  <img src="${lastRepoUrl}" alt="Last worked repository" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />
+  <img src="${totalCommitsUrl}" alt="Total commits" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />
 </p>
 
 <p align="center">
-  <img src="${activeDaysUrl}" alt="Active days in 30 and 90 day windows" />
-  <img src="${topRepoUrl}" alt="Top repository by recent activity" />
+  <img src="${activeDaysUrl}" alt="Active days in 30 and 90 day windows" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />
+  <img src="${topRepoUrl}" alt="Top repository by recent activity" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />
 </p>
 
 `;

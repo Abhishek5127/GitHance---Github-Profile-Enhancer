@@ -6,6 +6,7 @@ import generateMarkdown from "../lib/genrateMarkdown";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
 import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker";
+import RepoCommitVariantPicker from "../components/pickers/RepoCommitVariantPicker";
 import {
   DndContext,
   closestCorners,
@@ -18,6 +19,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
 import { buildTechStackPayload } from "../lib/techStackCatalog";
+import { REPO_COMMIT_STAT_ITEMS } from "../lib/repoCommitCatalog";
 
 export default function Page() {
   const { data: session, status } = useSession();
@@ -68,6 +70,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     initialData: null,
     pickerKey: 0,
   });
+  const [showRepoCommitPicker, setShowRepoCommitPicker] = useState(false);
+  const [repoCommitPickerKey, setRepoCommitPickerKey] = useState(0);
   const token = session?.accessToken;
   const [markdown, setMarkdown] = useState([]);
 
@@ -98,7 +102,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   };
 
   const enrichCommitBlocks = async (items) => {
-    const commitBlocks = items.filter((item) => item.type === "commits");
+    const commitBlocks = items.filter(
+      (item) => item.type === "commitStat" || item.type === "commits"
+    );
     if (!commitBlocks.length) return items;
 
     const statsByIdentity = new Map();
@@ -118,7 +124,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     );
 
     return items.map((item) => {
-      if (item.type !== "commits") return item;
+      if (item.type !== "commitStat" && item.type !== "commits") return item;
 
       const username = String(item?.data?.username || session?.username || "").trim();
       const installationId = Number(item?.data?.installationId || 0) || null;
@@ -239,13 +245,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         commits: {
           username: session?.username || "your-github-username",
           installationId: null,
+          statId: "contribution",
+          theme: "neon",
         },
         contributions: { username: "your-github-username" },
       };
 
+      const resolvedType = templateId === "commits" ? "commitStat" : templateId;
       const newItem = {
-        id: `canvas-${templateId}-${Date.now()}`,
-        type: templateId,
+        id: `canvas-${resolvedType}-${Date.now()}`,
+        type: resolvedType,
         data: defaults[templateId] || {},
       };
 
@@ -335,23 +344,42 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setCanvasItems((prev) => [...prev, newItem]);
   };
 
-  const addCommitStatsToCanvas = (overrides = {}) => {
-    const newItem = {
-      id: `canvas-commits-${Date.now()}`,
-      type: "commits",
-      data: {
-        username: session?.username || "your-github-username",
-        installationId: null,
-        ...overrides,
-      },
-    };
+  const addCommitStatsItemsToCanvas = async ({
+    theme = "neon",
+    itemIds = [],
+  } = {}) => {
+    const username = String(session?.username || "your-github-username").trim();
+    const selectedIds = (Array.isArray(itemIds) ? itemIds : [])
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter(Boolean);
+    const normalizedItemIds = selectedIds.length
+      ? selectedIds
+      : REPO_COMMIT_STAT_ITEMS.map((item) => item.id);
 
-    setCanvasItems((prev) => [...prev, newItem]);
+    const snapshot = await bootstrapCommitStatsSnapshot(username, null);
+    const installationId =
+      Number(snapshot?.installation_id || 0) || null;
+    const now = Date.now();
+
+    const newItems = normalizedItemIds.map((statId, index) => ({
+      id: `canvas-commit-stat-${statId}-${now + index}`,
+      type: "commitStat",
+      data: {
+        username,
+        installationId,
+        statId,
+        theme: String(theme || "neon").trim().toLowerCase() || "neon",
+        ...(snapshot ? { statsSnapshot: snapshot } : {}),
+      },
+    }));
+
+    setCanvasItems((prev) => [...prev, ...newItems]);
   };
 
   const openHeaderPickerForAdd = () => {
     setShowBioPicker(false);
     setShowTechStackPicker(false);
+    setShowRepoCommitPicker(false);
     setHeaderPickerContext({
       itemId: null,
       initialVariant: null,
@@ -366,6 +394,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     setShowBioPicker(false);
     setShowTechStackPicker(false);
+    setShowRepoCommitPicker(false);
     setHeaderPickerContext({
       itemId: item.id,
       initialVariant: item.variant || null,
@@ -382,6 +411,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const openBioPickerForAdd = () => {
     setShowHeaderPicker(false);
     setShowTechStackPicker(false);
+    setShowRepoCommitPicker(false);
     setBioPickerContext({
       itemId: null,
       initialData: null,
@@ -395,6 +425,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     setShowHeaderPicker(false);
     setShowTechStackPicker(false);
+    setShowRepoCommitPicker(false);
     setBioPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -410,6 +441,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const openTechStackPickerForAdd = () => {
     setShowHeaderPicker(false);
     setShowBioPicker(false);
+    setShowRepoCommitPicker(false);
     setTechStackPickerContext({
       itemId: null,
       initialData: null,
@@ -423,6 +455,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     setShowHeaderPicker(false);
     setShowBioPicker(false);
+    setShowRepoCommitPicker(false);
     setTechStackPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -433,6 +466,18 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const closeTechStackPicker = () => {
     setShowTechStackPicker(false);
+  };
+
+  const openRepoCommitPickerForAdd = () => {
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setRepoCommitPickerKey(Date.now());
+    setShowRepoCommitPicker(true);
+  };
+
+  const closeRepoCommitPicker = () => {
+    setShowRepoCommitPicker(false);
   };
 
   const handleHeaderSelect = (variant, data) => {
@@ -499,6 +544,13 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     closeTechStackPicker();
   };
 
+  const handleRepoCommitSelection = async ({ theme, itemIds }) => {
+    await addCommitStatsItemsToCanvas({
+      theme,
+      itemIds,
+    });
+  };
+
   const handleEditItem = (item) => {
     if (item.type === "header") {
       openHeaderPickerForEdit(item);
@@ -540,7 +592,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
               }
 
               if (blockId === "commits") {
-                addCommitStatsToCanvas();
+                openRepoCommitPickerForAdd();
                 return;
               }
 
@@ -605,6 +657,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             onSave={handleTechStackSelect}
             initialData={techStackPickerContext.initialData}
             submitLabel={techStackPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+          />
+
+          <RepoCommitVariantPicker
+            key={`commits-${repoCommitPickerKey}`}
+            open={showRepoCommitPicker}
+            onClose={closeRepoCommitPicker}
+            onSave={handleRepoCommitSelection}
+            submitLabel="Add Selected"
           />
         </DndContext>
       </div>

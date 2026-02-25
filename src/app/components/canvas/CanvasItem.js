@@ -46,6 +46,7 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
       case "skills":
         return <TechStackBlock item={item} setItems={setItems} />;
 
+      case "commitStat":
       case "commits":
         return <RepoCommitStatsBlock item={item} setItems={setItems} />;
 

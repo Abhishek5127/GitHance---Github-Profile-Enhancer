@@ -1,5 +1,5 @@
-const DEFAULT_WIDTH = 520;
-const DEFAULT_HEIGHT = 150;
+const DEFAULT_WIDTH = 720;
+const DEFAULT_HEIGHT = 200;
 
 function escapeXml(value) {
   return String(value ?? "")
@@ -75,8 +75,8 @@ function resolveMetricText(stats, metric, window) {
 }
 
 export function renderRepoSvg(stats = {}, options = {}) {
-  const width = Number(options.width) || DEFAULT_WIDTH;
-  const height = Number(options.height) || DEFAULT_HEIGHT;
+  const width =DEFAULT_WIDTH;
+  const height = DEFAULT_HEIGHT;
   const metric = String(options.metric || "last_repo");
   const metricText = resolveMetricText(stats, metric, options.window);
   const lastUpdated = String(stats.last_updated || "").replace("T", " ").slice(0, 16);
@@ -93,7 +93,7 @@ export function renderRepoSvg(stats = {}, options = {}) {
   <style>
     .title { fill: #f8fafc; font: 700 17px 'Segoe UI', Inter, sans-serif; }
     .sub { fill: #94a3b8; font: 500 12px 'Segoe UI', Inter, sans-serif; }
-    .value { fill: #fef3c7; font: 700 21px 'Segoe UI', Inter, sans-serif; }
+    .value { fill: #fef3c7; font: 700 18px 'Segoe UI', Inter, sans-serif; }
     .caption { fill: #cbd5e1; font: 600 12px 'Segoe UI', Inter, sans-serif; }
   </style>
   <rect width="${width}" height="${height}" rx="16" fill="url(#githanceRepoMetricBg)" />
@@ -105,7 +105,6 @@ export function renderRepoSvg(stats = {}, options = {}) {
   <rect x="24" y="68" width="${width - 48}" height="54" rx="10" fill="#111827" stroke="#1e293b" />
   <text x="38" y="98" class="value">${escapeXml(metricText.value)}</text>
   <text x="24" y="138" class="caption">${escapeXml(metricText.subvalue)}</text>
-  <text x="${width - 24}" y="138" class="sub" text-anchor="end">Updated ${escapeXml(lastUpdated || "N/A")} UTC</text>
 </svg>`.trim();
 }
 
