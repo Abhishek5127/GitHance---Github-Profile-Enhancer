@@ -6,6 +6,7 @@ import {
   normalizeTechStackData,
 } from "./techStackCatalog";
 import { getRepoCommitStatItemById } from "./repoCommitCatalog";
+import { getSectionVariantById } from "./sectionCatalog";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
 
@@ -85,9 +86,10 @@ ${sections}`;
 </div>`;
 }
 
-export default function generateMarkdown(canvasItems) {
+export default function generateMarkdown(canvasItems, options = {}) {
   let markdown = "";
-  let hasRepoCommitHeading = false;
+  const suppressRepoCommitHeading = Boolean(options?.suppressRepoCommitHeading);
+  let hasRepoCommitHeading = suppressRepoCommitHeading;
 
   const resolveBaseUrl = () => {
     const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -261,6 +263,59 @@ ${techStackSection}
       }
     }
 
+    if (item.type === "section" || block === "section") {
+      const variant = getSectionVariantById(item?.data?.variantId);
+      const rawSlots = Array.isArray(item?.data?.slots) ? item.data.slots : [];
+      const resolvedSlots =
+        rawSlots.length >= variant.slotCount
+          ? rawSlots.slice(0, variant.slotCount)
+          : [
+              ...rawSlots,
+              ...Array.from(
+                { length: Number(variant.slotCount || 0) - rawSlots.length },
+                () => null
+              ),
+            ];
+
+      const slotMarkdown = resolvedSlots.map((slotItem) => {
+        if (!slotItem || slotItem.type === "section") return "";
+        return generateMarkdown([slotItem], {
+          suppressRepoCommitHeading: true,
+        }).trim();
+      });
+
+      if (variant.markdownLayout === "table") {
+        const cells = slotMarkdown
+          .map(
+            (content) => `<td align="center" valign="top">
+${content || "&nbsp;"}
+</td>`
+          )
+          .join("\n");
+
+        markdown += `
+<table>
+  <tr>
+${cells}
+  </tr>
+</table>
+
+`;
+      } else {
+        markdown += `${slotMarkdown
+          .map(
+            (content) => `<div align="center">
+${content || "&nbsp;"}
+</div>`
+          )
+          .join("\n\n")}
+
+`;
+      }
+
+      return;
+    }
+
     if (item.type === "commitStat" || block === "commitstat") {
       const baseUrl = resolveBaseUrl();
       const username = String(item.data?.username || "").trim();
@@ -371,9 +426,15 @@ ${techStackSection}
           },
         });
 
-        markdown += `
+        if (!hasRepoCommitHeading) {
+          markdown += `
 ## Repo Commit Stats
 
+`;
+          hasRepoCommitHeading = true;
+        }
+
+        markdown += `
 <p align="center">
   <img src="${contributionUrl}" alt="Contribution summary" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />
   <img src="${streakUrl}" alt="Commit streak" width="${REPO_COMMIT_MARKDOWN_WIDTH}" />

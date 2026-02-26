@@ -7,6 +7,7 @@ import HeaderBlock from "../blocks/HeaderBlock";
 import BioBlock from "../BioBlock";
 import TechStackBlock from "../blocks/TechStackBlock";
 import RepoCommitStatsBlock from "../blocks/RepoCommitStatsBlock";
+import SectionBlock from "../blocks/SectionBlock";
 
 export default function CanvasItem({ item, setItems, onEditItem }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -49,6 +50,9 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
       case "commitStat":
       case "commits":
         return <RepoCommitStatsBlock item={item} setItems={setItems} />;
+
+      case "section":
+        return <SectionBlock item={item} setItems={setItems} />;
 
       case "contribution":
         return <ContributionGraph item={item} />;

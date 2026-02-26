@@ -7,9 +7,11 @@ import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
 import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker";
 import RepoCommitVariantPicker from "../components/pickers/RepoCommitVariantPicker";
+import SectionVariantPicker from "../components/pickers/SectionVariantPicker";
 import {
   DndContext,
   closestCorners,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
@@ -20,6 +22,24 @@ import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
 import { buildTechStackPayload } from "../lib/techStackCatalog";
 import { REPO_COMMIT_STAT_ITEMS } from "../lib/repoCommitCatalog";
+import {
+  getSectionVariantById,
+  parseSectionSlotDropId,
+} from "../lib/sectionCatalog";
+
+const collisionDetectionStrategy = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length) {
+    const sectionSlotCollisions = pointerCollisions.filter((collision) =>
+      String(collision?.id || "").startsWith("section-slot:")
+    );
+    if (sectionSlotCollisions.length) {
+      return sectionSlotCollisions;
+    }
+  }
+
+  return closestCorners(args);
+};
 
 export default function Page() {
   const { data: session, status } = useSession();
@@ -70,6 +90,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     initialData: null,
     pickerKey: 0,
   });
+  const [showSectionPicker, setShowSectionPicker] = useState(false);
+  const [sectionPickerKey, setSectionPickerKey] = useState(0);
   const [showRepoCommitPicker, setShowRepoCommitPicker] = useState(false);
   const [repoCommitPickerKey, setRepoCommitPickerKey] = useState(0);
   const token = session?.accessToken;
@@ -210,8 +232,108 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setMarkdownPreview(generateMarkdown(canvasItems));
   };
 
+  const moveCanvasItemToSectionSlot = (draggedItemId, targetSectionId, targetSlotIndex) => {
+    if (!draggedItemId || !targetSectionId || targetSlotIndex < 0) return;
+
+    setCanvasItems((prev) => {
+      let draggedItem = null;
+      let changed = false;
+
+      const withoutDragged = prev.flatMap((entry) => {
+        if (entry.id === draggedItemId) {
+          if (entry.type === "section") {
+            return [entry];
+          }
+          draggedItem = entry;
+          changed = true;
+          return [];
+        }
+
+        if (entry.type !== "section") {
+          return [entry];
+        }
+
+        const slots = Array.isArray(entry?.data?.slots) ? [...entry.data.slots] : [];
+        let localChanged = false;
+
+        for (let index = 0; index < slots.length; index += 1) {
+          const slotItem = slots[index];
+          if (slotItem?.id !== draggedItemId) continue;
+          draggedItem = slotItem;
+          slots[index] = null;
+          localChanged = true;
+          changed = true;
+          break;
+        }
+
+        if (!localChanged) {
+          return [entry];
+        }
+
+        return [
+          {
+            ...entry,
+            data: {
+              ...entry.data,
+              slots,
+            },
+          },
+        ];
+      });
+
+      if (!draggedItem || draggedItem.type === "section") {
+        return prev;
+      }
+
+      let displacedItem = null;
+      let placed = false;
+
+      const withPlacement = withoutDragged.map((entry) => {
+        if (entry.id !== targetSectionId || entry.type !== "section") {
+          return entry;
+        }
+
+        const slots = Array.isArray(entry?.data?.slots) ? [...entry.data.slots] : [];
+        if (targetSlotIndex >= slots.length) return entry;
+
+        displacedItem = slots[targetSlotIndex] || null;
+        slots[targetSlotIndex] = draggedItem;
+        placed = true;
+        changed = true;
+
+        return {
+          ...entry,
+          data: {
+            ...entry.data,
+            slots,
+          },
+        };
+      });
+
+      if (!placed) {
+        return prev;
+      }
+
+      if (displacedItem && displacedItem.id !== draggedItem.id) {
+        withPlacement.push(displacedItem);
+      }
+
+      return changed ? withPlacement : prev;
+    });
+  };
+
   const onDragEnd = ({ active, over }) => {
     if (!over) return;
+
+    const sectionDropTarget = parseSectionSlotDropId(over.id);
+    if (sectionDropTarget && active?.id) {
+      moveCanvasItemToSectionSlot(
+        String(active.id),
+        sectionDropTarget.sectionId,
+        sectionDropTarget.slotIndex
+      );
+      return;
+    }
 
     if (active.data?.current?.source === "template") {
       const templateId = active.data.current.templateId;
@@ -242,6 +364,10 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           content: bioDefaults.content,
         },
         skills: buildTechStackPayload(techStackDefaults),
+        sections: {
+          variantId: "equal-2",
+          slots: [null, null],
+        },
         commits: {
           username: session?.username || "your-github-username",
           installationId: null,
@@ -251,7 +377,12 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         contributions: { username: "your-github-username" },
       };
 
-      const resolvedType = templateId === "commits" ? "commitStat" : templateId;
+      const resolvedType =
+        templateId === "commits"
+          ? "commitStat"
+          : templateId === "sections"
+            ? "section"
+            : templateId;
       const newItem = {
         id: `canvas-${resolvedType}-${Date.now()}`,
         type: resolvedType,
@@ -344,6 +475,20 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setCanvasItems((prev) => [...prev, newItem]);
   };
 
+  const addSectionToCanvas = ({ variantId } = {}) => {
+    const variant = getSectionVariantById(variantId);
+    const newItem = {
+      id: `canvas-section-${Date.now()}`,
+      type: "section",
+      data: {
+        variantId: variant.id,
+        slots: Array.from({ length: Number(variant.slotCount || 0) }, () => null),
+      },
+    };
+
+    setCanvasItems((prev) => [...prev, newItem]);
+  };
+
   const addCommitStatsItemsToCanvas = async ({
     theme = "neon",
     itemIds = [],
@@ -380,6 +525,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowBioPicker(false);
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
+    setShowSectionPicker(false);
     setHeaderPickerContext({
       itemId: null,
       initialVariant: null,
@@ -395,6 +541,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowBioPicker(false);
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
+    setShowSectionPicker(false);
     setHeaderPickerContext({
       itemId: item.id,
       initialVariant: item.variant || null,
@@ -412,6 +559,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowHeaderPicker(false);
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
+    setShowSectionPicker(false);
     setBioPickerContext({
       itemId: null,
       initialData: null,
@@ -426,6 +574,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowHeaderPicker(false);
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
+    setShowSectionPicker(false);
     setBioPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -442,6 +591,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowHeaderPicker(false);
     setShowBioPicker(false);
     setShowRepoCommitPicker(false);
+    setShowSectionPicker(false);
     setTechStackPickerContext({
       itemId: null,
       initialData: null,
@@ -456,6 +606,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowHeaderPicker(false);
     setShowBioPicker(false);
     setShowRepoCommitPicker(false);
+    setShowSectionPicker(false);
     setTechStackPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -468,10 +619,24 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
   };
 
+  const openSectionPickerForAdd = () => {
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowRepoCommitPicker(false);
+    setSectionPickerKey(Date.now());
+    setShowSectionPicker(true);
+  };
+
+  const closeSectionPicker = () => {
+    setShowSectionPicker(false);
+  };
+
   const openRepoCommitPickerForAdd = () => {
     setShowHeaderPicker(false);
     setShowBioPicker(false);
     setShowTechStackPicker(false);
+    setShowSectionPicker(false);
     setRepoCommitPickerKey(Date.now());
     setShowRepoCommitPicker(true);
   };
@@ -544,6 +709,13 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     closeTechStackPicker();
   };
 
+  const handleSectionSelection = async ({ variantId }) => {
+    addSectionToCanvas({
+      variantId,
+    });
+    closeSectionPicker();
+  };
+
   const handleRepoCommitSelection = async ({ theme, itemIds }) => {
     await addCommitStatsItemsToCanvas({
       theme,
@@ -591,6 +763,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
                 return;
               }
 
+              if (blockId === "sections") {
+                openSectionPickerForAdd();
+                return;
+              }
+
               if (blockId === "commits") {
                 openRepoCommitPickerForAdd();
                 return;
@@ -611,7 +788,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetectionStrategy}
           onDragEnd={onDragEnd}
         >
           <div className="flex-1 overflow-y-auto p-6">
@@ -657,6 +834,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             onSave={handleTechStackSelect}
             initialData={techStackPickerContext.initialData}
             submitLabel={techStackPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+          />
+
+          <SectionVariantPicker
+            key={`sections-${sectionPickerKey}`}
+            open={showSectionPicker}
+            onClose={closeSectionPicker}
+            onSave={handleSectionSelection}
+            submitLabel="Add Section"
           />
 
           <RepoCommitVariantPicker
