@@ -63,7 +63,7 @@ export function generateHeaderSvg({
   const palette = RENDER_THEMES[theme] || RENDER_THEMES.midnight;
   const title = escapeXml(name || "Your Name");
   const sub = escapeXml(subtitle || "Building thoughtful software");
-  const width = 500;
+  const width = 900;
   const height = 180;
   const outerRadius = normalizeRadius(radius, 0);
   const panelRadius = clamp(outerRadius - 4, 0, 32);
@@ -331,8 +331,8 @@ export function generateTrophySvg({
   const colCount = clamp(Number(columns) || 4, 2, 5);
   const gap = 16;
   const padding = 24;
-  const cardHeight = 110;
-  const width = 900;
+  const cardHeight = 210;
+  const width = 500;
   const usable = width - padding * 2 - gap * (colCount - 1);
   const cardWidth = Math.floor(usable / colCount);
   const rows = Math.max(1, Math.ceil(safeAchievements.length / colCount));
