@@ -7,7 +7,7 @@ import {
 } from "./techStackCatalog";
 import { getRepoCommitStatItemById } from "./repoCommitCatalog";
 
-const REPO_COMMIT_MARKDOWN_WIDTH = 180;
+const REPO_COMMIT_MARKDOWN_WIDTH = 360;
 
 const escapeHtmlAttribute = (value) =>
   String(value || "")

@@ -331,8 +331,8 @@ export function generateTrophySvg({
   const colCount = clamp(Number(columns) || 4, 2, 5);
   const gap = 16;
   const padding = 24;
-  const cardHeight = 210;
-  const width = 500;
+  const cardHeight = 110;
+  const width = 900;
   const usable = width - padding * 2 - gap * (colCount - 1);
   const cardWidth = Math.floor(usable / colCount);
   const rows = Math.max(1, Math.ceil(safeAchievements.length / colCount));
