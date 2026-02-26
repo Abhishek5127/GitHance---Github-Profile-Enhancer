@@ -275,8 +275,7 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
     : "mb-2 text-[11px] uppercase tracking-[0.18em] text-white/45";
 
   return (
-    <div>
-      
+    <div className="w-full min-w-0">
       {bootstrapStatus.loading ? (
         <p className="mb-2 text-xs text-cyan-200">Loading latest GitHub stats...</p>
       ) : null}
@@ -284,24 +283,22 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
         <p className="mb-2 text-xs text-red-300">{bootstrapStatus.error}</p>
       ) : null}
       {statsBlocks.length === 1 ? (
-        <div className={cardClass}>
-          
+        <div className={`${cardClass} w-full min-w-0`}>
           <img
             src={statsBlocks[0].src}
             alt={statsBlocks[0].label}
-            className="mx-auto h-auto w-auto max-w-[390px] rounded-md border border-white/10 bg-[#0f0b0b]"
+            className="block h-auto w-full max-w-full rounded-md border border-white/10 bg-[#0f0b0b]"
           />
         </div>
       ) : (
-        <div className="grid gap-1.5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-1.5">
           {statsBlocks.map((block) => (
-            <div key={block.id} className={cardClass}>
+            <div key={block.id} className={`${cardClass} w-full min-w-0`}>
               <p className={labelClass}>{block.label}</p>
               <img
                 src={block.src}
                 alt={block.label}
-                
-                className="mx-auto h-auto w-full max-w-[360px] rounded-md border border-white/10 bg-[#0b0d0f]"
+                className="block h-auto w-full max-w-full rounded-md border border-white/10 bg-[#0b0d0f]"
               />
             </div>
           ))}

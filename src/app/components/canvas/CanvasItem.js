@@ -52,7 +52,7 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
         return <RepoCommitStatsBlock item={item} setItems={setItems} />;
 
       case "section":
-        return <SectionBlock item={item} setItems={setItems} />;
+        return <SectionBlock item={item} setItems={setItems} onEditItem={onEditItem} />;
 
       case "contribution":
         return <ContributionGraph item={item} />;

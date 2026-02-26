@@ -10,6 +10,7 @@ import RepoCommitVariantPicker from "../components/pickers/RepoCommitVariantPick
 import SectionVariantPicker from "../components/pickers/SectionVariantPicker";
 import {
   DndContext,
+  closestCenter,
   closestCorners,
   pointerWithin,
   PointerSensor,
@@ -36,6 +37,13 @@ const collisionDetectionStrategy = (args) => {
     if (sectionSlotCollisions.length) {
       return sectionSlotCollisions;
     }
+
+    return pointerCollisions;
+  }
+
+  const centerCollisions = closestCenter(args);
+  if (centerCollisions.length) {
+    return centerCollisions;
   }
 
   return closestCorners(args);
@@ -223,7 +231,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 10 },
+      activationConstraint: { distance: 4 },
     }),
     useSensor(KeyboardSensor)
   );
@@ -521,6 +529,52 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setCanvasItems((prev) => [...prev, ...newItems]);
   };
 
+  const updateCanvasItemById = (itemId, updater) => {
+    const normalizedItemId = String(itemId || "").trim();
+    if (!normalizedItemId || typeof updater !== "function") return;
+
+    setCanvasItems((prev) => {
+      let changed = false;
+
+      const nextItems = prev.map((entry) => {
+        if (entry.id === normalizedItemId) {
+          changed = true;
+          return updater(entry);
+        }
+
+        if (entry.type !== "section") {
+          return entry;
+        }
+
+        const slots = Array.isArray(entry?.data?.slots) ? entry.data.slots : [];
+        let slotChanged = false;
+        const nextSlots = slots.map((slotItem) => {
+          if (!slotItem || slotItem.id !== normalizedItemId) {
+            return slotItem;
+          }
+
+          slotChanged = true;
+          changed = true;
+          return updater(slotItem);
+        });
+
+        if (!slotChanged) {
+          return entry;
+        }
+
+        return {
+          ...entry,
+          data: {
+            ...entry.data,
+            slots: nextSlots,
+          },
+        };
+      });
+
+      return changed ? nextItems : prev;
+    });
+  };
+
   const openHeaderPickerForAdd = () => {
     setShowBioPicker(false);
     setShowTechStackPicker(false);
@@ -647,13 +701,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const handleHeaderSelect = (variant, data) => {
     if (headerPickerContext.itemId) {
-      setCanvasItems((prev) =>
-        prev.map((item) =>
-          item.id === headerPickerContext.itemId
-            ? { ...item, variant, data: { ...item.data, ...data } }
-            : item
-        )
-      );
+      updateCanvasItemById(headerPickerContext.itemId, (item) => ({
+        ...item,
+        variant,
+        data: { ...item.data, ...data },
+      }));
     } else {
       addHeaderToCanvas(variant, data);
     }
@@ -663,20 +715,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const handleBioSelect = (data) => {
     if (bioPickerContext.itemId) {
-      setCanvasItems((prev) =>
-        prev.map((item) =>
-          item.id === bioPickerContext.itemId
-            ? {
-                ...item,
-                data: {
-                  ...bioDefaults,
-                  ...item.data,
-                  ...data,
-                },
-              }
-            : item
-        )
-      );
+      updateCanvasItemById(bioPickerContext.itemId, (item) => ({
+        ...item,
+        data: {
+          ...bioDefaults,
+          ...item.data,
+          ...data,
+        },
+      }));
     } else {
       addBioToCanvas(data);
     }
@@ -688,20 +734,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     const payload = buildTechStackPayload(data);
 
     if (techStackPickerContext.itemId) {
-      setCanvasItems((prev) =>
-        prev.map((item) =>
-          item.id === techStackPickerContext.itemId
-            ? {
-                ...item,
-                data: {
-                  ...techStackDefaults,
-                  ...item.data,
-                  ...payload,
-                },
-              }
-            : item
-        )
-      );
+      updateCanvasItemById(techStackPickerContext.itemId, (item) => ({
+        ...item,
+        data: {
+          ...techStackDefaults,
+          ...item.data,
+          ...payload,
+        },
+      }));
     } else {
       addTechStackToCanvas(payload);
     }
