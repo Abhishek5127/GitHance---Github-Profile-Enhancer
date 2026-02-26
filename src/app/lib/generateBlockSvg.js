@@ -63,7 +63,7 @@ export function generateHeaderSvg({
   const palette = RENDER_THEMES[theme] || RENDER_THEMES.midnight;
   const title = escapeXml(name || "Your Name");
   const sub = escapeXml(subtitle || "Building thoughtful software");
-  const width = 900;
+  const width = 500;
   const height = 180;
   const outerRadius = normalizeRadius(radius, 0);
   const panelRadius = clamp(outerRadius - 4, 0, 32);
