@@ -1,6 +1,5 @@
-const DEFAULT_WIDTH = 720;
-const DEFAULT_HEIGHT = 200;
-
+const DEFAULT_WIDTH = 500;
+const DEFAULT_HEIGHT = 180;
 function escapeXml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")

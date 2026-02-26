@@ -1,5 +1,4 @@
 "use client";
-//repo check
 import TemplateItem from "./TemplateItem";
 import { PROFILE_TEMPLATES } from "../../lib/profileTemplates";
 
