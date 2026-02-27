@@ -36,13 +36,13 @@ export const README_SECTION_VARIANTS = [
   },
   {
     id: "grid-3x2",
-    title: "Grid (3 x 2)",
-    description: "Three columns and two rows for six compact slots.",
+    title: "Grid (2 x 3)",
+    description: "Two columns and three rows for six compact slots.",
     slotCount: 6,
-    canvasColumns: 3,
+    canvasColumns: 2,
     canvasSlotMinHeight: 180,
     markdownLayout: "table",
-    markdownColumns: 3,
+    markdownColumns: 2,
     supportsBorderToggle: true,
   },
   {

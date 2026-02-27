@@ -80,7 +80,7 @@ export default function RepoCommitVariantPicker({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60">
-      <div className="relative h-full w-[640px] overflow-hidden border-l border-white/10 bg-[#0d1117] p-4">
+      <div className="relative h-full w-[640px] overflow-scroll border-l border-white/10 bg-[#0d1117] p-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-white/40">Repo Commit Stats</p>

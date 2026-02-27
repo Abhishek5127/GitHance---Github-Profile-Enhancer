@@ -525,22 +525,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         ...(snapshot ? { statsSnapshot: snapshot } : {}),
       },
     }));
-    const commitSectionVariant = getSectionVariantById("grid-3x2");
-    const slottedItems = Array.from(
-      { length: Number(commitSectionVariant.slotCount || 0) },
-      (_, index) => newItems[index] || null
-    );
-    const sectionItem = {
-      id: `canvas-section-commit-stats-${now}`,
-      type: "section",
-      data: {
-        variantId: commitSectionVariant.id,
-        showBorders: true,
-        slots: slottedItems,
-      },
-    };
 
-    setCanvasItems((prev) => [...prev, sectionItem]);
+    setCanvasItems((prev) => [...prev, ...newItems]);
   };
 
   const updateCanvasItemById = (itemId, updater) => {
