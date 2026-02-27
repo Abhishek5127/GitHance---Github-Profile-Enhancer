@@ -2,7 +2,7 @@
 import Image from "next/image";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { assets } from "@/app/assets/assets";
 import { useRouter } from "next/navigation";
 
@@ -19,10 +19,17 @@ const links = [
 
 export default function LandingNav() {
   const [open, setOpen] = useState(false);
+  const { data: session, status } = useSession();
+
   const handleGitHubSignIn = () => {
     signIn("github", { callbackUrl: "/profile" });
   };
+
+  const handleLogout = () => {
+    signOut({ callbackUrl: "/" });
+  };
   const Router = useRouter();
+  const isAuthenticated = status === "authenticated" && Boolean(session);
 
   return (
     <header className="relative z-30 w-full">
@@ -54,17 +61,27 @@ export default function LandingNav() {
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
-          <button
-            onClick={handleGitHubSignIn}
-            className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-sm text-black transition hover:bg-white/10 hover:text-white"
-          >
-            <Image
-            src={assets.Github}
-            height={40}
-            width={40}
-            alt="github"/>
-            Sign in
-          </button>
+          {isAuthenticated ? (
+            <button
+              onClick={handleLogout}
+              className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-sm text-black transition hover:bg-white/10 hover:text-white"
+            >
+              Logout
+            </button>
+          ) : (
+            <button
+              onClick={handleGitHubSignIn}
+              className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-sm text-black transition hover:bg-white/10 hover:text-white"
+            >
+              <Image
+                src={assets.Github}
+                height={40}
+                width={40}
+                alt="github"
+              />
+              Sign in
+            </button>
+          )}
           <button className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-bold text-black transition hover:bg-white/10 hover:text-white">
             Start free
           </button>
@@ -94,12 +111,21 @@ export default function LandingNav() {
               ))}
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <button
-                onClick={handleGitHubSignIn}
-                className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
-              >
-                Sign in
-              </button>
+              {isAuthenticated ? (
+                <button
+                  onClick={handleLogout}
+                  className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
+                >
+                  Logout
+                </button>
+              ) : (
+                <button
+                  onClick={handleGitHubSignIn}
+                  className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
+                >
+                  Sign in
+                </button>
+              )}
               <button className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90">
                 Start free
               </button>
