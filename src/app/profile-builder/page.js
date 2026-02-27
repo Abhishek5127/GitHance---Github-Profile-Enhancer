@@ -248,7 +248,12 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   }, [canvasItems, isDraftHydrated]);
 
   useEffect(() => {
-    if (!session?.username) return;
+    if (!session?.username || !isDraftHydrated) return;
+
+    if (canvasItems.length > 0) {
+      setReadme("");
+      return;
+    }
 
     const fetchReadme = async () => {
       try {
@@ -266,7 +271,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     };
 
     fetchReadme();
-  }, [session?.username]);
+  }, [canvasItems.length, isDraftHydrated, session?.username]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
