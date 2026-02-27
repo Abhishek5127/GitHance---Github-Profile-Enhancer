@@ -60,40 +60,40 @@ export default function LandingNav() {
           ))}
         </div>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="flex items-center gap-2 md:gap-3">
           {isAuthenticated ? (
             <button
               onClick={handleLogout}
-              className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-sm text-black transition hover:bg-white/10 hover:text-white"
+              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
             >
               Logout
             </button>
           ) : (
             <button
               onClick={handleGitHubSignIn}
-              className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-sm text-black transition hover:bg-white/10 hover:text-white"
+              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
             >
               <Image
                 src={assets.Github}
                 height={40}
                 width={40}
                 alt="github"
+                className="hidden sm:block"
               />
               Sign in
             </button>
           )}
-          <button className="rounded-full w-30 h-10 bg-white border items-center content-center flex cursor-pointer border-white/15 px-4 py-2 text-bold text-black transition hover:bg-white/10 hover:text-white">
+          <button className="hidden h-10 items-center justify-center rounded-full border border-white/15 bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/10 hover:text-white md:flex">
             Start free
           </button>
+          <button
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/20 md:hidden"
+            aria-label="Toggle menu"
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            {open ? "X" : "Menu"}
+          </button>
         </div>
-
-        <button
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/20 md:hidden"
-          aria-label="Toggle menu"
-          onClick={() => setOpen((prev) => !prev)}
-        >
-          {open ? "X" : "Menu"}
-        </button>
       </nav>
 
       {open && (
