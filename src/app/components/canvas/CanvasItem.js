@@ -66,16 +66,16 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
     <div
       ref={setNodeRef}
       style={style}
-      className="relative mb-1 w-full"
+      className="group relative mb-1 w-full"
       {...attributes}
       {...listeners}
     >
-      <div className="absolute right-3 top-3 z-20 flex gap-2">
+      <div className="pointer-events-none absolute right-3 top-3 z-20 flex translate-y-1 gap-2 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
         {canEdit ? (
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={handleEdit}
-            className="rounded-md border border-white/20 bg-[#0f1115]/90 p-1.5 text-white/80 hover:text-white"
+            className="rounded-md border border-white/20 bg-[#0f1115]/95 p-1.5 text-white/80 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-white"
             title="Edit item"
             aria-label="Edit item"
           >
@@ -88,7 +88,7 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={handleDelete}
-          className="rounded-md border border-red-500/40 bg-red-500/20 p-1.5 text-red-200 hover:text-red-100"
+          className="rounded-md border border-red-500/40 bg-red-500/25 p-1.5 text-red-200 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-red-100"
           title="Delete item"
           aria-label="Delete item"
         >

@@ -265,6 +265,9 @@ ${techStackSection}
 
     if (item.type === "section" || block === "section") {
       const variant = getSectionVariantById(item?.data?.variantId);
+      const supportsBorderToggle = variant?.supportsBorderToggle !== false;
+      const showBorders =
+        supportsBorderToggle ? item?.data?.showBorders !== false : true;
       const rawSlots = Array.isArray(item?.data?.slots) ? item.data.slots : [];
       const resolvedSlots =
         rawSlots.length >= variant.slotCount
@@ -285,19 +288,41 @@ ${techStackSection}
       });
 
       if (variant.markdownLayout === "table") {
-        const cells = slotMarkdown
-          .map(
-            (content) => `<td align="center" valign="top">
+        const columns = Math.max(1, Number(variant.markdownColumns || variant.canvasColumns || 1));
+        const rowChunks = [];
+        for (let index = 0; index < slotMarkdown.length; index += columns) {
+          rowChunks.push(slotMarkdown.slice(index, index + columns));
+        }
+
+        const tableAttrs =
+          !showBorders && supportsBorderToggle
+            ? ' border="0" cellpadding="0" cellspacing="0" style="border: 0; border-collapse: separate;"'
+            : "";
+        const rowAttrs = !showBorders && supportsBorderToggle ? ' style="border: 0;"' : "";
+        const cellAttrs =
+          !showBorders && supportsBorderToggle
+            ? ' style="border: 0; padding: 0 8px;"'
+            : "";
+
+        const rows = rowChunks
+          .map((chunk) => {
+            const cells = chunk
+              .map(
+                (content) => `<td align="center" valign="top"${cellAttrs}>
 ${content || "&nbsp;"}
 </td>`
-          )
+              )
+              .join("\n");
+
+            return `  <tr${rowAttrs}>
+${cells}
+  </tr>`;
+          })
           .join("\n");
 
         markdown += `
-<table>
-  <tr>
-${cells}
-  </tr>
+<table${tableAttrs}>
+${rows}
 </table>
 
 `;

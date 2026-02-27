@@ -7,9 +7,9 @@ import {
   getRepoCommitStatItemById,
 } from "@/app/lib/repoCommitCatalog";
 
-const COMPACT_CANVAS_WIDTH = 420;
-const COMPACT_CANVAS_HEIGHT_TALL = 148;
-const COMPACT_CANVAS_HEIGHT_REPO = 132;
+const COMPACT_CANVAS_WIDTH = 360;
+const COMPACT_CANVAS_HEIGHT_TALL = 132;
+const COMPACT_CANVAS_HEIGHT_REPO = 116;
 
 function encodeStatsSnapshot(stats) {
   if (!stats || typeof stats !== "object") return "";
@@ -283,22 +283,22 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
         <p className="mb-2 text-xs text-red-300">{bootstrapStatus.error}</p>
       ) : null}
       {statsBlocks.length === 1 ? (
-        <div className={`${cardClass} w-full min-w-0`}>
+        <div className={`${cardClass} mx-auto w-full max-w-[360px] min-w-0`}>
           <img
             src={statsBlocks[0].src}
             alt={statsBlocks[0].label}
-            className="block h-auto w-full max-w-full rounded-md border border-white/10 bg-[#0f0b0b]"
+            className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0f0b0b]"
           />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-1.5">
           {statsBlocks.map((block) => (
-            <div key={block.id} className={`${cardClass} w-full min-w-0`}>
+            <div key={block.id} className={`${cardClass} mx-auto w-full max-w-[360px] min-w-0`}>
               <p className={labelClass}>{block.label}</p>
               <img
                 src={block.src}
                 alt={block.label}
-                className="block h-auto w-full max-w-full rounded-md border border-white/10 bg-[#0b0d0f]"
+                className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0b0d0f]"
               />
             </div>
           ))}

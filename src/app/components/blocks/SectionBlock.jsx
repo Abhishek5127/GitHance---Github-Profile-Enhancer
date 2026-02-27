@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import HeaderBlock from "./HeaderBlock";
 import BioBlock from "../BioBlock";
@@ -71,11 +72,11 @@ function SectionSlot({
   return (
     <div
       ref={setNodeRef}
-      className={`relative min-w-0 rounded-xl border p-2 transition ${baseClass}`}
+      className={`group relative min-w-0 rounded-xl border p-2 transition ${baseClass}`}
       style={{ minHeight: `${slotMinHeight}px` }}
     >
       {slotItem ? (
-        <div className="absolute right-2 top-2 z-20 flex gap-2">
+        <div className="pointer-events-none absolute right-2 top-2 z-20 flex translate-y-1 gap-2 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
           {canEditSlotItem ? (
             <button
               onPointerDown={(event) => event.stopPropagation()}
@@ -83,7 +84,7 @@ function SectionSlot({
                 event.stopPropagation();
                 onEditItem(slotItem);
               }}
-              className="rounded-md border border-white/20 bg-[#0f1115]/90 p-1.5 text-white/80 hover:text-white"
+              className="rounded-md border border-white/20 bg-[#0f1115]/95 p-1.5 text-white/80 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-white"
               title="Edit item"
               aria-label="Edit item"
             >
@@ -99,7 +100,7 @@ function SectionSlot({
               event.stopPropagation();
               onRemoveSlotItem(slotIndex);
             }}
-            className="rounded-md border border-red-500/40 bg-red-500/20 p-1.5 text-red-200 hover:text-red-100"
+            className="rounded-md border border-red-500/40 bg-red-500/25 p-1.5 text-red-200 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-red-100"
             title="Delete item"
             aria-label="Delete item"
           >
@@ -125,7 +126,9 @@ export default function SectionBlock({ item, setItems, onEditItem }) {
   const variant = getSectionVariantById(item?.data?.variantId);
   const slots = Array.isArray(item?.data?.slots) ? item.data.slots : [];
   const showBorders = item?.data?.showBorders !== false;
+  const supportsBorderToggle = variant?.supportsBorderToggle !== false;
   const totalSlots = Number(variant.slotCount || 0);
+  const [showLimitToast, setShowLimitToast] = useState(false);
   const resolvedSlots =
     slots.length >= totalSlots
       ? slots.slice(0, totalSlots)
@@ -140,6 +143,10 @@ export default function SectionBlock({ item, setItems, onEditItem }) {
 
   const toggleSectionBorders = () => {
     if (typeof setItems !== "function") return;
+    if (!supportsBorderToggle && showBorders) {
+      setShowLimitToast(true);
+      return;
+    }
 
     setItems((prev) =>
       prev.map((entry) => {
@@ -154,6 +161,12 @@ export default function SectionBlock({ item, setItems, onEditItem }) {
       })
     );
   };
+
+  useEffect(() => {
+    if (!showLimitToast) return undefined;
+    const timer = setTimeout(() => setShowLimitToast(false), 2600);
+    return () => clearTimeout(timer);
+  }, [showLimitToast]);
 
   const removeSlotItem = (slotIndex) => {
     if (typeof setItems !== "function") return;
@@ -183,20 +196,34 @@ export default function SectionBlock({ item, setItems, onEditItem }) {
     : "rounded-2xl bg-transparent p-3";
 
   return (
-    <div className={wrapperClass}>
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/70">Section</p>
-          <p className="text-sm font-semibold text-white">{variant.title}</p>
+    <div className={`relative ${wrapperClass}`}>
+      {showLimitToast ? (
+        <div className="pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-lg border border-amber-300/45 bg-amber-400/15 px-3 py-1 text-[11px] text-amber-100 shadow-[0_12px_28px_rgba(0,0,0,0.35)]">
+          GitHub limitation: borders cannot be disabled for this 3-column section.
         </div>
+      ) : null}
+
+      <div className="mb-3 flex items-center justify-end gap-2">
+        <p className="text-[11px] text-cyan-100/70">{totalSlots} slots</p>
         <div className="flex items-center gap-2">
+          <span className="text-[11px] text-white/70">Borders</span>
           <button
+            type="button"
+            role="switch"
+            aria-checked={showBorders}
             onClick={toggleSectionBorders}
-            className="rounded-md border border-white/20 px-2 py-1 text-[11px] text-white/75 hover:text-white"
+            className={`relative inline-flex h-5 w-9 items-center rounded-full border transition ${
+              showBorders
+                ? "border-cyan-300/70 bg-cyan-300/25"
+                : "border-white/25 bg-[#0f1520]"
+            }`}
           >
-            Borders: {showBorders ? "On" : "Off"}
+            <span
+              className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
+                showBorders ? "translate-x-[18px]" : "translate-x-[2px]"
+              }`}
+            />
           </button>
-          <p className="text-[11px] text-cyan-100/70">{totalSlots} slots</p>
         </div>
       </div>
 

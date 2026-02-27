@@ -9,6 +9,8 @@ export const README_SECTION_VARIANTS = [
     canvasColumns: 2,
     canvasSlotMinHeight: 220,
     markdownLayout: "table",
+    markdownColumns: 2,
+    supportsBorderToggle: true,
   },
   {
     id: "equal-3",
@@ -18,6 +20,30 @@ export const README_SECTION_VARIANTS = [
     canvasColumns: 3,
     canvasSlotMinHeight: 200,
     markdownLayout: "table",
+    markdownColumns: 3,
+    supportsBorderToggle: false,
+  },
+  {
+    id: "grid-2x2",
+    title: "Grid (2 x 2)",
+    description: "Two columns and two rows for four balanced slots.",
+    slotCount: 4,
+    canvasColumns: 2,
+    canvasSlotMinHeight: 200,
+    markdownLayout: "table",
+    markdownColumns: 2,
+    supportsBorderToggle: true,
+  },
+  {
+    id: "grid-3x2",
+    title: "Grid (3 x 2)",
+    description: "Three columns and two rows for six compact slots.",
+    slotCount: 6,
+    canvasColumns: 3,
+    canvasSlotMinHeight: 180,
+    markdownLayout: "table",
+    markdownColumns: 3,
+    supportsBorderToggle: true,
   },
   {
     id: "center-stack",
@@ -27,6 +53,8 @@ export const README_SECTION_VARIANTS = [
     canvasColumns: 1,
     canvasSlotMinHeight: 210,
     markdownLayout: "center-rows",
+    markdownColumns: 1,
+    supportsBorderToggle: true,
   },
 ];
 
