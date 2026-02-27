@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { recordPushEvent, recordRepositoryEvent } from "@/app/lib/githubStats";
-import { syncStatsReadmeForPush } from "@/app/lib/readmeStatsSync";
 
 function safeCompareSignature(left, right) {
   const leftBuffer = Buffer.from(String(left || ""));
@@ -21,22 +20,6 @@ function verifyGithubSignature(payloadBody, signatureHeader, webhookSecret) {
     .digest("hex")}`;
 
   return safeCompareSignature(expected, signatureHeader);
-}
-
-function isGitHanceReadmeSyncPush(payload) {
-  const commits = Array.isArray(payload?.commits) ? payload.commits : [];
-  if (!commits.length) return false;
-
-  const ignoredMarkers = [
-    "chore: refresh githance stats",
-    "updated via analyzer app",
-    "update readme via githance",
-  ];
-
-  return commits.some((commit) => {
-    const message = String(commit?.message || "").toLowerCase();
-    return ignoredMarkers.some((marker) => message.includes(marker));
-  });
 }
 
 export async function POST(req) {
@@ -94,36 +77,16 @@ export async function POST(req) {
   }
 
   if (eventName === "push") {
-    if (isGitHanceReadmeSyncPush(payload)) {
-      return NextResponse.json({
-        ok: true,
-        ignored: true,
-        reason: "githance_readme_sync_commit",
-        event: eventName,
-        delivery_id: deliveryId,
-      });
-    }
-
     const result = await recordPushEvent({
       deliveryId,
       payload,
     });
-    let readmeSync = null;
-
-    if (result?.ok && !result?.idempotent) {
-      readmeSync = await syncStatsReadmeForPush({
-        username: result?.github_username || payload?.sender?.login || "",
-        installationId: result?.installation_id || payload?.installation?.id || null,
-        cacheKey: result?.stats?.last_updated || Date.now(),
-      });
-    }
 
     const status = Number(result?.status) || (result.ok ? 200 : 400);
     return NextResponse.json(
       {
         event: eventName,
         delivery_id: deliveryId,
-        readme_sync: readmeSync,
         ...result,
       },
       { status }
