@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import generateMarkdown from "../lib/genrateMarkdown";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
@@ -27,6 +27,8 @@ import {
   getSectionVariantById,
   parseSectionSlotDropId,
 } from "../lib/sectionCatalog";
+
+const PROFILE_BUILDER_DRAFT_STORAGE_KEY = "githance:profile-builder:draft:v1";
 
 const collisionDetectionStrategy = (args) => {
   const pointerCollisions = pointerWithin(args);
@@ -104,6 +106,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const [repoCommitPickerKey, setRepoCommitPickerKey] = useState(0);
   const token = session?.accessToken;
   const [markdown, setMarkdown] = useState([]);
+  const [isDraftHydrated, setIsDraftHydrated] = useState(false);
+  const isAuthenticated =
+    status === "authenticated" && Boolean(session?.username) && Boolean(token);
 
   const bootstrapCommitStatsSnapshot = async (username, installationId = null) => {
     if (!username || !token) return null;
@@ -176,7 +181,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const updateProfileReadme = async () => {
     if (status !== "authenticated" || !session?.username || !token) {
-      console.error("Missing authenticated session for README update.");
+      await signIn("github", { callbackUrl: "/profile-builder" });
       return;
     }
 
@@ -207,6 +212,40 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   useEffect(() => {
     setMarkdown(generateMarkdown(canvasItems));
   }, [canvasItems]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const rawDraft = window.localStorage.getItem(PROFILE_BUILDER_DRAFT_STORAGE_KEY);
+      if (!rawDraft) return;
+
+      const parsedDraft = JSON.parse(rawDraft);
+      if (!Array.isArray(parsedDraft?.items)) return;
+
+      setCanvasItems(parsedDraft.items);
+    } catch (error) {
+      console.error("Failed to restore builder draft", error);
+    } finally {
+      setIsDraftHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isDraftHydrated) return;
+
+    try {
+      window.localStorage.setItem(
+        PROFILE_BUILDER_DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          updatedAt: new Date().toISOString(),
+          items: canvasItems,
+        })
+      );
+    } catch (error) {
+      console.error("Failed to save builder draft", error);
+    }
+  }, [canvasItems, isDraftHydrated]);
 
   useEffect(() => {
     if (!session?.username) return;
@@ -818,10 +857,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           />
           <div className="border-r border-white/10 bg-[#0d1117] p-4">
             <button
-              className="w-full rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8c3a] cursor-pointer"
+              className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+                isAuthenticated
+                  ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
+                  : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
+              }`}
+              aria-disabled={!isAuthenticated}
+              title={isAuthenticated ? "Update README" : "Sign in required to update README"}
               onClick={updateProfileReadme}
             >
-              Update README
+              {isAuthenticated ? "Update README" : "Sign in to Update README"}
             </button>
           </div>
         </div>
