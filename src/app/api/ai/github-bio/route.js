@@ -106,9 +106,7 @@ function validatePayload(payload) {
   return null;
 }
 
-/**
- * POST /api/ai/github-bio
- */
+
 export async function POST(req) {
   try {
     const payload = await req.json();

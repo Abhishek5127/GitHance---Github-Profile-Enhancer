@@ -46,6 +46,7 @@ function parseStatsSnapshot(searchParams) {
       recent_commits_7: Number(parsed.recent_commits_7 || 0),
       recent_commits_30: Number(parsed.recent_commits_30 || 0),
       last_updated: String(parsed.last_updated || ""),
+      installation_id: Number(parsed.installation_id || 0) || null,
     };
   } catch {
     return null;

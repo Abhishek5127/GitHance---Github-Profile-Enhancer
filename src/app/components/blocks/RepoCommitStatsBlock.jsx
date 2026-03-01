@@ -135,7 +135,6 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
             username,
             token,
             installationId: requestedInstallationId,
-            force: true,
           }),
         });
 
