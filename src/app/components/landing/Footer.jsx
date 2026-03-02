@@ -1,3 +1,4 @@
+
 const columns = [
   {
     title: "Product",
@@ -14,6 +15,7 @@ const columns = [
 ];
 
 export default function Footer() {
+
   return (
     <footer className="border-t border-white/10 bg-[#0b0d0f]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-4 py-12 text-white/70 md:flex-row md:items-start md:justify-between">
@@ -35,7 +37,7 @@ export default function Footer() {
               <ul className="mt-3 space-y-2 text-sm">
                 {column.links.map((link) => (
                   <li key={link}>
-                    <a href="#" className="transition hover:text-white">
+                    <a href={`${link}`} className="transition hover:text-white">
                       {link}
                     </a>
                   </li>

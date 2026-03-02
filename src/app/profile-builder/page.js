@@ -8,6 +8,7 @@ import BioVariantPicker from "../components/pickers/BioVariantPicker";
 import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker";
 import RepoCommitVariantPicker from "../components/pickers/RepoCommitVariantPicker";
 import SectionVariantPicker from "../components/pickers/SectionVariantPicker";
+import ContributionGraphVariantPicker from "../components/pickers/ContributionGraphVariantPicker";
 import {
   DndContext,
   closestCenter,
@@ -27,8 +28,20 @@ import {
   getSectionVariantById,
   parseSectionSlotDropId,
 } from "../lib/sectionCatalog";
+import {
+  CONTRIBUTION_GRAPH_ASSET_PATH,
+  CONTRIBUTION_GRAPH_WORKFLOW_PATH,
+  CONTRIBUTION_GRAPH_SCRIPT_PATH,
+  buildContributionGraphWorkflow,
+  buildContributionGraphUpdaterScript,
+} from "../lib/contributionGraphAssets";
+import {
+  normalizeContributionVariant,
+  renderContributionHeatmapSvg,
+} from "../lib/renderers/contributionHeatmapSvg";
 
 const PROFILE_BUILDER_DRAFT_STORAGE_KEY = "githance:profile-builder:draft:v1";
+const CONTRIBUTION_DEFAULT_VARIANT = "classic";
 
 const collisionDetectionStrategy = (args) => {
   const pointerCollisions = pointerWithin(args);
@@ -104,6 +117,12 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const [sectionPickerKey, setSectionPickerKey] = useState(0);
   const [showRepoCommitPicker, setShowRepoCommitPicker] = useState(false);
   const [repoCommitPickerKey, setRepoCommitPickerKey] = useState(0);
+  const [showContributionPicker, setShowContributionPicker] = useState(false);
+  const [contributionPickerContext, setContributionPickerContext] = useState({
+    itemId: null,
+    initialData: null,
+    pickerKey: 0,
+  });
   const token = session?.accessToken;
   const [markdown, setMarkdown] = useState([]);
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
@@ -178,33 +197,167 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     });
   };
 
+  const hasContributionSnapshot = (snapshot) =>
+    Boolean(snapshot && Array.isArray(snapshot.days) && snapshot.days.length);
+
+  const bootstrapContributionSnapshot = async (username) => {
+    if (!username) return null;
+
+    try {
+      const response = await fetch("/api/github/contributions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) {
+        return null;
+      }
+
+      return {
+        username: String(data?.username || username).trim().toLowerCase(),
+        totalContributions: Number(data?.totalContributions || 0),
+        days: Array.isArray(data?.days) ? data.days : [],
+        fetchedAt: String(data?.fetchedAt || new Date().toISOString()),
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const enrichContributionBlocks = async (items) => {
+    const contributionBlocks = items.filter((item) => item.type === "contribution");
+    if (!contributionBlocks.length) return items;
+
+    const snapshotsByUser = new Map();
+
+    await Promise.all(
+      contributionBlocks.map(async (item) => {
+        const username = String(item?.data?.username || session?.username || "")
+          .trim()
+          .toLowerCase();
+        if (!username || snapshotsByUser.has(username)) return;
+
+        const existingSnapshot = item?.data?.contributionSnapshot || null;
+        if (hasContributionSnapshot(existingSnapshot)) {
+          snapshotsByUser.set(username, existingSnapshot);
+          return;
+        }
+
+        const snapshot = await bootstrapContributionSnapshot(username);
+        if (hasContributionSnapshot(snapshot)) {
+          snapshotsByUser.set(username, snapshot);
+        }
+      })
+    );
+
+    return items.map((item) => {
+      if (item.type !== "contribution") return item;
+
+      const username = String(item?.data?.username || session?.username || "")
+        .trim()
+        .toLowerCase();
+      const existingSnapshot = item?.data?.contributionSnapshot || null;
+      const contributionSnapshot = hasContributionSnapshot(existingSnapshot)
+        ? existingSnapshot
+        : snapshotsByUser.get(username) || null;
+
+      return {
+        ...item,
+        data: {
+          ...item.data,
+          username,
+          variant: normalizeContributionVariant(item?.data?.variant),
+          assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+          ...(contributionSnapshot ? { contributionSnapshot } : {}),
+        },
+      };
+    });
+  };
+
   const updateProfileReadme = async () => {
     if (status !== "authenticated" || !session?.username || !token) {
       await signIn("github", { callbackUrl: "/profile-builder" });
       return;
     }
 
-    const enrichedItems = await enrichCommitBlocks(canvasItems);
+    const commitEnrichedItems = await enrichCommitBlocks(canvasItems);
+    const enrichedItems = await enrichContributionBlocks(commitEnrichedItems);
     setCanvasItems(enrichedItems);
 
     const latestMarkdown = generateMarkdown(enrichedItems);
     setMarkdown(latestMarkdown);
 
-    const res = await fetch("/api/update", {
+    const contributionBlock = enrichedItems.find((item) => item.type === "contribution");
+    const contributionFiles = [];
+
+    if (contributionBlock) {
+      const contributionUsername = String(
+        contributionBlock?.data?.username || session?.username || ""
+      )
+        .trim()
+        .toLowerCase();
+      const contributionVariant = normalizeContributionVariant(
+        contributionBlock?.data?.variant || CONTRIBUTION_DEFAULT_VARIANT
+      );
+      const contributionSnapshot = contributionBlock?.data?.contributionSnapshot || null;
+
+      if (contributionUsername) {
+        const contributionSvg = renderContributionHeatmapSvg({
+          username: contributionUsername,
+          days: Array.isArray(contributionSnapshot?.days)
+            ? contributionSnapshot.days
+            : [],
+          variant: contributionVariant,
+          title: "Contribution Graph",
+        });
+
+        contributionFiles.push(
+          {
+            path: CONTRIBUTION_GRAPH_ASSET_PATH,
+            content: `${contributionSvg}\n`,
+            message: "chore(readme): refresh contribution graph asset",
+          },
+          {
+            path: CONTRIBUTION_GRAPH_WORKFLOW_PATH,
+            content: buildContributionGraphWorkflow({
+              username: contributionUsername,
+              variant: contributionVariant,
+              assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+              scriptPath: CONTRIBUTION_GRAPH_SCRIPT_PATH,
+            }),
+            message: "chore(readme): configure contribution graph workflow",
+          },
+          {
+            path: CONTRIBUTION_GRAPH_SCRIPT_PATH,
+            content: buildContributionGraphUpdaterScript({
+              outputPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+            }),
+            message: "chore(readme): add contribution graph generator script",
+          }
+        );
+      }
+    }
+
+    const res = await fetch("/api/publish-readme", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        username: session.username,
+        owner: session.username,
         repo: session.username,
-        path: "README.md",
-        message: "Updated via Analyzer App",
-        content: latestMarkdown,
-        token: token,
+        readmeContent: latestMarkdown,
+        files: contributionFiles,
       }),
     });
 
-    const data = await res.json();
-    console.log("Update result:", data);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      console.error("Publish failed:", data);
+      return;
+    }
+
+    console.log("Publish result:", data);
     console.log(latestMarkdown);
   };
 
@@ -425,7 +578,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           statId: "contribution",
           theme: "neon",
         },
-        contributions: { username: "your-github-username" },
+        contribution: {
+          username: session?.username || "your-github-username",
+          variant: CONTRIBUTION_DEFAULT_VARIANT,
+          assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+        },
       };
 
       const resolvedType =
@@ -572,6 +729,29 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setCanvasItems((prev) => [...prev, ...newItems]);
   };
 
+  const addContributionGraphToCanvas = async ({
+    variant = CONTRIBUTION_DEFAULT_VARIANT,
+  } = {}) => {
+    const username = String(session?.username || "your-github-username")
+      .trim()
+      .toLowerCase();
+    const normalizedVariant = normalizeContributionVariant(variant);
+    const snapshot = await bootstrapContributionSnapshot(username);
+
+    const newItem = {
+      id: `canvas-contribution-${Date.now()}`,
+      type: "contribution",
+      data: {
+        username,
+        variant: normalizedVariant,
+        assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+        ...(snapshot ? { contributionSnapshot: snapshot } : {}),
+      },
+    };
+
+    setCanvasItems((prev) => [...prev, newItem]);
+  };
+
   const updateCanvasItemById = (itemId, updater) => {
     const normalizedItemId = String(itemId || "").trim();
     if (!normalizedItemId || typeof updater !== "function") return;
@@ -623,6 +803,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
+    setShowContributionPicker(false);
     setHeaderPickerContext({
       itemId: null,
       initialVariant: null,
@@ -639,6 +820,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
+    setShowContributionPicker(false);
     setHeaderPickerContext({
       itemId: item.id,
       initialVariant: item.variant || null,
@@ -657,6 +839,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
+    setShowContributionPicker(false);
     setBioPickerContext({
       itemId: null,
       initialData: null,
@@ -672,6 +855,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
+    setShowContributionPicker(false);
     setBioPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -689,6 +873,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowBioPicker(false);
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
+    setShowContributionPicker(false);
     setTechStackPickerContext({
       itemId: null,
       initialData: null,
@@ -704,6 +889,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowBioPicker(false);
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
+    setShowContributionPicker(false);
     setTechStackPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -721,6 +907,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowBioPicker(false);
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
+    setShowContributionPicker(false);
     setSectionPickerKey(Date.now());
     setShowSectionPicker(true);
   };
@@ -734,12 +921,47 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowBioPicker(false);
     setShowTechStackPicker(false);
     setShowSectionPicker(false);
+    setShowContributionPicker(false);
     setRepoCommitPickerKey(Date.now());
     setShowRepoCommitPicker(true);
   };
 
   const closeRepoCommitPicker = () => {
     setShowRepoCommitPicker(false);
+  };
+
+  const openContributionPickerForAdd = () => {
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowSectionPicker(false);
+    setShowRepoCommitPicker(false);
+    setContributionPickerContext({
+      itemId: null,
+      initialData: null,
+      pickerKey: Date.now(),
+    });
+    setShowContributionPicker(true);
+  };
+
+  const openContributionPickerForEdit = (item) => {
+    if (item.type !== "contribution") return;
+
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowSectionPicker(false);
+    setShowRepoCommitPicker(false);
+    setContributionPickerContext({
+      itemId: item.id,
+      initialData: item.data || null,
+      pickerKey: Date.now(),
+    });
+    setShowContributionPicker(true);
+  };
+
+  const closeContributionPicker = () => {
+    setShowContributionPicker(false);
   };
 
   const handleHeaderSelect = (variant, data) => {
@@ -806,6 +1028,30 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     });
   };
 
+  const handleContributionSelection = async ({ variant }) => {
+    const normalizedVariant = normalizeContributionVariant(variant);
+
+    if (contributionPickerContext.itemId) {
+      updateCanvasItemById(contributionPickerContext.itemId, (entry) => ({
+        ...entry,
+        data: {
+          ...entry.data,
+          username: String(entry?.data?.username || session?.username || "")
+            .trim()
+            .toLowerCase(),
+          variant: normalizedVariant,
+          assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+        },
+      }));
+    } else {
+      await addContributionGraphToCanvas({
+        variant: normalizedVariant,
+      });
+    }
+
+    closeContributionPicker();
+  };
+
   const handleEditItem = (item) => {
     if (item.type === "header") {
       openHeaderPickerForEdit(item);
@@ -819,6 +1065,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     if (item.type === "skills") {
       openTechStackPickerForEdit(item);
+      return;
+    }
+
+    if (item.type === "contribution") {
+      openContributionPickerForEdit(item);
     }
   };
 
@@ -853,6 +1104,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
               if (blockId === "commits") {
                 openRepoCommitPickerForAdd();
+                return;
+              }
+
+              if (blockId === "contribution") {
+                openContributionPickerForAdd();
                 return;
               }
 
@@ -939,6 +1195,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             onClose={closeRepoCommitPicker}
             onSave={handleRepoCommitSelection}
             submitLabel="Add Selected"
+          />
+
+          <ContributionGraphVariantPicker
+            key={`contribution-${contributionPickerContext.pickerKey}`}
+            open={showContributionPicker}
+            onClose={closeContributionPicker}
+            onSave={handleContributionSelection}
+            initialData={contributionPickerContext.initialData}
+            submitLabel={contributionPickerContext.itemId ? "Update Item" : "Add to Canvas"}
           />
         </DndContext>
       </div>

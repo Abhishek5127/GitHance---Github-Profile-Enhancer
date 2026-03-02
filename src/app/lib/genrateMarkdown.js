@@ -7,6 +7,7 @@ import {
 } from "./techStackCatalog";
 import { getRepoCommitStatItemById } from "./repoCommitCatalog";
 import { getSectionVariantById } from "./sectionCatalog";
+import { CONTRIBUTION_GRAPH_ASSET_PATH } from "./contributionGraphAssets";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
 
@@ -16,6 +17,13 @@ const escapeHtmlAttribute = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+
+const normalizeContributionAssetPath = (value) =>
+  String(value || CONTRIBUTION_GRAPH_ASSET_PATH)
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "") || CONTRIBUTION_GRAPH_ASSET_PATH;
 
 export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
   const {
@@ -480,9 +488,11 @@ ${content || "&nbsp;"}
     }
 
     if (block === "contribution") {
-      const contributionUser = String(item.data?.username || "your-github-username").trim();
+      const contributionAssetPath = normalizeContributionAssetPath(item?.data?.assetPath);
       markdown += `
-<img src="https://ghchart.rshah.org/${encodeURIComponent(contributionUser)}" alt="Contribution graph" />
+<p align="center">
+  <img src="./${contributionAssetPath}" alt="Contribution graph" />
+</p>
 
 `;
     }

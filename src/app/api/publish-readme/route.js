@@ -5,6 +5,9 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 const GITHUB_API = "https://api.github.com";
 const GITHUB_ACCEPT = "application/vnd.github+json";
 const ID_PATTERN = /^[A-Za-z0-9_.-]+$/;
+const FILE_PATH_PATTERN = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._\-\/]+$/;
+const MAX_FILE_COUNT = 12;
+const MAX_FILE_BYTES = 1_500_000;
 const PROFILE_ONLY =
   String(process.env.PUBLISH_README_PROFILE_ONLY || "").toLowerCase() === "true";
 
@@ -14,6 +17,22 @@ function normalizeId(value) {
 
 function normalizeOwner(value) {
   return normalizeId(value).toLowerCase();
+}
+
+function normalizePath(value) {
+  return String(value || "")
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\.\//, "");
+}
+
+function isValidPath(path) {
+  return (
+    Boolean(path) &&
+    path !== "." &&
+    !path.endsWith("/") &&
+    FILE_PATH_PATTERN.test(path)
+  );
 }
 
 function jsonError(status, error, details = undefined) {
@@ -127,6 +146,137 @@ async function upsertRepositoryFile({
   };
 }
 
+function hasOwn(target, key) {
+  return Object.prototype.hasOwnProperty.call(target, key);
+}
+
+function normalizeWriteTargets(body) {
+  const files = [];
+
+  if (hasOwn(body, "readmeContent")) {
+    if (typeof body.readmeContent !== "string") {
+      return {
+        ok: false,
+        status: 400,
+        error: "readmeContent must be a string",
+      };
+    }
+
+    files.push({
+      path: "README.md",
+      content: body.readmeContent,
+      message: normalizeId(body.readmeMessage) || "Update README via GitHance",
+    });
+  }
+
+  if (hasOwn(body, "svgContent")) {
+    if (typeof body.svgContent !== "string") {
+      return {
+        ok: false,
+        status: 400,
+        error: "svgContent must be a string",
+      };
+    }
+
+    const legacySvgPath = normalizePath(body.svgPath || "assets/headers/header.svg");
+    if (!isValidPath(legacySvgPath)) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid svgPath format",
+      };
+    }
+
+    files.push({
+      path: legacySvgPath,
+      content: body.svgContent,
+      message: normalizeId(body.svgMessage) || "Update SVG asset via GitHance",
+    });
+  }
+
+  if (Array.isArray(body.files)) {
+    for (const [index, entry] of body.files.entries()) {
+      if (!entry || typeof entry !== "object") {
+        return {
+          ok: false,
+          status: 400,
+          error: `files[${index}] must be an object`,
+        };
+      }
+
+      const filePath = normalizePath(entry.path);
+      if (!isValidPath(filePath)) {
+        return {
+          ok: false,
+          status: 400,
+          error: `files[${index}].path is invalid`,
+        };
+      }
+
+      if (typeof entry.content !== "string") {
+        return {
+          ok: false,
+          status: 400,
+          error: `files[${index}].content must be a string`,
+        };
+      }
+
+      const resolvedMessage = normalizeId(entry.message) || "Update file via GitHance";
+      files.push({
+        path: filePath,
+        content: entry.content,
+        message: resolvedMessage,
+      });
+    }
+  }
+
+  if (!files.length) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        "No files to publish. Provide readmeContent, svgContent, or files[] entries.",
+    };
+  }
+
+  if (files.length > MAX_FILE_COUNT) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Too many files in one publish request (max ${MAX_FILE_COUNT})`,
+    };
+  }
+
+  const deduped = [];
+  const seenPaths = new Set();
+
+  files.forEach((entry) => {
+    const normalizedFilePath = normalizePath(entry.path);
+    if (seenPaths.has(normalizedFilePath)) return;
+    seenPaths.add(normalizedFilePath);
+    deduped.push({
+      ...entry,
+      path: normalizedFilePath,
+    });
+  });
+
+  for (const entry of deduped) {
+    const byteSize = Buffer.byteLength(entry.content, "utf8");
+    if (byteSize > MAX_FILE_BYTES) {
+      return {
+        ok: false,
+        status: 413,
+        error: `File ${entry.path} is too large (${byteSize} bytes, max ${MAX_FILE_BYTES})`,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    files: deduped,
+  };
+}
+
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
@@ -146,9 +296,6 @@ export async function POST(req) {
 
     const owner = normalizeId(body.owner);
     const repo = normalizeId(body.repo);
-    const svgContent = typeof body.svgContent === "string" ? body.svgContent : "";
-    const readmeContent =
-      typeof body.readmeContent === "string" ? body.readmeContent : "";
 
     if (!owner || !repo) {
       return jsonError(400, "Both owner and repo are required");
@@ -158,8 +305,9 @@ export async function POST(req) {
       return jsonError(400, "Invalid owner or repo format");
     }
 
-    if (!svgContent && !readmeContent) {
-      return jsonError(400, "At least one of svgContent or readmeContent is required");
+    const writeTargets = normalizeWriteTargets(body);
+    if (!writeTargets.ok) {
+      return jsonError(writeTargets.status || 400, writeTargets.error);
     }
 
     const sessionOwnerCandidates = [
@@ -181,46 +329,25 @@ export async function POST(req) {
 
     const writeResults = [];
 
-    if (svgContent) {
-      const svgResult = await upsertRepositoryFile({
+    for (const file of writeTargets.files) {
+      const result = await upsertRepositoryFile({
         owner,
         repo,
-        path: "assets/headers/header.svg",
-        message: "Add profile header SVG",
-        content: svgContent,
+        path: file.path,
+        message: file.message,
+        content: file.content,
         token: accessToken,
       });
 
-      if (!svgResult.ok) {
+      if (!result.ok) {
         return jsonError(
-          svgResult.status || 502,
-          "Failed to publish header SVG",
-          svgResult.error || svgResult.details
+          result.status || 502,
+          `Failed to publish ${file.path}`,
+          result.error || result.details
         );
       }
 
-      writeResults.push(svgResult);
-    }
-
-    if (readmeContent) {
-      const readmeResult = await upsertRepositoryFile({
-        owner,
-        repo,
-        path: "README.md",
-        message: "Update README via GitHance",
-        content: readmeContent,
-        token: accessToken,
-      });
-
-      if (!readmeResult.ok) {
-        return jsonError(
-          readmeResult.status || 502,
-          "Failed to publish README",
-          readmeResult.error || readmeResult.details
-        );
-      }
-
-      writeResults.push(readmeResult);
+      writeResults.push(result);
     }
 
     return NextResponse.json(

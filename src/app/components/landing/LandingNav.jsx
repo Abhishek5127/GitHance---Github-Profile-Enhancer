@@ -71,7 +71,7 @@ export default function LandingNav() {
           ) : (
             <button
               onClick={handleGitHubSignIn}
-              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
+              className="flex h-10 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
             >
               <Image
                 src={assets.Github}
@@ -83,7 +83,7 @@ export default function LandingNav() {
               Sign in
             </button>
           )}
-          <button className="hidden h-10 items-center justify-center rounded-full border border-white/15 bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/10 hover:text-white md:flex">
+          <button className="hidden cursor-pointer h-10 items-center justify-center rounded-full border border-white/15 bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/10 hover:text-white md:flex">
             Start free
           </button>
           <button

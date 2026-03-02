@@ -13,7 +13,8 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
   const canEdit =
-    Boolean(onEditItem) && ["header", "bio", "skills"].includes(item.type);
+    Boolean(onEditItem) &&
+    ["header", "bio", "skills", "contribution"].includes(item.type);
 
   const normalizedTransform = transform
     ? { ...transform, scaleX: 1, scaleY: 1 }
@@ -55,7 +56,7 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
         return <SectionBlock item={item} setItems={setItems} onEditItem={onEditItem} />;
 
       case "contribution":
-        return <ContributionGraph item={item} />;
+        return <ContributionGraph item={item} setItems={setItems} />;
 
       default:
         return <div>{item.type}</div>;

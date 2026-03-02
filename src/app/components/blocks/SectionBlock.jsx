@@ -33,7 +33,7 @@ function SectionSlot({
   const canEditSlotItem =
     Boolean(onEditItem) &&
     slotItem &&
-    ["header", "bio", "skills"].includes(slotItem.type);
+    ["header", "bio", "skills", "contribution"].includes(slotItem.type);
 
   const renderSlotItem = () => {
     if (!slotItem) {
