@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import {
+  normalizeContributionRange,
   normalizeContributionVariant,
   renderContributionHeatmapSvg,
 } from "@/app/lib/renderers/contributionHeatmapSvg";
@@ -23,6 +24,7 @@ export default function ContributionGraph({ item, setItems }) {
     .trim()
     .toLowerCase();
   const variant = normalizeContributionVariant(item?.data?.variant);
+  const range = normalizeContributionRange(item?.data?.range);
   const persistedSnapshot = item?.data?.contributionSnapshot || null;
   const [fetchState, setFetchState] = useState({
     loading: false,
@@ -93,12 +95,14 @@ export default function ContributionGraph({ item, setItems }) {
               const existingSnapshot = entry?.data?.contributionSnapshot || null;
               const serializedExisting = JSON.stringify(existingSnapshot);
               const existingVariant = normalizeContributionVariant(entry?.data?.variant);
+              const existingRange = normalizeContributionRange(entry?.data?.range);
               const existingUsername = String(entry?.data?.username || "").trim().toLowerCase();
 
               if (
                 serializedExisting === serializedNext &&
                 existingUsername === username &&
-                existingVariant === variant
+                existingVariant === variant &&
+                existingRange === range
               ) {
                 return entry;
               }
@@ -110,6 +114,7 @@ export default function ContributionGraph({ item, setItems }) {
                   ...entry.data,
                   username,
                   variant,
+                  range,
                   contributionSnapshot: nextSnapshot,
                 },
               };
@@ -133,17 +138,19 @@ export default function ContributionGraph({ item, setItems }) {
     return () => {
       cancelled = true;
     };
-  }, [hasResolvedSnapshot, item?.id, setItems, username, variant]);
+  }, [hasResolvedSnapshot, item?.id, range, setItems, username, variant]);
 
   const svgMarkup = useMemo(() => {
     return renderContributionHeatmapSvg({
       username: username || "github-user",
       days: Array.isArray(resolvedSnapshot?.days) ? resolvedSnapshot.days : [],
       variant,
+      range,
       title: "Contribution Graph",
       compact: true,
+      height: 220,
     });
-  }, [resolvedSnapshot?.days, username, variant]);
+  }, [range, resolvedSnapshot?.days, username, variant]);
 
   const imageSrc = useMemo(
     () => `data:image/svg+xml;utf8,${encodeURIComponent(svgMarkup)}`,
@@ -154,9 +161,14 @@ export default function ContributionGraph({ item, setItems }) {
     <div className="w-full min-w-0 rounded-xl border border-white/10 bg-[#0b111c] p-3">
       <div className="mb-2 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-white">Contribution Graph</h4>
-        <span className="rounded-full border border-cyan-300/35 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-cyan-100/85">
-          {variant}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="rounded-full border border-cyan-300/35 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-cyan-100/85">
+            {variant}
+          </span>
+          <span className="rounded-full border border-cyan-300/25 px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] text-cyan-100/75">
+            {range}
+          </span>
+        </div>
       </div>
 
       {fetchState.loading ? (
@@ -171,10 +183,10 @@ export default function ContributionGraph({ item, setItems }) {
           src={imageSrc}
           alt="Contribution graph heatmap"
           width={900}
-          height={280}
+          height={220}
           unoptimized
           className="block h-auto w-full rounded-md"
-          key={`contribution-graph-${fetchState.version}-${variant}`}
+          key={`contribution-graph-${fetchState.version}-${variant}-${range}`}
         />
       </div>
     </div>

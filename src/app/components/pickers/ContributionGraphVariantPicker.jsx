@@ -2,11 +2,14 @@
 
 import { useMemo, useState } from "react";
 import {
+  CONTRIBUTION_GRAPH_RANGES,
   CONTRIBUTION_GRAPH_VARIANTS,
+  normalizeContributionRange,
   normalizeContributionVariant,
 } from "@/app/lib/renderers/contributionHeatmapSvg";
 
 const DEFAULT_VARIANT = "classic";
+const DEFAULT_RANGE = "yearly";
 
 const VARIANT_CARD_STYLES = {
   classic:
@@ -33,7 +36,11 @@ export default function ContributionGraphVariantPicker({
   const initialVariant = normalizeContributionVariant(
     initialData?.variant || DEFAULT_VARIANT
   );
+  const initialRange = normalizeContributionRange(
+    initialData?.range || DEFAULT_RANGE
+  );
   const [selectedVariant, setSelectedVariant] = useState(initialVariant);
+  const [selectedRange, setSelectedRange] = useState(initialRange);
 
   const selectedMeta = useMemo(
     () =>
@@ -41,15 +48,23 @@ export default function ContributionGraphVariantPicker({
       CONTRIBUTION_GRAPH_VARIANTS[0],
     [selectedVariant]
   );
+  const selectedRangeMeta = useMemo(
+    () =>
+      CONTRIBUTION_GRAPH_RANGES.find((entry) => entry.id === selectedRange) ||
+      CONTRIBUTION_GRAPH_RANGES[0],
+    [selectedRange]
+  );
 
   const handleClose = () => {
     setSelectedVariant(initialVariant);
+    setSelectedRange(initialRange);
     onClose();
   };
 
   const handleSubmit = async () => {
     await onSave({
       variant: normalizeContributionVariant(selectedVariant),
+      range: normalizeContributionRange(selectedRange),
     });
     handleClose();
   };
@@ -75,6 +90,58 @@ export default function ContributionGraphVariantPicker({
         </div>
 
         <div className="space-y-3 overflow-y-auto pr-1">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">
+              Contribution Window
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {CONTRIBUTION_GRAPH_RANGES.map((rangeOption) => {
+                const active = selectedRange === rangeOption.id;
+                return (
+                  <button
+                    key={rangeOption.id}
+                    onClick={() => setSelectedRange(rangeOption.id)}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      active
+                        ? "border-cyan-300/65 bg-cyan-300/10 text-cyan-100"
+                        : "border-white/15 bg-[#0b1220] text-white/75 hover:border-cyan-300/35"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold">{rangeOption.title}</p>
+                    <p className="mt-1 text-[11px] text-inherit/85">
+                      {rangeOption.description}
+                    </p>
+                    <div className="mt-2 rounded-md border border-white/10 bg-black/20 p-1.5">
+                      {rangeOption.id === "monthly" ? (
+                        <div className="grid grid-cols-6 gap-1">
+                          {Array.from({ length: 24 }).map((_, index) => (
+                            <div
+                              key={`${rangeOption.id}-dot-${index}`}
+                              className={`h-2 rounded-[2px] ${
+                                index % 3 === 0 ? "bg-cyan-300/75" : "bg-white/10"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-12 gap-1">
+                          {Array.from({ length: 48 }).map((_, index) => (
+                            <div
+                              key={`${rangeOption.id}-dot-${index}`}
+                              className={`h-1.5 rounded-[2px] ${
+                                index % 5 === 0 ? "bg-cyan-300/75" : "bg-white/10"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {CONTRIBUTION_GRAPH_VARIANTS.map((variant) => {
             const active = selectedVariant === variant.id;
             const cardStyle = VARIANT_CARD_STYLES[variant.id] || VARIANT_CARD_STYLES.classic;
@@ -119,6 +186,9 @@ export default function ContributionGraphVariantPicker({
 
         <p className="mt-4 text-xs text-cyan-100/75">
           Selected: <span className="font-semibold">{selectedMeta?.title || "Classic"}</span>
+        </p>
+        <p className="mt-1 text-xs text-cyan-100/75">
+          Range: <span className="font-semibold">{selectedRangeMeta?.title || "Yearly"}</span>
         </p>
 
         <div className="mt-4 flex items-center justify-end gap-2 border-t border-white/10 pt-4">

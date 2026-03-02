@@ -36,12 +36,14 @@ import {
   buildContributionGraphUpdaterScript,
 } from "../lib/contributionGraphAssets";
 import {
+  normalizeContributionRange,
   normalizeContributionVariant,
   renderContributionHeatmapSvg,
 } from "../lib/renderers/contributionHeatmapSvg";
 
 const PROFILE_BUILDER_DRAFT_STORAGE_KEY = "githance:profile-builder:draft:v1";
 const CONTRIBUTION_DEFAULT_VARIANT = "classic";
+const CONTRIBUTION_DEFAULT_RANGE = "yearly";
 
 const collisionDetectionStrategy = (args) => {
   const pointerCollisions = pointerWithin(args);
@@ -269,6 +271,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           ...item.data,
           username,
           variant: normalizeContributionVariant(item?.data?.variant),
+          range: normalizeContributionRange(item?.data?.range),
           assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
           ...(contributionSnapshot ? { contributionSnapshot } : {}),
         },
@@ -301,6 +304,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       const contributionVariant = normalizeContributionVariant(
         contributionBlock?.data?.variant || CONTRIBUTION_DEFAULT_VARIANT
       );
+      const contributionRange = normalizeContributionRange(
+        contributionBlock?.data?.range || CONTRIBUTION_DEFAULT_RANGE
+      );
       const contributionSnapshot = contributionBlock?.data?.contributionSnapshot || null;
 
       if (contributionUsername) {
@@ -310,6 +316,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             ? contributionSnapshot.days
             : [],
           variant: contributionVariant,
+          range: contributionRange,
           title: "Contribution Graph",
         });
 
@@ -324,6 +331,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             content: buildContributionGraphWorkflow({
               username: contributionUsername,
               variant: contributionVariant,
+              range: contributionRange,
               assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
               scriptPath: CONTRIBUTION_GRAPH_SCRIPT_PATH,
             }),
@@ -333,6 +341,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             path: CONTRIBUTION_GRAPH_SCRIPT_PATH,
             content: buildContributionGraphUpdaterScript({
               outputPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+              range: contributionRange,
             }),
             message: "chore(readme): add contribution graph generator script",
           }
@@ -581,6 +590,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         contribution: {
           username: session?.username || "your-github-username",
           variant: CONTRIBUTION_DEFAULT_VARIANT,
+          range: CONTRIBUTION_DEFAULT_RANGE,
           assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
         },
       };
@@ -731,11 +741,13 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const addContributionGraphToCanvas = async ({
     variant = CONTRIBUTION_DEFAULT_VARIANT,
+    range = CONTRIBUTION_DEFAULT_RANGE,
   } = {}) => {
     const username = String(session?.username || "your-github-username")
       .trim()
       .toLowerCase();
     const normalizedVariant = normalizeContributionVariant(variant);
+    const normalizedRange = normalizeContributionRange(range);
     const snapshot = await bootstrapContributionSnapshot(username);
 
     const newItem = {
@@ -744,6 +756,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       data: {
         username,
         variant: normalizedVariant,
+        range: normalizedRange,
         assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
         ...(snapshot ? { contributionSnapshot: snapshot } : {}),
       },
@@ -1028,8 +1041,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     });
   };
 
-  const handleContributionSelection = async ({ variant }) => {
+  const handleContributionSelection = async ({ variant, range }) => {
     const normalizedVariant = normalizeContributionVariant(variant);
+    const normalizedRange = normalizeContributionRange(range);
 
     if (contributionPickerContext.itemId) {
       updateCanvasItemById(contributionPickerContext.itemId, (entry) => ({
@@ -1040,12 +1054,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             .trim()
             .toLowerCase(),
           variant: normalizedVariant,
+          range: normalizedRange,
           assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
         },
       }));
     } else {
       await addContributionGraphToCanvas({
         variant: normalizedVariant,
+        range: normalizedRange,
       });
     }
 

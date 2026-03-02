@@ -10,14 +10,24 @@ function normalizeVariant(value) {
   return "classic";
 }
 
+function normalizeRange(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["yearly", "monthly"].includes(normalized)) {
+    return normalized;
+  }
+  return "yearly";
+}
+
 export function buildContributionGraphWorkflow({
   username = "",
   variant = "classic",
+  range = "yearly",
   assetPath = CONTRIBUTION_GRAPH_ASSET_PATH,
   scriptPath = CONTRIBUTION_GRAPH_SCRIPT_PATH,
 } = {}) {
   const safeUsername = String(username || "").trim();
   const safeVariant = normalizeVariant(variant);
+  const safeRange = normalizeRange(range);
   const safeAssetPath = String(assetPath || CONTRIBUTION_GRAPH_ASSET_PATH).trim();
   const safeScriptPath = String(scriptPath || CONTRIBUTION_GRAPH_SCRIPT_PATH).trim();
 
@@ -48,6 +58,7 @@ jobs:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           GITHUB_USERNAME: ${safeUsername || "${{ github.repository_owner }}"}
           GRAPH_VARIANT: ${safeVariant}
+          GRAPH_RANGE: ${safeRange}
           GRAPH_OUTPUT_PATH: ${safeAssetPath}
         run: node ${safeScriptPath}
 
@@ -68,14 +79,17 @@ jobs:
 
 export function buildContributionGraphUpdaterScript({
   outputPath = CONTRIBUTION_GRAPH_ASSET_PATH,
+  range = "yearly",
 } = {}) {
   const safeOutputPath = String(outputPath || CONTRIBUTION_GRAPH_ASSET_PATH).trim();
+  const safeRange = normalizeRange(range);
 
   return `import fs from "node:fs/promises";
 import path from "node:path";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEKS = 53;
+const YEARLY_WEEKS = 53;
+const MONTHLY_WEEKS = 6;
 
 const VARIANTS = {
   classic: {
@@ -148,6 +162,11 @@ function normalizeVariant(value) {
   return "classic";
 }
 
+function normalizeRange(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "monthly" ? "monthly" : "yearly";
+}
+
 function toIsoDate(value) {
   const parsed = new Date(value || "");
   if (Number.isNaN(parsed.getTime())) return "";
@@ -203,8 +222,11 @@ function formatMonthLabel(isoDate) {
   return parsed.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
 }
 
-function renderHeatmapSvg({ username, days, variant }) {
+function renderHeatmapSvg({ username, days, variant, range }) {
   const theme = VARIANTS[variant] || VARIANTS.classic;
+  const normalizedRange = normalizeRange(range);
+  const weeks = normalizedRange === "monthly" ? MONTHLY_WEEKS : YEARLY_WEEKS;
+  const rangeLabel = normalizedRange === "monthly" ? "Last 30 Days" : "Last 12 Months";
   const normalizedDays = new Map();
 
   days.forEach((entry) => {
@@ -218,32 +240,47 @@ function renderHeatmapSvg({ username, days, variant }) {
 
   const today = new Date();
   const endDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  const rawStart = new Date(endDate.getTime() - (WEEKS * 7 - 1) * DAY_MS);
+  const rawStart = new Date(endDate.getTime() - (weeks * 7 - 1) * DAY_MS);
   const startDate = startOfWeek(rawStart);
 
   const paddingX = 22;
   const paddingY = 18;
   const cell = 10;
   const gap = 3;
-  const gridX = paddingX + 56;
-  const gridY = paddingY + 38;
-  const gridWidth = WEEKS * (cell + gap) - gap;
+  const weekWidth = cell + gap;
+  const gridWidth = weeks * weekWidth - gap;
   const gridHeight = 7 * (cell + gap) - gap;
-  const width = Math.max(900, gridX + gridWidth + paddingX);
-  const height = Math.max(280, gridY + gridHeight + paddingY + 34);
+  const leftLabelSpace = 52;
+  const width = Math.max(900, paddingX + leftLabelSpace + gridWidth + paddingX);
+  const gridX = Math.max(Math.floor((width - gridWidth) / 2), paddingX + leftLabelSpace);
+
+  const titleY = paddingY + 12;
+  const subtitleY = titleY + 18;
+  const monthY = subtitleY + 18;
+  const gridY = monthY + 12;
+  const legendY = gridY + gridHeight + 24;
+  const minHeight = legendY + paddingY + 6;
+  const height = Math.max(240, minHeight);
+  const yShift = Math.floor((height - minHeight) / 2);
+  const shiftedTitleY = titleY + yShift;
+  const shiftedSubtitleY = subtitleY + yShift;
+  const shiftedMonthY = monthY + yShift;
+  const shiftedGridY = gridY + yShift;
+  const shiftedLegendY = legendY + yShift;
+  const dayLabelX = gridX - 40;
 
   const cells = [];
   const monthLabels = [];
   let previousMonth = "";
 
-  for (let week = 0; week < WEEKS; week += 1) {
+  for (let week = 0; week < weeks; week += 1) {
     const weekDate = new Date(startDate.getTime() + week * 7 * DAY_MS);
     const isoWeekDate = toIsoDate(weekDate);
     const month = isoWeekDate.slice(5, 7);
 
     if (!previousMonth || month !== previousMonth) {
       monthLabels.push({
-        x: gridX + week * (cell + gap),
+        x: gridX + week * weekWidth,
         label: formatMonthLabel(isoWeekDate),
       });
       previousMonth = month;
@@ -259,8 +296,8 @@ function renderHeatmapSvg({ username, days, variant }) {
       const fill = theme.levels[Math.max(0, Math.min(level, theme.levels.length - 1))];
 
       cells.push({
-        x: gridX + week * (cell + gap),
-        y: gridY + day * (cell + gap),
+        x: gridX + week * weekWidth,
+        y: shiftedGridY + day * (cell + gap),
         fill,
         isoDate,
         count,
@@ -271,7 +308,7 @@ function renderHeatmapSvg({ username, days, variant }) {
   const monthText = monthLabels
     .map(
       (entry) =>
-        \`<text x="\${entry.x}" y="\${gridY - 10}" fill="\${theme.month}" font-size="10" font-family="Inter, Segoe UI, sans-serif">\${escapeXml(entry.label)}</text>\`
+        \`<text x="\${entry.x}" y="\${shiftedMonthY}" fill="\${theme.month}" font-size="10" font-family="Inter, Segoe UI, sans-serif">\${escapeXml(entry.label)}</text>\`
     )
     .join("");
 
@@ -281,8 +318,8 @@ function renderHeatmapSvg({ username, days, variant }) {
     { label: "Fri", day: 5 },
   ]
     .map((entry) => {
-      const y = gridY + entry.day * (cell + gap) + 8;
-      return \`<text x="\${gridX - 40}" y="\${y}" fill="\${theme.dayLabel}" font-size="10" font-family="Inter, Segoe UI, sans-serif">\${entry.label}</text>\`;
+      const y = shiftedGridY + entry.day * (cell + gap) + 8;
+      return \`<text x="\${dayLabelX}" y="\${y}" fill="\${theme.dayLabel}" font-size="10" font-family="Inter, Segoe UI, sans-serif">\${entry.label}</text>\`;
     })
     .join("");
 
@@ -294,11 +331,10 @@ function renderHeatmapSvg({ username, days, variant }) {
     .join("");
 
   const legendStartX = gridX + gridWidth - 4 * (cell + gap) - 104;
-  const legendY = gridY + gridHeight + 20;
   const legendCells = theme.levels
     .map(
       (fill, index) =>
-        \`<rect x="\${legendStartX + 64 + index * (cell + gap)}" y="\${legendY - cell + 1}" width="\${cell}" height="\${cell}" rx="2" fill="\${fill}" />\`
+        \`<rect x="\${legendStartX + 64 + index * (cell + gap)}" y="\${shiftedLegendY - cell + 1}" width="\${cell}" height="\${cell}" rx="2" fill="\${fill}" />\`
     )
     .join("");
 
@@ -312,14 +348,15 @@ function renderHeatmapSvg({ username, days, variant }) {
   </defs>
   <rect width="\${width}" height="\${height}" rx="16" fill="url(#graph-bg-\${variant})" />
   <rect x="8" y="8" width="\${width - 16}" height="\${height - 16}" rx="12" fill="none" stroke="\${theme.border}" />
-  <text x="\${paddingX}" y="\${paddingY + 8}" fill="\${theme.title}" font-size="16" font-family="Inter, Segoe UI, sans-serif" font-weight="700">Contribution Graph</text>
-  <text x="\${paddingX}" y="\${paddingY + 28}" fill="\${theme.subtitle}" font-size="12" font-family="Inter, Segoe UI, sans-serif">@\${escapeXml(username)}</text>
+  <text x="\${paddingX}" y="\${shiftedTitleY}" fill="\${theme.title}" font-size="16" font-family="Inter, Segoe UI, sans-serif" font-weight="700">Contribution Graph</text>
+  <text x="\${paddingX}" y="\${shiftedSubtitleY}" fill="\${theme.subtitle}" font-size="12" font-family="Inter, Segoe UI, sans-serif">@\${escapeXml(username)}</text>
+  <text x="\${width - paddingX}" y="\${shiftedSubtitleY}" fill="\${theme.subtitle}" font-size="11" text-anchor="end" font-family="Inter, Segoe UI, sans-serif">\${rangeLabel}</text>
   \${monthText}
   \${dayLabels}
   \${cellsMarkup}
-  <text x="\${legendStartX}" y="\${legendY}" fill="\${theme.legend}" font-size="10" font-family="Inter, Segoe UI, sans-serif">Less</text>
+  <text x="\${legendStartX}" y="\${shiftedLegendY}" fill="\${theme.legend}" font-size="10" font-family="Inter, Segoe UI, sans-serif">Less</text>
   \${legendCells}
-  <text x="\${legendStartX + 64 + 5 * (cell + gap)}" y="\${legendY}" fill="\${theme.legend}" font-size="10" font-family="Inter, Segoe UI, sans-serif">More</text>
+  <text x="\${legendStartX + 64 + 5 * (cell + gap)}" y="\${shiftedLegendY}" fill="\${theme.legend}" font-size="10" font-family="Inter, Segoe UI, sans-serif">More</text>
 </svg>\`.trim();
 }
 
@@ -374,6 +411,7 @@ async function main() {
     .trim()
     .toLowerCase();
   const variant = normalizeVariant(process.env.GRAPH_VARIANT || "classic");
+  const range = normalizeRange(process.env.GRAPH_RANGE || "${safeRange}");
   const outputPath = String(process.env.GRAPH_OUTPUT_PATH || "${safeOutputPath}").trim();
 
   if (!token) {
@@ -384,7 +422,7 @@ async function main() {
   }
 
   const days = await fetchContributionDays({ token, username });
-  const svg = renderHeatmapSvg({ username, days, variant });
+  const svg = renderHeatmapSvg({ username, days, variant, range });
 
   const absoluteOutputPath = path.resolve(process.cwd(), outputPath);
   await fs.mkdir(path.dirname(absoluteOutputPath), { recursive: true });

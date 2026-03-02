@@ -1,5 +1,6 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEKS_TO_RENDER = 53;
+const YEARLY_WEEKS_TO_RENDER = 53;
+const MONTHLY_WEEKS_TO_RENDER = 6;
 
 export const CONTRIBUTION_GRAPH_VARIANTS = [
   {
@@ -20,6 +21,21 @@ export const CONTRIBUTION_GRAPH_VARIANTS = [
 ];
 
 const VARIANT_IDS = new Set(CONTRIBUTION_GRAPH_VARIANTS.map((entry) => entry.id));
+
+export const CONTRIBUTION_GRAPH_RANGES = [
+  {
+    id: "yearly",
+    title: "Yearly",
+    description: "Last 12 months of contributions.",
+  },
+  {
+    id: "monthly",
+    title: "Monthly",
+    description: "Focused last 30 days contribution view.",
+  },
+];
+
+const RANGE_IDS = new Set(CONTRIBUTION_GRAPH_RANGES.map((entry) => entry.id));
 
 const VARIANT_THEMES = {
   classic: {
@@ -141,6 +157,14 @@ export function normalizeContributionVariant(value) {
   return "classic";
 }
 
+export function normalizeContributionRange(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (RANGE_IDS.has(normalized)) {
+    return normalized;
+  }
+  return "yearly";
+}
+
 function normalizeContributionDays(days = []) {
   const map = new Map();
 
@@ -161,15 +185,23 @@ export function renderContributionHeatmapSvg({
   username = "github-user",
   days = [],
   variant = "classic",
+  range = "yearly",
   title = "Contribution Graph",
   width = 900,
-  height = 280,
+  height = 240,
   compact = false,
 } = {}) {
   const normalizedVariant = normalizeContributionVariant(variant);
+  const normalizedRange = normalizeContributionRange(range);
   const theme = resolveTheme(normalizedVariant);
   const safeUsername = escapeXml(username || "github-user");
   const safeTitle = escapeXml(title || "Contribution Graph");
+  const rangeLabel =
+    normalizedRange === "monthly" ? "Last 30 Days" : "Last 12 Months";
+  const weeksToRender =
+    normalizedRange === "monthly"
+      ? MONTHLY_WEEKS_TO_RENDER
+      : YEARLY_WEEKS_TO_RENDER;
 
   const dayMap = normalizeContributionDays(days);
   const allCounts = [...dayMap.values()];
@@ -177,30 +209,43 @@ export function renderContributionHeatmapSvg({
 
   const today = new Date();
   const endDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  const rawStart = new Date(endDate.getTime() - (WEEKS_TO_RENDER * 7 - 1) * DAY_MS);
+  const rawStart = new Date(endDate.getTime() - (weeksToRender * 7 - 1) * DAY_MS);
   const startDate = startOfWeekUtc(rawStart);
 
   const outerPaddingX = compact ? 16 : 22;
   const outerPaddingY = compact ? 14 : 18;
   const cell = compact ? 9 : 10;
   const gap = compact ? 2 : 3;
-  const gridX = outerPaddingX + 56;
-  const gridY = outerPaddingY + 38;
   const weekWidth = cell + gap;
-  const gridWidth = WEEKS_TO_RENDER * weekWidth - gap;
+  const gridWidth = weeksToRender * weekWidth - gap;
   const gridHeight = 7 * (cell + gap) - gap;
+  const leftLabelSpace = compact ? 46 : 52;
+  const minWidth = outerPaddingX + leftLabelSpace + gridWidth + outerPaddingX;
+  const effectiveWidth = Math.max(width, minWidth);
 
-  const effectiveWidth = Math.max(width, gridX + gridWidth + outerPaddingX);
-  const effectiveHeight = Math.max(
-    height,
-    gridY + gridHeight + outerPaddingY + (compact ? 24 : 34)
-  );
+  let gridX = Math.floor((effectiveWidth - gridWidth) / 2);
+  gridX = Math.max(gridX, outerPaddingX + leftLabelSpace);
+
+  const titleY = outerPaddingY + (compact ? 10 : 12);
+  const subtitleY = titleY + (compact ? 14 : 18);
+  const monthY = subtitleY + (compact ? 14 : 18);
+  const gridY = monthY + (compact ? 10 : 12);
+  const legendY = gridY + gridHeight + (compact ? 20 : 24);
+  const minHeight = legendY + outerPaddingY + (compact ? 4 : 6);
+  const effectiveHeight = Math.max(height, minHeight);
+  const verticalShift = Math.floor((effectiveHeight - minHeight) / 2);
+  const shiftedTitleY = titleY + verticalShift;
+  const shiftedSubtitleY = subtitleY + verticalShift;
+  const shiftedMonthY = monthY + verticalShift;
+  const shiftedGridY = gridY + verticalShift;
+  const shiftedLegendY = legendY + verticalShift;
+  const dayLabelX = gridX - (compact ? 34 : 40);
 
   const cells = [];
   const monthLabels = [];
   let previousMonth = "";
 
-  for (let week = 0; week < WEEKS_TO_RENDER; week += 1) {
+  for (let week = 0; week < weeksToRender; week += 1) {
     const weekDate = new Date(startDate.getTime() + week * 7 * DAY_MS);
     const isoWeekDate = toIsoDate(weekDate);
     const month = isoWeekDate.slice(5, 7);
@@ -224,7 +269,7 @@ export function renderContributionHeatmapSvg({
 
       cells.push({
         x: gridX + week * weekWidth,
-        y: gridY + day * (cell + gap),
+        y: shiftedGridY + day * (cell + gap),
         fill,
         date: isoDate,
         count,
@@ -235,7 +280,7 @@ export function renderContributionHeatmapSvg({
   const monthText = monthLabels
     .map(
       (entry) =>
-        `<text x="${entry.x}" y="${gridY - 10}" fill="${theme.month}" font-size="${
+        `<text x="${entry.x}" y="${shiftedMonthY}" fill="${theme.month}" font-size="${
           compact ? 9 : 10
         }" font-family="Inter, Segoe UI, sans-serif">${escapeXml(entry.label)}</text>`
     )
@@ -247,8 +292,8 @@ export function renderContributionHeatmapSvg({
     { label: "Fri", day: 5 },
   ]
     .map((entry) => {
-      const y = gridY + entry.day * (cell + gap) + 8;
-      return `<text x="${gridX - 40}" y="${y}" fill="${theme.dayLabel}" font-size="${
+      const y = shiftedGridY + entry.day * (cell + gap) + 8;
+      return `<text x="${dayLabelX}" y="${y}" fill="${theme.dayLabel}" font-size="${
         compact ? 9 : 10
       }" font-family="Inter, Segoe UI, sans-serif">${entry.label}</text>`;
     })
@@ -263,12 +308,12 @@ export function renderContributionHeatmapSvg({
     .join("");
 
   const legendStartX = gridX + gridWidth - 4 * (cell + gap) - 104;
-  const legendY = gridY + gridHeight + (compact ? 16 : 20);
 
   const legendCells = theme.levels
     .map(
-      (fill, index) =>
-        `<rect x="${legendStartX + 64 + index * (cell + gap)}" y="${legendY - cell + 1}" width="${cell}" height="${cell}" rx="2" fill="${fill}" />`
+      (fill, index) => `<rect x="${legendStartX + 64 + index * (cell + gap)}" y="${
+        shiftedLegendY - cell + 1
+      }" width="${cell}" height="${cell}" rx="2" fill="${fill}" />`
     )
     .join("");
 
@@ -285,20 +330,29 @@ export function renderContributionHeatmapSvg({
     effectiveWidth - (compact ? 12 : 16)
   }" height="${effectiveHeight - (compact ? 12 : 16)}" rx="${compact ? 10 : 12}" fill="none" stroke="${theme.border}" />
 
-  <text x="${outerPaddingX}" y="${outerPaddingY + 8}" fill="${theme.title}" font-size="${
+  <text x="${outerPaddingX}" y="${shiftedTitleY}" fill="${theme.title}" font-size="${
     compact ? 13 : 16
   }" font-family="Inter, Segoe UI, sans-serif" font-weight="700">${safeTitle}</text>
-  <text x="${outerPaddingX}" y="${outerPaddingY + (compact ? 22 : 28)}" fill="${theme.subtitle}" font-size="${
+  <text x="${outerPaddingX}" y="${shiftedSubtitleY}" fill="${theme.subtitle}" font-size="${
     compact ? 10 : 12
   }" font-family="Inter, Segoe UI, sans-serif">@${safeUsername}</text>
+  <text x="${effectiveWidth - outerPaddingX}" y="${shiftedSubtitleY}" fill="${
+    theme.subtitle
+  }" font-size="${compact ? 10 : 11}" text-anchor="end" font-family="Inter, Segoe UI, sans-serif">${escapeXml(
+    rangeLabel
+  )}</text>
 
   ${monthText}
   ${dayMarkers}
   ${cellsMarkup}
 
-  <text x="${legendStartX}" y="${legendY}" fill="${theme.legend}" font-size="${compact ? 9 : 10}" font-family="Inter, Segoe UI, sans-serif">Less</text>
+  <text x="${legendStartX}" y="${shiftedLegendY}" fill="${theme.legend}" font-size="${
+    compact ? 9 : 10
+  }" font-family="Inter, Segoe UI, sans-serif">Less</text>
   ${legendCells}
-  <text x="${legendStartX + 64 + 5 * (cell + gap)}" y="${legendY}" fill="${theme.legend}" font-size="${
+  <text x="${legendStartX + 64 + 5 * (cell + gap)}" y="${shiftedLegendY}" fill="${
+    theme.legend
+  }" font-size="${
     compact ? 9 : 10
   }" font-family="Inter, Segoe UI, sans-serif">More</text>
 </svg>`.trim();
