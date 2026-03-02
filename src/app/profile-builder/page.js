@@ -9,8 +9,10 @@ import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker
 import RepoCommitVariantPicker from "../components/pickers/RepoCommitVariantPicker";
 import SectionVariantPicker from "../components/pickers/SectionVariantPicker";
 import ContributionGraphVariantPicker from "../components/pickers/ContributionGraphVariantPicker";
+import StickerPicker from "../components/pickers/StickerPicker";
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   closestCorners,
   pointerWithin,
@@ -31,13 +33,17 @@ import {
 import {
   CONTRIBUTION_GRAPH_ASSET_PATH,
   CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
-  CONTRIBUTION_GRAPH_TORTOISE_ASSET_PATH,
   CONTRIBUTION_GRAPH_WORKFLOW_PATH,
   CONTRIBUTION_GRAPH_SCRIPT_PATH,
   buildContributionGraphWorkflow,
   buildContributionGraphUpdaterScript,
   resolveContributionAssetPath,
 } from "../lib/contributionGraphAssets";
+import {
+  canItemAcceptStickers,
+  getStickerById,
+  parseStickerDropId,
+} from "../lib/stickerCatalog";
 import {
   normalizeContributionRange,
   normalizeContributionVariant,
@@ -51,6 +57,13 @@ const CONTRIBUTION_DEFAULT_RANGE = "yearly";
 const collisionDetectionStrategy = (args) => {
   const pointerCollisions = pointerWithin(args);
   if (pointerCollisions.length) {
+    const stickerSlotCollisions = pointerCollisions.filter((collision) =>
+      String(collision?.id || "").startsWith("sticker-slot:")
+    );
+    if (stickerSlotCollisions.length) {
+      return stickerSlotCollisions;
+    }
+
     const sectionSlotCollisions = pointerCollisions.filter((collision) =>
       String(collision?.id || "").startsWith("section-slot:")
     );
@@ -123,6 +136,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const [showRepoCommitPicker, setShowRepoCommitPicker] = useState(false);
   const [repoCommitPickerKey, setRepoCommitPickerKey] = useState(0);
   const [showContributionPicker, setShowContributionPicker] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [activeStickerId, setActiveStickerId] = useState("");
   const [contributionPickerContext, setContributionPickerContext] = useState({
     itemId: null,
     initialData: null,
@@ -231,25 +246,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     }
   };
 
-  const loadTortoiseAsset = async () => {
-    try {
-      const response = await fetch("/assets/readme/tortoise.svg", {
-        cache: "force-cache",
-      });
-      if (!response.ok) {
-        return { rawSvg: "", dataUri: "" };
-      }
-
-      const svgText = await response.text();
-      return {
-        rawSvg: svgText,
-        dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svgText)}`,
-      };
-    } catch {
-      return { rawSvg: "", dataUri: "" };
-    }
-  };
-
   const enrichContributionBlocks = async (items) => {
     const contributionBlocks = items.filter((item) => item.type === "contribution");
     if (!contributionBlocks.length) return items;
@@ -329,23 +325,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       contributionFileMap.set(entry.path, entry);
     };
 
-    const needsTortoiseAsset = contributionBlocks.some(
-      (entry) =>
-        normalizeContributionVariant(entry?.data?.variant || CONTRIBUTION_DEFAULT_VARIANT) ===
-        "tortoise"
-    );
-    const tortoiseAsset = needsTortoiseAsset
-      ? await loadTortoiseAsset()
-      : { rawSvg: "", dataUri: "" };
-    const tortoiseDataUri = tortoiseAsset.dataUri;
-    if (needsTortoiseAsset && tortoiseAsset.rawSvg) {
-      upsertContributionFile({
-        path: CONTRIBUTION_GRAPH_TORTOISE_ASSET_PATH,
-        content: `${String(tortoiseAsset.rawSvg).trimEnd()}\n`,
-        message: "chore(readme): sync tortoise contribution asset",
-      });
-    }
-
     contributionBlocks.forEach((contributionBlock) => {
       const contributionUsername = String(
         contributionBlock?.data?.username || session?.username || ""
@@ -372,7 +351,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           : [],
         variant: contributionVariant,
         range: contributionRange,
-        tortoiseHref: contributionVariant === "tortoise" ? tortoiseDataUri : "",
         title: "Contribution Graph",
         width: contributionRange === "monthly" ? 460 : 900,
         height: contributionRange === "monthly" ? 196 : 240,
@@ -605,8 +583,88 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     });
   };
 
+  const upsertStickerPlacement = ({ targetId, slotId, stickerId }) => {
+    const resolvedSticker = getStickerById(stickerId);
+    if (!resolvedSticker || !slotId || !targetId) return;
+
+    if (targetId === "canvas") {
+      setCanvasItems((prev) => {
+        const filtered = prev.filter(
+          (entry) =>
+            !(entry.type === "canvasSticker" && String(entry?.data?.slotId || "") === slotId)
+        );
+
+        return [
+          ...filtered,
+          {
+            id: `canvas-sticker-${slotId}-${Date.now()}`,
+            type: "canvasSticker",
+            data: {
+              slotId,
+              stickerId: resolvedSticker.id,
+            },
+          },
+        ];
+      });
+      return;
+    }
+
+    setCanvasItems((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== targetId) return entry;
+        if (!canItemAcceptStickers(entry.type)) return entry;
+
+        const currentStickers =
+          entry?.data?.stickers && typeof entry.data.stickers === "object"
+            ? entry.data.stickers
+            : {};
+
+        return {
+          ...entry,
+          data: {
+            ...entry.data,
+            stickers: {
+              ...currentStickers,
+              [slotId]: resolvedSticker.id,
+            },
+          },
+        };
+      })
+    );
+  };
+
+  const onDragStart = ({ active }) => {
+    const source = active?.data?.current?.source;
+    if (source !== "sticker-template") {
+      setActiveStickerId("");
+      return;
+    }
+
+    const stickerId = String(active?.data?.current?.stickerId || "").trim();
+    setActiveStickerId(stickerId);
+  };
+
+  const onDragCancel = () => {
+    setActiveStickerId("");
+  };
+
   const onDragEnd = ({ active, over }) => {
+    setActiveStickerId("");
     if (!over) return;
+    const dragSource = active?.data?.current?.source;
+
+    if (dragSource === "sticker-template") {
+      const stickerDropTarget = parseStickerDropId(over.id);
+      const stickerId = String(active?.data?.current?.stickerId || "").trim();
+      if (stickerDropTarget && stickerId) {
+        upsertStickerPlacement({
+          targetId: stickerDropTarget.targetId,
+          slotId: stickerDropTarget.slotId,
+          stickerId,
+        });
+      }
+      return;
+    }
 
     const sectionDropTarget = parseSectionSlotDropId(over.id);
     if (sectionDropTarget && active?.id) {
@@ -618,7 +676,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       return;
     }
 
-    if (active.data?.current?.source === "template") {
+    if (dragSource === "template") {
       const templateId = active.data.current.templateId;
 
       const defaults = {
@@ -887,6 +945,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
     setShowContributionPicker(false);
+    setShowStickerPicker(false);
     setHeaderPickerContext({
       itemId: null,
       initialVariant: null,
@@ -904,6 +963,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
     setShowContributionPicker(false);
+    setShowStickerPicker(false);
     setHeaderPickerContext({
       itemId: item.id,
       initialVariant: item.variant || null,
@@ -923,6 +983,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
     setShowContributionPicker(false);
+    setShowStickerPicker(false);
     setBioPickerContext({
       itemId: null,
       initialData: null,
@@ -939,6 +1000,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
     setShowContributionPicker(false);
+    setShowStickerPicker(false);
     setBioPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -957,6 +1019,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
     setShowContributionPicker(false);
+    setShowStickerPicker(false);
     setTechStackPickerContext({
       itemId: null,
       initialData: null,
@@ -973,6 +1036,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowSectionPicker(false);
     setShowContributionPicker(false);
+    setShowStickerPicker(false);
     setTechStackPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -991,6 +1055,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
     setShowRepoCommitPicker(false);
     setShowContributionPicker(false);
+    setShowStickerPicker(false);
     setSectionPickerKey(Date.now());
     setShowSectionPicker(true);
   };
@@ -1005,6 +1070,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
     setShowSectionPicker(false);
     setShowContributionPicker(false);
+    setShowStickerPicker(false);
     setRepoCommitPickerKey(Date.now());
     setShowRepoCommitPicker(true);
   };
@@ -1019,6 +1085,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
     setShowSectionPicker(false);
     setShowRepoCommitPicker(false);
+    setShowStickerPicker(false);
     setContributionPickerContext({
       itemId: null,
       initialData: null,
@@ -1035,6 +1102,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
     setShowSectionPicker(false);
     setShowRepoCommitPicker(false);
+    setShowStickerPicker(false);
     setContributionPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -1045,6 +1113,20 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const closeContributionPicker = () => {
     setShowContributionPicker(false);
+  };
+
+  const openStickerPicker = () => {
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowSectionPicker(false);
+    setShowRepoCommitPicker(false);
+    setShowContributionPicker(false);
+    setShowStickerPicker(true);
+  };
+
+  const closeStickerPicker = () => {
+    setShowStickerPicker(false);
   };
 
   const handleHeaderSelect = (variant, data) => {
@@ -1158,6 +1240,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       openContributionPickerForEdit(item);
     }
   };
+  const activeSticker = getStickerById(activeStickerId);
 
   return (
     <div className="relative min-h-screen bg-[#0b0d0f] text-white">
@@ -1180,6 +1263,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
               if (blockId === "skills") {
                 openTechStackPickerForAdd();
+                return;
+              }
+
+              if (blockId === "stickers") {
+                openStickerPicker();
                 return;
               }
 
@@ -1220,6 +1308,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         <DndContext
           sensors={sensors}
           collisionDetection={collisionDetectionStrategy}
+          onDragStart={onDragStart}
+          onDragCancel={onDragCancel}
           onDragEnd={onDragEnd}
         >
           <div className="flex-1 overflow-y-auto p-6">
@@ -1238,6 +1328,18 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
               onEditItem={handleEditItem}
             />
           </div>
+
+          <DragOverlay dropAnimation={null}>
+            {activeSticker ? (
+              <div className="pointer-events-none rounded-2xl border border-cyan-300/55 bg-[#0d1117]/90 p-2 shadow-[0_16px_36px_rgba(0,0,0,0.45)]">
+                <img
+                  src={activeSticker.assetPath}
+                  alt={activeSticker.title}
+                  className={`${activeSticker.sizeClass} object-contain`}
+                />
+              </div>
+            ) : null}
+          </DragOverlay>
 
           <HeaderVariantPicker
             key={`header-${headerPickerContext.pickerKey}`}
@@ -1290,6 +1392,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             onSave={handleContributionSelection}
             initialData={contributionPickerContext.initialData}
             submitLabel={contributionPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+          />
+
+          <StickerPicker
+            open={showStickerPicker}
+            onClose={closeStickerPicker}
           />
         </DndContext>
       </div>

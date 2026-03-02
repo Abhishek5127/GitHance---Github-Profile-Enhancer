@@ -36,8 +36,8 @@ export default function SectionVariantPicker({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60">
-      <div className="relative h-full w-[560px] overflow-scroll border-l border-white/10 bg-[#0d1117] p-4">
+    <div className="fixed inset-y-0 left-72 right-0 z-50 flex justify-start bg-black/55">
+      <div className="relative h-full w-[560px] overflow-scroll border-r border-white/10 bg-[#0d1117] p-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-white/40">Sections</p>

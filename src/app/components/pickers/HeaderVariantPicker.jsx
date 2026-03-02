@@ -416,10 +416,10 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/60"
+      className="fixed inset-y-0 left-72 right-0 z-50 flex justify-start bg-black/55"
     >
       <div
-        className="relative h-full w-[820px] overflow-hidden border-l border-white/10 bg-[#0d1117] p-4"
+        className="relative h-full w-[820px] overflow-hidden border-r border-white/10 bg-[#0d1117] p-4"
       >
         <div className="h-full overflow-y-auto pr-1">
           <div className="mb-4 flex items-center justify-between">

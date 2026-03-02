@@ -1,7 +1,6 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 const YEARLY_WEEKS_TO_RENDER = 53;
 const MONTHLY_WEEKS_TO_RENDER = 6;
-const TORTOISE_ASSET_HREF = "";
 
 export const CONTRIBUTION_GRAPH_VARIANTS = [
   {
@@ -21,8 +20,8 @@ export const CONTRIBUTION_GRAPH_VARIANTS = [
   },
   {
     id: "tortoise",
-    title: "Tortoise White",
-    description: "Plain white monthly graph with a cartoon tortoise accent.",
+    title: "Plain White",
+    description: "Plain white monthly graph with clean minimal styling.",
   },
 ];
 
@@ -198,61 +197,11 @@ function normalizeContributionDays(days = []) {
   return map;
 }
 
-function buildTortoiseDecoration({
-  x = 0,
-  y = 0,
-  width = 68,
-  height = 68,
-  href = TORTOISE_ASSET_HREF,
-} = {}) {
-  const safeHref = String(href || "").trim();
-  if (safeHref) {
-    return `<image href="${escapeXml(
-      safeHref
-    )}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet" />`;
-  }
-
-  const shellFill = "#85c46a";
-  const shellStroke = "#4d7f3b";
-  const skinFill = "#9ccf86";
-
-  return `
-<g transform="translate(${x} ${y})">
-  <ellipse cx="${(width * 0.5).toFixed(2)}" cy="${(height * 0.62).toFixed(
-    2
-  )}" rx="${(width * 0.26).toFixed(2)}" ry="${(height * 0.2).toFixed(
-    2
-  )}" fill="${shellFill}" stroke="${shellStroke}" stroke-width="1.6" />
-  <ellipse cx="${(width * 0.5).toFixed(2)}" cy="${(height * 0.62).toFixed(
-    2
-  )}" rx="${(width * 0.13).toFixed(2)}" ry="${(height * 0.1).toFixed(
-    2
-  )}" fill="#6ca84f" opacity="0.7" />
-  <circle cx="${(width * 0.76).toFixed(2)}" cy="${(height * 0.58).toFixed(
-    2
-  )}" r="${(width * 0.07).toFixed(2)}" fill="${skinFill}" stroke="#5f8c49" stroke-width="1.2" />
-  <circle cx="${(width * 0.79).toFixed(2)}" cy="${(height * 0.56).toFixed(
-    2
-  )}" r="${(width * 0.01).toFixed(2)}" fill="#263238" />
-  <ellipse cx="${(width * 0.63).toFixed(2)}" cy="${(height * 0.74).toFixed(
-    2
-  )}" rx="${(width * 0.05).toFixed(2)}" ry="${(height * 0.04).toFixed(
-    2
-  )}" fill="${skinFill}" />
-  <ellipse cx="${(width * 0.37).toFixed(2)}" cy="${(height * 0.74).toFixed(
-    2
-  )}" rx="${(width * 0.05).toFixed(2)}" ry="${(height * 0.04).toFixed(
-    2
-  )}" fill="${skinFill}" />
-</g>`.trim();
-}
-
 export function renderContributionHeatmapSvg({
   username = "github-user",
   days = [],
   variant = "classic",
   range = "yearly",
-  tortoiseHref = TORTOISE_ASSET_HREF,
   title = "Contribution Graph",
   width = 0,
   height = 0,
@@ -403,16 +352,6 @@ export function renderContributionHeatmapSvg({
     .join("");
 
   const legendStartX = gridX + gridWidth - 4 * (cell + gap) - 104;
-  const tortoiseDecoration =
-    normalizedVariant === "tortoise"
-      ? buildTortoiseDecoration({
-          x: effectiveWidth - (compact ? 84 : 118),
-          y: effectiveHeight - (compact ? 74 : 104),
-          width: compact ? 68 : 92,
-          height: compact ? 68 : 92,
-          href: tortoiseHref,
-        })
-      : "";
 
   const legendCells = theme.levels
     .map(
@@ -460,6 +399,5 @@ export function renderContributionHeatmapSvg({
   }" font-size="${
     compact ? 9 : 10
   }" font-family="Inter, Segoe UI, sans-serif">More</text>
-  ${tortoiseDecoration}
 </svg>`.trim();
 }

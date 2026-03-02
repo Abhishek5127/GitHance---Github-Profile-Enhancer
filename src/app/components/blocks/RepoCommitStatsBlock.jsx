@@ -2,10 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useDroppable } from "@dnd-kit/core";
 import {
   REPO_COMMIT_STAT_ITEMS,
   getRepoCommitStatItemById,
 } from "@/app/lib/repoCommitCatalog";
+import {
+  STICKER_SLOT_PRESETS,
+  buildStickerDropId,
+  getStickerById,
+  normalizeStickerAssignments,
+} from "@/app/lib/stickerCatalog";
 
 const COMPACT_CANVAS_WIDTH = 360;
 const COMPACT_CANVAS_HEIGHT_TALL = 132;
@@ -91,7 +98,32 @@ function resolveRequestedStatIds(item) {
   return REPO_COMMIT_STAT_ITEMS.map((entry) => entry.id);
 }
 
-export default function RepoCommitStatsBlock({ item, setItems }) {
+function StickerDropSlot({ itemId, slot, visible }) {
+  const dropId = buildStickerDropId(itemId, slot.id);
+  const { setNodeRef, isOver } = useDroppable({ id: dropId });
+
+  if (!visible) return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`pointer-events-auto absolute z-30 flex h-14 w-14 items-center justify-center rounded-xl border border-dashed text-[10px] font-semibold uppercase tracking-[0.08em] transition ${slot.positionClass} ${
+        isOver
+          ? "border-cyan-200/90 bg-cyan-300/30 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.4)]"
+          : "border-cyan-200/45 bg-cyan-300/10 text-cyan-100/80"
+      }`}
+    >
+      {slot.shortLabel}
+    </div>
+  );
+}
+
+export default function RepoCommitStatsBlock({
+  item,
+  setItems,
+  stickerAssignments = {},
+  showStickerDropSlots = false,
+}) {
   const { data: session } = useSession();
   const username = (item?.data?.username || session?.username || "").trim();
   const token = session?.accessToken || "";
@@ -252,6 +284,34 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
     requestedStatIds,
     username,
   ]);
+  const normalizedStickers = useMemo(
+    () => normalizeStickerAssignments(stickerAssignments),
+    [stickerAssignments]
+  );
+
+  const handleRemoveSticker = (slotId) => {
+    if (!slotId || typeof setItems !== "function") return;
+
+    setItems((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== item.id) return entry;
+
+        const currentStickers = normalizeStickerAssignments(entry?.data?.stickers);
+        if (!currentStickers?.[slotId]) return entry;
+
+        const nextStickers = { ...currentStickers };
+        delete nextStickers[slotId];
+
+        return {
+          ...entry,
+          data: {
+            ...entry.data,
+            stickers: nextStickers,
+          },
+        };
+      })
+    );
+  };
 
   if (!username) {
     return (
@@ -269,9 +329,6 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
   const labelClass = isNeonTheme
     ? "mb-1 text-[10px] text-cyan-100/80"
     : "mb-1 text-[10px] text-white/60";
-  const titleClass = isNeonTheme
-    ? "mb-2 text-[11px] uppercase tracking-[0.18em] text-cyan-200/65"
-    : "mb-2 text-[11px] uppercase tracking-[0.18em] text-white/45";
 
   return (
     <div className="w-full min-w-0">
@@ -281,28 +338,76 @@ export default function RepoCommitStatsBlock({ item, setItems }) {
       {bootstrapStatus.error ? (
         <p className="mb-2 text-xs text-red-300">{bootstrapStatus.error}</p>
       ) : null}
-      {statsBlocks.length === 1 ? (
-        <div className={`${cardClass} mx-auto w-full max-w-[360px] min-w-0`}>
-          <img
-            src={statsBlocks[0].src}
-            alt={statsBlocks[0].label}
-            className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0f0b0b]"
-          />
+
+      <div className="relative mx-auto w-full max-w-[360px]">
+        {statsBlocks.length === 1 ? (
+          <div className={`${cardClass} w-full min-w-0`}>
+            <img
+              src={statsBlocks[0].src}
+              alt={statsBlocks[0].label}
+              className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0f0b0b]"
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-1.5">
+            {statsBlocks.map((block) => (
+              <div key={block.id} className={`${cardClass} w-full min-w-0`}>
+                <p className={labelClass}>{block.label}</p>
+                <img
+                  src={block.src}
+                  alt={block.label}
+                  className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0b0d0f]"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="pointer-events-none absolute inset-0 z-20">
+          {STICKER_SLOT_PRESETS.map((slot) => {
+            const stickerId = normalizedStickers?.[slot.id];
+            const sticker = getStickerById(stickerId);
+            if (!sticker) return null;
+
+            return (
+              <div key={`${item.id}-${slot.id}`} className={`absolute ${slot.positionClass}`}>
+                <div className="group/sticker relative pointer-events-auto">
+                  <img
+                    src={sticker.assetPath}
+                    alt={sticker.title}
+                    className={`${sticker.sizeClass} object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]`}
+                  />
+                  <button
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleRemoveSticker(slot.id);
+                    }}
+                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-0 transition group-hover/sticker:opacity-100"
+                    title="Remove sticker"
+                    aria-label="Remove sticker"
+                  >
+                    x
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-1.5">
-          {statsBlocks.map((block) => (
-            <div key={block.id} className={`${cardClass} mx-auto w-full max-w-[360px] min-w-0`}>
-              <p className={labelClass}>{block.label}</p>
-              <img
-                src={block.src}
-                alt={block.label}
-                className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0b0d0f]"
+
+        {showStickerDropSlots ? (
+          <div className="pointer-events-none absolute inset-0 z-30">
+            {STICKER_SLOT_PRESETS.map((slot) => (
+              <StickerDropSlot
+                key={`drop-slot-${item.id}-${slot.id}`}
+                itemId={item.id}
+                slot={slot}
+                visible
               />
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

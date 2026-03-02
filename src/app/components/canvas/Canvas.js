@@ -1,29 +1,98 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
 import CanvasItem from "./CanvasItem";
-import { useState } from "react";
-import { useEffect } from "react";
+import {
+  STICKER_SLOT_PRESETS,
+  buildStickerDropId,
+  getStickerById,
+  getStickerSlotById,
+} from "@/app/lib/stickerCatalog";
+
+function CanvasStickerDropZone({ slot, visible }) {
+  const dropId = buildStickerDropId("canvas", slot.id);
+  const { setNodeRef, isOver } = useDroppable({ id: dropId });
+
+  if (!visible) return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`pointer-events-auto absolute z-40 flex h-16 w-16 items-center justify-center rounded-xl border border-dashed text-[10px] font-semibold uppercase tracking-[0.08em] transition ${slot.positionClass} ${
+        isOver
+          ? "border-cyan-200/90 bg-cyan-300/30 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.4)]"
+          : "border-cyan-200/45 bg-cyan-300/10 text-cyan-100/80"
+      }`}
+    >
+      {slot.shortLabel}
+    </div>
+  );
+}
+
+function CanvasSticker({ entry, onRemove }) {
+  const slot = getStickerSlotById(entry?.data?.slotId);
+  const sticker = getStickerById(entry?.data?.stickerId);
+  if (!slot || !sticker) return null;
+
+  return (
+    <div className={`pointer-events-none absolute z-30 ${slot.positionClass}`}>
+      <div className="group relative">
+        <img
+          src={sticker.assetPath}
+          alt={sticker.title}
+          className={`${sticker.sizeClass} object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]`}
+        />
+        <button
+          onClick={() => onRemove(entry.id)}
+          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-0 transition group-hover:opacity-100"
+          title="Remove sticker"
+          aria-label="Remove sticker"
+        >
+          x
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Canvas({
   readmeData,
   items,
   setItems,
   onEditItem,
 }) {
-
   const [readmeDataContent, setreadmeDataContent] = useState("");
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
+  const { active } = useDndContext();
+  const isStickerDragging = active?.data?.current?.source === "sticker-template";
+
+  const normalizedItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
+  const canvasStickerItems = useMemo(
+    () => normalizedItems.filter((entry) => entry.type === "canvasSticker"),
+    [normalizedItems]
+  );
+  const sortableCanvasItems = useMemo(
+    () => normalizedItems.filter((entry) => entry.type !== "canvasSticker"),
+    [normalizedItems]
+  );
 
   useEffect(() => {
     setreadmeDataContent(readmeData);
   }, [readmeData]);
 
   useEffect(() => {
-    if (items.length > 0) {
+    if (normalizedItems.length > 0) {
       setreadmeDataContent("");
     }
-  }, [items]);
+  }, [normalizedItems]);
+
+  const handleRemoveCanvasSticker = (stickerEntryId) => {
+    const normalizedId = String(stickerEntryId || "").trim();
+    if (!normalizedId) return;
+    setItems((prev) => prev.filter((entry) => entry.id !== normalizedId));
+  };
 
   return (
     <div
@@ -62,25 +131,45 @@ export default function Canvas({
           )}
         </div>
       </div>
-      {/* README SECTION */}
+
       {readmeDataContent ? (
         <article
           className="markdown-body"
           dangerouslySetInnerHTML={{ __html: readmeDataContent }}
         />
-      ) : items?.length === 0 ? (
-
+      ) : sortableCanvasItems.length === 0 ? (
         <div className="py-14 text-center text-sm text-white/50">
           Create Readme
         </div>
       ) : null}
 
-      {/* DRAGGABLE ITEMS */}
+      <div className="pointer-events-none absolute inset-0">
+        {canvasStickerItems.map((entry) => (
+          <CanvasSticker
+            key={entry.id}
+            entry={entry}
+            onRemove={handleRemoveCanvasSticker}
+          />
+        ))}
+      </div>
+
+      {isStickerDragging ? (
+        <div className="pointer-events-none absolute inset-0">
+          {STICKER_SLOT_PRESETS.map((slot) => (
+            <CanvasStickerDropZone
+              key={`canvas-sticker-slot-${slot.id}`}
+              slot={slot}
+              visible
+            />
+          ))}
+        </div>
+      ) : null}
+
       <SortableContext
-        items={items.map((i) => i.id)}
+        items={sortableCanvasItems.map((entry) => entry.id)}
         strategy={verticalListSortingStrategy}
       >
-        {items.map((item) => (
+        {sortableCanvasItems.map((item) => (
           <CanvasItem
             key={item.id}
             item={item}
@@ -88,7 +177,6 @@ export default function Canvas({
             onEditItem={onEditItem}
           />
         ))}
-
       </SortableContext>
     </div>
   );

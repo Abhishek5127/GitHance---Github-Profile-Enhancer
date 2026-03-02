@@ -32,7 +32,6 @@ export default function ContributionGraph({ item, setItems }) {
     snapshot: persistedSnapshot,
     version: 0,
   });
-  const [tortoiseHref, setTortoiseHref] = useState("");
 
   const resolvedSnapshot = fetchState.snapshot || persistedSnapshot || null;
   const hasResolvedSnapshot = hasSnapshotData(resolvedSnapshot);
@@ -45,42 +44,6 @@ export default function ContributionGraph({ item, setItems }) {
       }));
     }
   }, [persistedSnapshot]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (variant !== "tortoise") {
-      setTortoiseHref("");
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const loadTortoiseAsset = async () => {
-      try {
-        const response = await fetch("/assets/readme/tortoise.svg", {
-          cache: "force-cache",
-        });
-        if (!response.ok) {
-          throw new Error("Failed to load tortoise asset");
-        }
-
-        const svgText = await response.text();
-        if (cancelled) return;
-
-        setTortoiseHref(`data:image/svg+xml;utf8,${encodeURIComponent(svgText)}`);
-      } catch {
-        if (cancelled) return;
-        setTortoiseHref("");
-      }
-    };
-
-    loadTortoiseAsset();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [variant]);
 
   useEffect(() => {
     if (!username || hasResolvedSnapshot) return;
@@ -183,12 +146,11 @@ export default function ContributionGraph({ item, setItems }) {
       days: Array.isArray(resolvedSnapshot?.days) ? resolvedSnapshot.days : [],
       variant,
       range,
-      tortoiseHref: variant === "tortoise" ? tortoiseHref : "",
       title: "Contribution Graph",
       compact: true,
       height: 220,
     });
-  }, [range, resolvedSnapshot?.days, tortoiseHref, username, variant]);
+  }, [range, resolvedSnapshot?.days, username, variant]);
 
   const imageSrc = useMemo(
     () => `data:image/svg+xml;utf8,${encodeURIComponent(svgMarkup)}`,

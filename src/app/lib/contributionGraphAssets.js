@@ -1,8 +1,6 @@
 export const CONTRIBUTION_GRAPH_ASSET_PATH = "assets/readme/contribution-graph.svg";
 export const CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH =
   "assets/readme/contribution-graph-monthly.svg";
-export const CONTRIBUTION_GRAPH_TORTOISE_ASSET_PATH =
-  "assets/readme/tortoise.svg";
 export const CONTRIBUTION_GRAPH_WORKFLOW_PATH = ".github/workflows/update-contribution-graph.yml";
 export const CONTRIBUTION_GRAPH_SCRIPT_PATH = ".github/scripts/update-contribution-graph.mjs";
 
@@ -303,7 +301,7 @@ function formatMonthLabel(isoDate) {
   return parsed.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
 }
 
-function renderHeatmapSvg({ username, days, variant, range, tortoiseHref = "" }) {
+function renderHeatmapSvg({ username, days, variant, range }) {
   const theme = VARIANTS[variant] || VARIANTS.classic;
   const normalizedRange = normalizeRange(range);
   const effectiveRange = variant === "tortoise" ? "monthly" : normalizedRange;
@@ -415,16 +413,7 @@ function renderHeatmapSvg({ username, days, variant, range, tortoiseHref = "" })
     .join("");
 
   const legendStartX = gridX + gridWidth - 4 * (cell + gap) - 104;
-  const tortoiseDecoration =
-    variant === "tortoise"
-      ? buildTortoiseDecorationImage({
-          x: width - 122,
-          y: height - 108,
-          width: 96,
-          height: 96,
-          href: tortoiseHref,
-        })
-      : "";
+  const tortoiseDecoration = "";
   const legendCells = theme.levels
     .map(
       (fill, index) =>
@@ -517,14 +506,11 @@ async function main() {
   }
 
   const days = await fetchContributionDays({ token, username });
-  const tortoiseHref =
-    variant === "tortoise" ? await loadTortoiseDataUri(outputPath) : "";
   const svg = renderHeatmapSvg({
     username,
     days,
     variant,
     range,
-    tortoiseHref,
   });
 
   const absoluteOutputPath = path.resolve(process.cwd(), outputPath);
