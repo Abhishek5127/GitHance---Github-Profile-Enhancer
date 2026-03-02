@@ -1,12 +1,14 @@
 export const CONTRIBUTION_GRAPH_ASSET_PATH = "assets/readme/contribution-graph.svg";
 export const CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH =
   "assets/readme/contribution-graph-monthly.svg";
+export const CONTRIBUTION_GRAPH_TORTOISE_ASSET_PATH =
+  "assets/readme/tortoise.svg";
 export const CONTRIBUTION_GRAPH_WORKFLOW_PATH = ".github/workflows/update-contribution-graph.yml";
 export const CONTRIBUTION_GRAPH_SCRIPT_PATH = ".github/scripts/update-contribution-graph.mjs";
 
 function normalizeVariant(value) {
   const normalized = String(value || "").trim().toLowerCase();
-  if (["classic", "neon", "sunset"].includes(normalized)) {
+  if (["classic", "neon", "sunset", "tortoise"].includes(normalized)) {
     return normalized;
   }
   return "classic";
@@ -122,6 +124,7 @@ import path from "node:path";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const YEARLY_WEEKS = 53;
 const MONTHLY_WEEKS = 6;
+const TORTOISE_ASSET_FILENAME = "tortoise.svg";
 
 const VARIANTS = {
   classic: {
@@ -156,6 +159,17 @@ const VARIANTS = {
     legend: "#d7a89d",
     dayLabel: "#d7a89d",
     levels: ["#241326", "#4a1f3a", "#7b2e4d", "#c1535a", "#ff8b5b"],
+  },
+  tortoise: {
+    bg: "#ffffff",
+    panel: "#f6f7f9",
+    border: "#d8dde3",
+    title: "#101418",
+    subtitle: "#4f5b66",
+    month: "#4f5b66",
+    legend: "#4f5b66",
+    dayLabel: "#4f5b66",
+    levels: ["#edf1f4", "#cfd7de", "#9fabb7", "#6b7a89", "#2f3a45"],
   },
 };
 
@@ -197,6 +211,41 @@ function normalizeVariant(value) {
 function normalizeRange(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized === "monthly" ? "monthly" : "yearly";
+}
+
+function buildTortoiseDecorationImage({
+  x = 0,
+  y = 0,
+  width = 64,
+  height = 64,
+  href = "",
+} = {}) {
+  const safeHref = String(href || "").trim();
+  if (safeHref) {
+    return \`<image href="\${escapeXml(safeHref)}" x="\${x}" y="\${y}" width="\${width}" height="\${height}" preserveAspectRatio="xMidYMid meet" />\`;
+  }
+
+  return \`
+<g transform="translate(\${x} \${y})">
+  <ellipse cx="\${(width * 0.5).toFixed(2)}" cy="\${(height * 0.62).toFixed(2)}" rx="\${(width * 0.26).toFixed(2)}" ry="\${(height * 0.2).toFixed(2)}" fill="#85c46a" stroke="#4d7f3b" stroke-width="1.6" />
+  <ellipse cx="\${(width * 0.5).toFixed(2)}" cy="\${(height * 0.62).toFixed(2)}" rx="\${(width * 0.13).toFixed(2)}" ry="\${(height * 0.1).toFixed(2)}" fill="#6ca84f" opacity="0.7" />
+  <circle cx="\${(width * 0.76).toFixed(2)}" cy="\${(height * 0.58).toFixed(2)}" r="\${(width * 0.07).toFixed(2)}" fill="#9ccf86" stroke="#5f8c49" stroke-width="1.2" />
+  <circle cx="\${(width * 0.79).toFixed(2)}" cy="\${(height * 0.56).toFixed(2)}" r="\${(width * 0.01).toFixed(2)}" fill="#263238" />
+  <ellipse cx="\${(width * 0.63).toFixed(2)}" cy="\${(height * 0.74).toFixed(2)}" rx="\${(width * 0.05).toFixed(2)}" ry="\${(height * 0.04).toFixed(2)}" fill="#9ccf86" />
+  <ellipse cx="\${(width * 0.37).toFixed(2)}" cy="\${(height * 0.74).toFixed(2)}" rx="\${(width * 0.05).toFixed(2)}" ry="\${(height * 0.04).toFixed(2)}" fill="#9ccf86" />
+</g>\`.trim();
+}
+
+async function loadTortoiseDataUri(outputPath) {
+  const outputDir = path.dirname(path.resolve(process.cwd(), outputPath));
+  const tortoisePath = path.join(outputDir, TORTOISE_ASSET_FILENAME);
+
+  try {
+    const rawSvg = await fs.readFile(tortoisePath, "utf8");
+    return \`data:image/svg+xml;utf8,\${encodeURIComponent(rawSvg)}\`;
+  } catch {
+    return "";
+  }
 }
 
 function toIsoDate(value) {
@@ -254,11 +303,12 @@ function formatMonthLabel(isoDate) {
   return parsed.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
 }
 
-function renderHeatmapSvg({ username, days, variant, range }) {
+function renderHeatmapSvg({ username, days, variant, range, tortoiseHref = "" }) {
   const theme = VARIANTS[variant] || VARIANTS.classic;
   const normalizedRange = normalizeRange(range);
-  const weeks = normalizedRange === "monthly" ? MONTHLY_WEEKS : YEARLY_WEEKS;
-  const rangeLabel = normalizedRange === "monthly" ? "Last 30 Days" : "Last 12 Months";
+  const effectiveRange = variant === "tortoise" ? "monthly" : normalizedRange;
+  const weeks = effectiveRange === "monthly" ? MONTHLY_WEEKS : YEARLY_WEEKS;
+  const rangeLabel = effectiveRange === "monthly" ? "Last 30 Days" : "Last 12 Months";
   const normalizedDays = new Map();
 
   days.forEach((entry) => {
@@ -283,7 +333,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
   const gridWidth = weeks * weekWidth - gap;
   const gridHeight = 7 * (cell + gap) - gap;
   const leftLabelSpace = 52;
-  const targetWidth = normalizedRange === "monthly" ? 460 : 900;
+  const targetWidth = effectiveRange === "monthly" ? 460 : 900;
   const width = Math.max(targetWidth, paddingX + leftLabelSpace + gridWidth + paddingX);
   const gridX = Math.max(Math.floor((width - gridWidth) / 2), paddingX + leftLabelSpace);
 
@@ -293,7 +343,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
   const gridY = monthY + 12;
   const legendY = gridY + gridHeight + 24;
   const minHeight = legendY + paddingY + 6;
-  const targetHeight = normalizedRange === "monthly" ? 196 : 240;
+  const targetHeight = effectiveRange === "monthly" ? 196 : 240;
   const height = Math.max(targetHeight, minHeight);
   const yShift = Math.floor((height - minHeight) / 2);
   const shiftedTitleY = titleY + yShift;
@@ -365,6 +415,16 @@ function renderHeatmapSvg({ username, days, variant, range }) {
     .join("");
 
   const legendStartX = gridX + gridWidth - 4 * (cell + gap) - 104;
+  const tortoiseDecoration =
+    variant === "tortoise"
+      ? buildTortoiseDecorationImage({
+          x: width - 122,
+          y: height - 108,
+          width: 96,
+          height: 96,
+          href: tortoiseHref,
+        })
+      : "";
   const legendCells = theme.levels
     .map(
       (fill, index) =>
@@ -391,6 +451,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
   <text x="\${legendStartX}" y="\${shiftedLegendY}" fill="\${theme.legend}" font-size="10" font-family="Inter, Segoe UI, sans-serif">Less</text>
   \${legendCells}
   <text x="\${legendStartX + 64 + 5 * (cell + gap)}" y="\${shiftedLegendY}" fill="\${theme.legend}" font-size="10" font-family="Inter, Segoe UI, sans-serif">More</text>
+  \${tortoiseDecoration}
 </svg>\`.trim();
 }
 
@@ -456,7 +517,15 @@ async function main() {
   }
 
   const days = await fetchContributionDays({ token, username });
-  const svg = renderHeatmapSvg({ username, days, variant, range });
+  const tortoiseHref =
+    variant === "tortoise" ? await loadTortoiseDataUri(outputPath) : "";
+  const svg = renderHeatmapSvg({
+    username,
+    days,
+    variant,
+    range,
+    tortoiseHref,
+  });
 
   const absoluteOutputPath = path.resolve(process.cwd(), outputPath);
   await fs.mkdir(path.dirname(absoluteOutputPath), { recursive: true });

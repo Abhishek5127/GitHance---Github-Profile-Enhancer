@@ -18,12 +18,15 @@ const VARIANT_CARD_STYLES = {
     "border-cyan-300/25 bg-[linear-gradient(135deg,rgba(6,16,26,0.95),rgba(8,10,20,0.9))]",
   sunset:
     "border-orange-300/25 bg-[linear-gradient(135deg,rgba(28,12,16,0.95),rgba(30,16,20,0.9))]",
+  tortoise:
+    "border-slate-300/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(245,247,250,0.98))]",
 };
 
 const VARIANT_DOT_STYLES = {
   classic: "bg-emerald-400/75",
   neon: "bg-cyan-300/85",
   sunset: "bg-orange-300/85",
+  tortoise: "bg-slate-700/80",
 };
 
 export default function ContributionGraphVariantPicker({
@@ -62,9 +65,11 @@ export default function ContributionGraphVariantPicker({
   };
 
   const handleSubmit = async () => {
+    const normalizedVariant = normalizeContributionVariant(selectedVariant);
+    const forcedRange = normalizedVariant === "tortoise" ? "monthly" : selectedRange;
     await onSave({
-      variant: normalizeContributionVariant(selectedVariant),
-      range: normalizeContributionRange(selectedRange),
+      variant: normalizedVariant,
+      range: normalizeContributionRange(forcedRange),
     });
     handleClose();
   };
@@ -97,15 +102,18 @@ export default function ContributionGraphVariantPicker({
             <div className="mt-3 grid grid-cols-2 gap-2">
               {CONTRIBUTION_GRAPH_RANGES.map((rangeOption) => {
                 const active = selectedRange === rangeOption.id;
+                const rangeDisabled =
+                  selectedVariant === "tortoise" && rangeOption.id !== "monthly";
                 return (
                   <button
                     key={rangeOption.id}
+                    disabled={rangeDisabled}
                     onClick={() => setSelectedRange(rangeOption.id)}
                     className={`rounded-xl border p-3 text-left transition ${
                       active
                         ? "border-cyan-300/65 bg-cyan-300/10 text-cyan-100"
                         : "border-white/15 bg-[#0b1220] text-white/75 hover:border-cyan-300/35"
-                    }`}
+                    } ${rangeDisabled ? "cursor-not-allowed opacity-45" : ""}`}
                   >
                     <p className="text-sm font-semibold">{rangeOption.title}</p>
                     <p className="mt-1 text-[11px] text-inherit/85">
@@ -144,17 +152,27 @@ export default function ContributionGraphVariantPicker({
 
           {CONTRIBUTION_GRAPH_VARIANTS.map((variant) => {
             const active = selectedVariant === variant.id;
+            const isTortoise = variant.id === "tortoise";
             const cardStyle = VARIANT_CARD_STYLES[variant.id] || VARIANT_CARD_STYLES.classic;
             const dotStyle = VARIANT_DOT_STYLES[variant.id] || VARIANT_DOT_STYLES.classic;
 
             return (
               <button
                 key={variant.id}
-                onClick={() => setSelectedVariant(variant.id)}
+                onClick={() => {
+                  setSelectedVariant(variant.id);
+                  if (variant.id === "tortoise") {
+                    setSelectedRange("monthly");
+                  }
+                }}
                 className={`w-full rounded-2xl border p-3 text-left transition ${
                   active
-                    ? "border-cyan-300/65 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.16)]"
-                    : "border-white/10 bg-white/5 text-white/80 hover:border-cyan-300/35"
+                    ? isTortoise
+                      ? "border-slate-300/70 bg-white text-slate-800 shadow-[0_0_18px_rgba(148,163,184,0.18)]"
+                      : "border-cyan-300/65 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.16)]"
+                    : isTortoise
+                      ? "border-slate-300/35 bg-slate-100/95 text-slate-700 hover:border-slate-400/60"
+                      : "border-white/10 bg-white/5 text-white/80 hover:border-cyan-300/35"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -188,7 +206,12 @@ export default function ContributionGraphVariantPicker({
           Selected: <span className="font-semibold">{selectedMeta?.title || "Classic"}</span>
         </p>
         <p className="mt-1 text-xs text-cyan-100/75">
-          Range: <span className="font-semibold">{selectedRangeMeta?.title || "Yearly"}</span>
+          Range:{" "}
+          <span className="font-semibold">
+            {selectedVariant === "tortoise"
+              ? "Monthly (Required)"
+              : selectedRangeMeta?.title || "Yearly"}
+          </span>
         </p>
 
         <div className="mt-4 flex items-center justify-end gap-2 border-t border-white/10 pt-4">

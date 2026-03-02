@@ -31,6 +31,7 @@ import {
 import {
   CONTRIBUTION_GRAPH_ASSET_PATH,
   CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
+  CONTRIBUTION_GRAPH_TORTOISE_ASSET_PATH,
   CONTRIBUTION_GRAPH_WORKFLOW_PATH,
   CONTRIBUTION_GRAPH_SCRIPT_PATH,
   buildContributionGraphWorkflow,
@@ -230,6 +231,25 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     }
   };
 
+  const loadTortoiseAsset = async () => {
+    try {
+      const response = await fetch("/assets/readme/tortoise.svg", {
+        cache: "force-cache",
+      });
+      if (!response.ok) {
+        return { rawSvg: "", dataUri: "" };
+      }
+
+      const svgText = await response.text();
+      return {
+        rawSvg: svgText,
+        dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svgText)}`,
+      };
+    } catch {
+      return { rawSvg: "", dataUri: "" };
+    }
+  };
+
   const enrichContributionBlocks = async (items) => {
     const contributionBlocks = items.filter((item) => item.type === "contribution");
     if (!contributionBlocks.length) return items;
@@ -309,6 +329,23 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       contributionFileMap.set(entry.path, entry);
     };
 
+    const needsTortoiseAsset = contributionBlocks.some(
+      (entry) =>
+        normalizeContributionVariant(entry?.data?.variant || CONTRIBUTION_DEFAULT_VARIANT) ===
+        "tortoise"
+    );
+    const tortoiseAsset = needsTortoiseAsset
+      ? await loadTortoiseAsset()
+      : { rawSvg: "", dataUri: "" };
+    const tortoiseDataUri = tortoiseAsset.dataUri;
+    if (needsTortoiseAsset && tortoiseAsset.rawSvg) {
+      upsertContributionFile({
+        path: CONTRIBUTION_GRAPH_TORTOISE_ASSET_PATH,
+        content: `${String(tortoiseAsset.rawSvg).trimEnd()}\n`,
+        message: "chore(readme): sync tortoise contribution asset",
+      });
+    }
+
     contributionBlocks.forEach((contributionBlock) => {
       const contributionUsername = String(
         contributionBlock?.data?.username || session?.username || ""
@@ -335,6 +372,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           : [],
         variant: contributionVariant,
         range: contributionRange,
+        tortoiseHref: contributionVariant === "tortoise" ? tortoiseDataUri : "",
         title: "Contribution Graph",
         width: contributionRange === "monthly" ? 460 : 900,
         height: contributionRange === "monthly" ? 196 : 240,

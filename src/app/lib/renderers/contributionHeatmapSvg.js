@@ -1,6 +1,7 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 const YEARLY_WEEKS_TO_RENDER = 53;
 const MONTHLY_WEEKS_TO_RENDER = 6;
+const TORTOISE_ASSET_HREF = "";
 
 export const CONTRIBUTION_GRAPH_VARIANTS = [
   {
@@ -17,6 +18,11 @@ export const CONTRIBUTION_GRAPH_VARIANTS = [
     id: "sunset",
     title: "Sunset",
     description: "Warm red-orange palette with a premium card treatment.",
+  },
+  {
+    id: "tortoise",
+    title: "Tortoise White",
+    description: "Plain white monthly graph with a cartoon tortoise accent.",
   },
 ];
 
@@ -70,6 +76,17 @@ const VARIANT_THEMES = {
     legend: "#d7a89d",
     dayLabel: "#d7a89d",
     levels: ["#241326", "#4a1f3a", "#7b2e4d", "#c1535a", "#ff8b5b"],
+  },
+  tortoise: {
+    bg: "#ffffff",
+    panel: "#f6f7f9",
+    border: "#d8dde3",
+    title: "#101418",
+    subtitle: "#4f5b66",
+    month: "#4f5b66",
+    legend: "#4f5b66",
+    dayLabel: "#4f5b66",
+    levels: ["#edf1f4", "#cfd7de", "#9fabb7", "#6b7a89", "#2f3a45"],
   },
 };
 
@@ -181,11 +198,61 @@ function normalizeContributionDays(days = []) {
   return map;
 }
 
+function buildTortoiseDecoration({
+  x = 0,
+  y = 0,
+  width = 68,
+  height = 68,
+  href = TORTOISE_ASSET_HREF,
+} = {}) {
+  const safeHref = String(href || "").trim();
+  if (safeHref) {
+    return `<image href="${escapeXml(
+      safeHref
+    )}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet" />`;
+  }
+
+  const shellFill = "#85c46a";
+  const shellStroke = "#4d7f3b";
+  const skinFill = "#9ccf86";
+
+  return `
+<g transform="translate(${x} ${y})">
+  <ellipse cx="${(width * 0.5).toFixed(2)}" cy="${(height * 0.62).toFixed(
+    2
+  )}" rx="${(width * 0.26).toFixed(2)}" ry="${(height * 0.2).toFixed(
+    2
+  )}" fill="${shellFill}" stroke="${shellStroke}" stroke-width="1.6" />
+  <ellipse cx="${(width * 0.5).toFixed(2)}" cy="${(height * 0.62).toFixed(
+    2
+  )}" rx="${(width * 0.13).toFixed(2)}" ry="${(height * 0.1).toFixed(
+    2
+  )}" fill="#6ca84f" opacity="0.7" />
+  <circle cx="${(width * 0.76).toFixed(2)}" cy="${(height * 0.58).toFixed(
+    2
+  )}" r="${(width * 0.07).toFixed(2)}" fill="${skinFill}" stroke="#5f8c49" stroke-width="1.2" />
+  <circle cx="${(width * 0.79).toFixed(2)}" cy="${(height * 0.56).toFixed(
+    2
+  )}" r="${(width * 0.01).toFixed(2)}" fill="#263238" />
+  <ellipse cx="${(width * 0.63).toFixed(2)}" cy="${(height * 0.74).toFixed(
+    2
+  )}" rx="${(width * 0.05).toFixed(2)}" ry="${(height * 0.04).toFixed(
+    2
+  )}" fill="${skinFill}" />
+  <ellipse cx="${(width * 0.37).toFixed(2)}" cy="${(height * 0.74).toFixed(
+    2
+  )}" rx="${(width * 0.05).toFixed(2)}" ry="${(height * 0.04).toFixed(
+    2
+  )}" fill="${skinFill}" />
+</g>`.trim();
+}
+
 export function renderContributionHeatmapSvg({
   username = "github-user",
   days = [],
   variant = "classic",
   range = "yearly",
+  tortoiseHref = TORTOISE_ASSET_HREF,
   title = "Contribution Graph",
   width = 0,
   height = 0,
@@ -193,13 +260,15 @@ export function renderContributionHeatmapSvg({
 } = {}) {
   const normalizedVariant = normalizeContributionVariant(variant);
   const normalizedRange = normalizeContributionRange(range);
+  const effectiveRange =
+    normalizedVariant === "tortoise" ? "monthly" : normalizedRange;
   const theme = resolveTheme(normalizedVariant);
   const safeUsername = escapeXml(username || "github-user");
   const safeTitle = escapeXml(title || "Contribution Graph");
   const rangeLabel =
-    normalizedRange === "monthly" ? "Last 30 Days" : "Last 12 Months";
+    effectiveRange === "monthly" ? "Last 30 Days" : "Last 12 Months";
   const weeksToRender =
-    normalizedRange === "monthly"
+    effectiveRange === "monthly"
       ? MONTHLY_WEEKS_TO_RENDER
       : YEARLY_WEEKS_TO_RENDER;
 
@@ -223,7 +292,7 @@ export function renderContributionHeatmapSvg({
   const requestedWidth = Number(width);
   const requestedHeight = Number(height);
   const defaultWidth =
-    normalizedRange === "monthly"
+    effectiveRange === "monthly"
       ? compact
         ? 360
         : 460
@@ -231,7 +300,7 @@ export function renderContributionHeatmapSvg({
         ? 760
         : 900;
   const defaultHeight =
-    normalizedRange === "monthly"
+    effectiveRange === "monthly"
       ? compact
         ? 176
         : 196
@@ -334,6 +403,16 @@ export function renderContributionHeatmapSvg({
     .join("");
 
   const legendStartX = gridX + gridWidth - 4 * (cell + gap) - 104;
+  const tortoiseDecoration =
+    normalizedVariant === "tortoise"
+      ? buildTortoiseDecoration({
+          x: effectiveWidth - (compact ? 84 : 118),
+          y: effectiveHeight - (compact ? 74 : 104),
+          width: compact ? 68 : 92,
+          height: compact ? 68 : 92,
+          href: tortoiseHref,
+        })
+      : "";
 
   const legendCells = theme.levels
     .map(
@@ -381,5 +460,6 @@ export function renderContributionHeatmapSvg({
   }" font-size="${
     compact ? 9 : 10
   }" font-family="Inter, Segoe UI, sans-serif">More</text>
+  ${tortoiseDecoration}
 </svg>`.trim();
 }
