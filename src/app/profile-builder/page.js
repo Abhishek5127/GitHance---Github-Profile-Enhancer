@@ -30,10 +30,12 @@ import {
 } from "../lib/sectionCatalog";
 import {
   CONTRIBUTION_GRAPH_ASSET_PATH,
+  CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
   CONTRIBUTION_GRAPH_WORKFLOW_PATH,
   CONTRIBUTION_GRAPH_SCRIPT_PATH,
   buildContributionGraphWorkflow,
   buildContributionGraphUpdaterScript,
+  resolveContributionAssetPath,
 } from "../lib/contributionGraphAssets";
 import {
   normalizeContributionRange,
@@ -264,6 +266,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       const contributionSnapshot = hasContributionSnapshot(existingSnapshot)
         ? existingSnapshot
         : snapshotsByUser.get(username) || null;
+      const range = normalizeContributionRange(item?.data?.range);
 
       return {
         ...item,
@@ -271,8 +274,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           ...item.data,
           username,
           variant: normalizeContributionVariant(item?.data?.variant),
-          range: normalizeContributionRange(item?.data?.range),
-          assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+          range,
+          assetPath: resolveContributionAssetPath(range),
           ...(contributionSnapshot ? { contributionSnapshot } : {}),
         },
       };
@@ -292,10 +295,21 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     const latestMarkdown = generateMarkdown(enrichedItems);
     setMarkdown(latestMarkdown);
 
-    const contributionBlock = enrichedItems.find((item) => item.type === "contribution");
-    const contributionFiles = [];
+    const contributionBlocks = enrichedItems.filter((item) => item.type === "contribution");
+    const contributionFileMap = new Map();
+    const workflowDefaults = {
+      username: String(session?.username || "").trim().toLowerCase(),
+      yearlyVariant: CONTRIBUTION_DEFAULT_VARIANT,
+      monthlyVariant: CONTRIBUTION_DEFAULT_VARIANT,
+      includeMonthly: false,
+    };
 
-    if (contributionBlock) {
+    const upsertContributionFile = (entry) => {
+      if (!entry?.path) return;
+      contributionFileMap.set(entry.path, entry);
+    };
+
+    contributionBlocks.forEach((contributionBlock) => {
       const contributionUsername = String(
         contributionBlock?.data?.username || session?.username || ""
       )
@@ -307,47 +321,65 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       const contributionRange = normalizeContributionRange(
         contributionBlock?.data?.range || CONTRIBUTION_DEFAULT_RANGE
       );
+      const contributionAssetPath =
+        String(contributionBlock?.data?.assetPath || "").trim() ||
+        resolveContributionAssetPath(contributionRange);
       const contributionSnapshot = contributionBlock?.data?.contributionSnapshot || null;
 
-      if (contributionUsername) {
-        const contributionSvg = renderContributionHeatmapSvg({
-          username: contributionUsername,
-          days: Array.isArray(contributionSnapshot?.days)
-            ? contributionSnapshot.days
-            : [],
-          variant: contributionVariant,
-          range: contributionRange,
-          title: "Contribution Graph",
-        });
+      if (!contributionUsername) return;
 
-        contributionFiles.push(
-          {
-            path: CONTRIBUTION_GRAPH_ASSET_PATH,
-            content: `${contributionSvg}\n`,
-            message: "chore(readme): refresh contribution graph asset",
-          },
-          {
-            path: CONTRIBUTION_GRAPH_WORKFLOW_PATH,
-            content: buildContributionGraphWorkflow({
-              username: contributionUsername,
-              variant: contributionVariant,
-              range: contributionRange,
-              assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
-              scriptPath: CONTRIBUTION_GRAPH_SCRIPT_PATH,
-            }),
-            message: "chore(readme): configure contribution graph workflow",
-          },
-          {
-            path: CONTRIBUTION_GRAPH_SCRIPT_PATH,
-            content: buildContributionGraphUpdaterScript({
-              outputPath: CONTRIBUTION_GRAPH_ASSET_PATH,
-              range: contributionRange,
-            }),
-            message: "chore(readme): add contribution graph generator script",
-          }
-        );
+      const contributionSvg = renderContributionHeatmapSvg({
+        username: contributionUsername,
+        days: Array.isArray(contributionSnapshot?.days)
+          ? contributionSnapshot.days
+          : [],
+        variant: contributionVariant,
+        range: contributionRange,
+        title: "Contribution Graph",
+        width: contributionRange === "monthly" ? 460 : 900,
+        height: contributionRange === "monthly" ? 196 : 240,
+      });
+
+      upsertContributionFile({
+        path: contributionAssetPath,
+        content: `${contributionSvg}\n`,
+        message: `chore(readme): refresh ${contributionRange} contribution graph asset`,
+      });
+
+      workflowDefaults.username = workflowDefaults.username || contributionUsername;
+      if (contributionRange === "monthly") {
+        workflowDefaults.includeMonthly = true;
+        workflowDefaults.monthlyVariant = contributionVariant;
+      } else {
+        workflowDefaults.yearlyVariant = contributionVariant;
       }
+    });
+
+    if (contributionBlocks.length) {
+      upsertContributionFile({
+        path: CONTRIBUTION_GRAPH_WORKFLOW_PATH,
+        content: buildContributionGraphWorkflow({
+          username: workflowDefaults.username,
+          yearlyVariant: workflowDefaults.yearlyVariant,
+          monthlyVariant: workflowDefaults.monthlyVariant,
+          yearlyAssetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+          monthlyAssetPath: CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
+          includeMonthly: workflowDefaults.includeMonthly,
+          scriptPath: CONTRIBUTION_GRAPH_SCRIPT_PATH,
+        }),
+        message: "chore(readme): configure contribution graph workflow",
+      });
+
+      upsertContributionFile({
+        path: CONTRIBUTION_GRAPH_SCRIPT_PATH,
+        content: buildContributionGraphUpdaterScript({
+          outputPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+        }),
+        message: "chore(readme): add contribution graph generator script",
+      });
     }
+
+    const contributionFiles = [...contributionFileMap.values()];
 
     const res = await fetch("/api/publish-readme", {
       method: "POST",
@@ -591,7 +623,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           username: session?.username || "your-github-username",
           variant: CONTRIBUTION_DEFAULT_VARIANT,
           range: CONTRIBUTION_DEFAULT_RANGE,
-          assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+          assetPath: resolveContributionAssetPath(CONTRIBUTION_DEFAULT_RANGE),
         },
       };
 
@@ -757,7 +789,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         username,
         variant: normalizedVariant,
         range: normalizedRange,
-        assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+        assetPath: resolveContributionAssetPath(normalizedRange),
         ...(snapshot ? { contributionSnapshot: snapshot } : {}),
       },
     };
@@ -1055,7 +1087,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             .toLowerCase(),
           variant: normalizedVariant,
           range: normalizedRange,
-          assetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+          assetPath: resolveContributionAssetPath(normalizedRange),
         },
       }));
     } else {

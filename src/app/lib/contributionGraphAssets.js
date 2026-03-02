@@ -1,4 +1,6 @@
 export const CONTRIBUTION_GRAPH_ASSET_PATH = "assets/readme/contribution-graph.svg";
+export const CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH =
+  "assets/readme/contribution-graph-monthly.svg";
 export const CONTRIBUTION_GRAPH_WORKFLOW_PATH = ".github/workflows/update-contribution-graph.yml";
 export const CONTRIBUTION_GRAPH_SCRIPT_PATH = ".github/scripts/update-contribution-graph.mjs";
 
@@ -18,18 +20,49 @@ function normalizeRange(value) {
   return "yearly";
 }
 
+export function resolveContributionAssetPath(range = "yearly") {
+  const normalizedRange = normalizeRange(range);
+  return normalizedRange === "monthly"
+    ? CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH
+    : CONTRIBUTION_GRAPH_ASSET_PATH;
+}
+
 export function buildContributionGraphWorkflow({
   username = "",
-  variant = "classic",
-  range = "yearly",
-  assetPath = CONTRIBUTION_GRAPH_ASSET_PATH,
+  yearlyVariant = "classic",
+  monthlyVariant = "classic",
+  yearlyAssetPath = CONTRIBUTION_GRAPH_ASSET_PATH,
+  monthlyAssetPath = CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
+  includeMonthly = true,
   scriptPath = CONTRIBUTION_GRAPH_SCRIPT_PATH,
 } = {}) {
   const safeUsername = String(username || "").trim();
-  const safeVariant = normalizeVariant(variant);
-  const safeRange = normalizeRange(range);
-  const safeAssetPath = String(assetPath || CONTRIBUTION_GRAPH_ASSET_PATH).trim();
+  const safeYearlyVariant = normalizeVariant(yearlyVariant);
+  const safeMonthlyVariant = normalizeVariant(monthlyVariant);
+  const safeYearlyAssetPath = String(
+    yearlyAssetPath || CONTRIBUTION_GRAPH_ASSET_PATH
+  ).trim();
+  const safeMonthlyAssetPath = String(
+    monthlyAssetPath || CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH
+  ).trim();
+  const safeIncludeMonthly = Boolean(includeMonthly);
   const safeScriptPath = String(scriptPath || CONTRIBUTION_GRAPH_SCRIPT_PATH).trim();
+  const statusTargetPaths = safeIncludeMonthly
+    ? `${safeYearlyAssetPath} ${safeMonthlyAssetPath}`
+    : safeYearlyAssetPath;
+  const gitAddPaths = statusTargetPaths;
+  const monthlyStep = safeIncludeMonthly
+    ? `
+      - name: Generate monthly contribution graph asset
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: ${safeUsername || "${{ github.repository_owner }}"}
+          GRAPH_VARIANT: ${safeMonthlyVariant}
+          GRAPH_RANGE: monthly
+          GRAPH_OUTPUT_PATH: ${safeMonthlyAssetPath}
+        run: node ${safeScriptPath}
+`
+    : "";
 
   return `name: Update Contribution Graph
 
@@ -57,21 +90,22 @@ jobs:
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           GITHUB_USERNAME: ${safeUsername || "${{ github.repository_owner }}"}
-          GRAPH_VARIANT: ${safeVariant}
-          GRAPH_RANGE: ${safeRange}
-          GRAPH_OUTPUT_PATH: ${safeAssetPath}
+          GRAPH_VARIANT: ${safeYearlyVariant}
+          GRAPH_RANGE: yearly
+          GRAPH_OUTPUT_PATH: ${safeYearlyAssetPath}
         run: node ${safeScriptPath}
+${monthlyStep}
 
       - name: Commit and push changes
         run: |
-          if [[ -z "$(git status --porcelain -- ${safeAssetPath})" ]]; then
+          if [[ -z "$(git status --porcelain -- ${statusTargetPaths})" ]]; then
             echo "No contribution graph changes."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ${safeAssetPath}
+          git add ${gitAddPaths}
           git commit -m "chore(readme): refresh contribution graph asset"
           git push
 `;
@@ -79,10 +113,8 @@ jobs:
 
 export function buildContributionGraphUpdaterScript({
   outputPath = CONTRIBUTION_GRAPH_ASSET_PATH,
-  range = "yearly",
 } = {}) {
   const safeOutputPath = String(outputPath || CONTRIBUTION_GRAPH_ASSET_PATH).trim();
-  const safeRange = normalizeRange(range);
 
   return `import fs from "node:fs/promises";
 import path from "node:path";
@@ -251,7 +283,8 @@ function renderHeatmapSvg({ username, days, variant, range }) {
   const gridWidth = weeks * weekWidth - gap;
   const gridHeight = 7 * (cell + gap) - gap;
   const leftLabelSpace = 52;
-  const width = Math.max(900, paddingX + leftLabelSpace + gridWidth + paddingX);
+  const targetWidth = normalizedRange === "monthly" ? 460 : 900;
+  const width = Math.max(targetWidth, paddingX + leftLabelSpace + gridWidth + paddingX);
   const gridX = Math.max(Math.floor((width - gridWidth) / 2), paddingX + leftLabelSpace);
 
   const titleY = paddingY + 12;
@@ -260,7 +293,8 @@ function renderHeatmapSvg({ username, days, variant, range }) {
   const gridY = monthY + 12;
   const legendY = gridY + gridHeight + 24;
   const minHeight = legendY + paddingY + 6;
-  const height = Math.max(240, minHeight);
+  const targetHeight = normalizedRange === "monthly" ? 196 : 240;
+  const height = Math.max(targetHeight, minHeight);
   const yShift = Math.floor((height - minHeight) / 2);
   const shiftedTitleY = titleY + yShift;
   const shiftedSubtitleY = subtitleY + yShift;
@@ -411,7 +445,7 @@ async function main() {
     .trim()
     .toLowerCase();
   const variant = normalizeVariant(process.env.GRAPH_VARIANT || "classic");
-  const range = normalizeRange(process.env.GRAPH_RANGE || "${safeRange}");
+  const range = normalizeRange(process.env.GRAPH_RANGE || "yearly");
   const outputPath = String(process.env.GRAPH_OUTPUT_PATH || "${safeOutputPath}").trim();
 
   if (!token) {

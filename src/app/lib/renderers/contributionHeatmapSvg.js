@@ -187,8 +187,8 @@ export function renderContributionHeatmapSvg({
   variant = "classic",
   range = "yearly",
   title = "Contribution Graph",
-  width = 900,
-  height = 240,
+  width = 0,
+  height = 0,
   compact = false,
 } = {}) {
   const normalizedVariant = normalizeContributionVariant(variant);
@@ -220,8 +220,34 @@ export function renderContributionHeatmapSvg({
   const gridWidth = weeksToRender * weekWidth - gap;
   const gridHeight = 7 * (cell + gap) - gap;
   const leftLabelSpace = compact ? 46 : 52;
+  const requestedWidth = Number(width);
+  const requestedHeight = Number(height);
+  const defaultWidth =
+    normalizedRange === "monthly"
+      ? compact
+        ? 360
+        : 460
+      : compact
+        ? 760
+        : 900;
+  const defaultHeight =
+    normalizedRange === "monthly"
+      ? compact
+        ? 176
+        : 196
+      : compact
+        ? 212
+        : 240;
+  const targetWidth =
+    Number.isFinite(requestedWidth) && requestedWidth > 0
+      ? Math.floor(requestedWidth)
+      : defaultWidth;
+  const targetHeight =
+    Number.isFinite(requestedHeight) && requestedHeight > 0
+      ? Math.floor(requestedHeight)
+      : defaultHeight;
   const minWidth = outerPaddingX + leftLabelSpace + gridWidth + outerPaddingX;
-  const effectiveWidth = Math.max(width, minWidth);
+  const effectiveWidth = Math.max(targetWidth, minWidth);
 
   let gridX = Math.floor((effectiveWidth - gridWidth) / 2);
   gridX = Math.max(gridX, outerPaddingX + leftLabelSpace);
@@ -232,7 +258,7 @@ export function renderContributionHeatmapSvg({
   const gridY = monthY + (compact ? 10 : 12);
   const legendY = gridY + gridHeight + (compact ? 20 : 24);
   const minHeight = legendY + outerPaddingY + (compact ? 4 : 6);
-  const effectiveHeight = Math.max(height, minHeight);
+  const effectiveHeight = Math.max(targetHeight, minHeight);
   const verticalShift = Math.floor((effectiveHeight - minHeight) / 2);
   const shiftedTitleY = titleY + verticalShift;
   const shiftedSubtitleY = subtitleY + verticalShift;

@@ -156,6 +156,9 @@ export default function ContributionGraph({ item, setItems }) {
     () => `data:image/svg+xml;utf8,${encodeURIComponent(svgMarkup)}`,
     [svgMarkup]
   );
+  const isMonthlyRange = range === "monthly";
+  const imageWidth = isMonthlyRange ? 460 : 900;
+  const imageHeight = isMonthlyRange ? 196 : 220;
 
   return (
     <div className="w-full min-w-0 rounded-xl border border-white/10 bg-[#0b111c] p-3">
@@ -178,14 +181,18 @@ export default function ContributionGraph({ item, setItems }) {
         <p className="mb-2 text-xs text-red-300">{fetchState.error}</p>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-white/10 bg-[#050912] p-1">
+      <div
+        className={`overflow-hidden rounded-lg border border-white/10 bg-[#050912] p-1 ${
+          isMonthlyRange ? "mx-auto w-fit" : ""
+        }`}
+      >
         <Image
           src={imageSrc}
           alt="Contribution graph heatmap"
-          width={900}
-          height={220}
+          width={imageWidth}
+          height={imageHeight}
           unoptimized
-          className="block h-auto w-full rounded-md"
+          className={`block h-auto rounded-md ${isMonthlyRange ? "w-auto max-w-full" : "w-full"}`}
           key={`contribution-graph-${fetchState.version}-${variant}-${range}`}
         />
       </div>
