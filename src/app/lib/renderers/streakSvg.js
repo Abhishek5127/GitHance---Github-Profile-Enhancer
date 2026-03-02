@@ -26,12 +26,6 @@ export default function renderStreakSvg(stats = {}, options = {}) {
 
   return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GitHance commit streak for ${username}">
-  <defs>
-    <linearGradient id="githanceStreakBg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0f172a" />
-      <stop offset="100%" stop-color="#111827" />
-    </linearGradient>
-  </defs>
   <style>
     .title { fill: #f8fafc; font: 700 18px 'Segoe UI', Inter, sans-serif; }
     .sub { fill: #94a3b8; font: 500 12px 'Segoe UI', Inter, sans-serif; }
@@ -39,7 +33,6 @@ export default function renderStreakSvg(stats = {}, options = {}) {
     .value { fill: #ffffff; font: 700 18px 'Segoe UI', Inter, sans-serif; }
     .tiny { fill: #fdba74; font: 600 12px 'Segoe UI', Inter, sans-serif; }
   </style>
-  <rect width="${width}" height="${height}" rx="16" fill="url(#githanceStreakBg)" />
   <rect x="10" y="10" width="${width - 20}" height="${height - 20}" rx="12" fill="none" stroke="#1f2937" />
 
   <text x="24" y="38" class="title">Commit Streak</text>

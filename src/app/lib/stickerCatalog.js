@@ -57,7 +57,6 @@ export const STICKER_SLOT_PRESETS = [
 const SLOT_BY_ID = new Map(STICKER_SLOT_PRESETS.map((entry) => [entry.id, entry]));
 
 const STICKER_TARGET_TYPES = new Set([
-  "header",
   "commitStat",
   "commits",
   "contribution",

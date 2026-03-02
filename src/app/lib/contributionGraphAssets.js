@@ -423,13 +423,6 @@ function renderHeatmapSvg({ username, days, variant, range }) {
 
   return \`
 <svg width="\${width}" height="\${height}" viewBox="0 0 \${width} \${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Contribution graph for \${escapeXml(username)}">
-  <defs>
-    <linearGradient id="graph-bg-\${variant}" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="\${theme.bg}" />
-      <stop offset="100%" stop-color="\${theme.panel}" />
-    </linearGradient>
-  </defs>
-  <rect width="\${width}" height="\${height}" rx="16" fill="url(#graph-bg-\${variant})" />
   <rect x="8" y="8" width="\${width - 16}" height="\${height - 16}" rx="12" fill="none" stroke="\${theme.border}" />
   <text x="\${paddingX}" y="\${shiftedTitleY}" fill="\${theme.title}" font-size="16" font-family="Inter, Segoe UI, sans-serif" font-weight="700">Contribution Graph</text>
   <text x="\${paddingX}" y="\${shiftedSubtitleY}" fill="\${theme.subtitle}" font-size="12" font-family="Inter, Segoe UI, sans-serif">@\${escapeXml(username)}</text>

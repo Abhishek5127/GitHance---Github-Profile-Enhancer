@@ -199,14 +199,12 @@ export default function generateMarkdown(canvasItems, options = {}) {
 
     if (block === "header" && item.variant === "trophy") {
       const baseUrl = resolveBaseUrl();
-      const stickersParam = encodeStickersParam(item?.data?.stickers);
       const url = buildTrophyUrl({
         baseUrl,
         title: item.data?.trophyTitle || "Highlights",
         achievements: item.data?.trophyList || [],
         columns: item.data?.trophyColumns || 4,
         theme: item.data?.trophyTheme || "midnight",
-        stickers: stickersParam,
       });
 
       markdown += `
@@ -222,7 +220,6 @@ export default function generateMarkdown(canvasItems, options = {}) {
       ["constellation", "signal", "terminal", "stacked"].includes(item.variant)
     ) {
       const baseUrl = resolveBaseUrl();
-      const stickersParam = encodeStickersParam(item?.data?.stickers);
       const url = buildRenderUrl({
         baseUrl,
         type: "header",
@@ -232,7 +229,6 @@ export default function generateMarkdown(canvasItems, options = {}) {
           subtitle: item.data?.customSubtitle || "Building thoughtful software",
           theme: item.data?.customTheme || "midnight",
           a: item.data?.customAccents || [],
-          ...(stickersParam ? { stickers: stickersParam } : {}),
         },
       });
 

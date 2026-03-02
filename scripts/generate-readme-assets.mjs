@@ -274,19 +274,12 @@ function buildStatsSvg(data) {
 <svg width="520" height="218" viewBox="0 0 520 218" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GitHub stats for ${escapeXml(
     data.username
   )}">
-  <defs>
-    <linearGradient id="bgA" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0a1220" />
-      <stop offset="100%" stop-color="#0f172a" />
-    </linearGradient>
-  </defs>
   <style>
     .title { fill: #e5edf7; font: 700 18px 'Segoe UI', Ubuntu, sans-serif; }
     .meta { fill: #8fa0b8; font: 500 11px 'Segoe UI', Ubuntu, sans-serif; }
     .label { fill: #9eb0ca; font: 600 11px 'Segoe UI', Ubuntu, sans-serif; }
     .value { fill: #f8fbff; font: 700 16px 'Segoe UI', Ubuntu, sans-serif; }
   </style>
-  <rect width="520" height="218" rx="14" fill="url(#bgA)" />
   <rect x="8" y="8" width="504" height="202" rx="10" fill="none" stroke="#1f2b3d" />
   <text x="20" y="34" class="title">${escapeXml(data.username)} - GitHub Stats</text>
   <text x="20" y="52" class="meta">Last generated: ${escapeXml(data.updatedAt)}</text>
@@ -317,12 +310,6 @@ function buildStreakSvg(data) {
 <svg width="520" height="218" viewBox="0 0 520 218" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GitHub streak for ${escapeXml(
     data.username
   )}">
-  <defs>
-    <linearGradient id="bgB" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0b101c" />
-      <stop offset="100%" stop-color="#101827" />
-    </linearGradient>
-  </defs>
   <style>
     .title { fill: #e5edf7; font: 700 18px 'Segoe UI', Ubuntu, sans-serif; }
     .meta { fill: #8fa0b8; font: 500 11px 'Segoe UI', Ubuntu, sans-serif; }
@@ -330,7 +317,6 @@ function buildStreakSvg(data) {
     .value { fill: #f8fbff; font: 700 24px 'Segoe UI', Ubuntu, sans-serif; }
     .small { fill: #d6e2f0; font: 600 12px 'Segoe UI', Ubuntu, sans-serif; }
   </style>
-  <rect width="520" height="218" rx="14" fill="url(#bgB)" />
   <rect x="8" y="8" width="504" height="202" rx="10" fill="none" stroke="#1f2b3d" />
   <text x="20" y="34" class="title">${escapeXml(data.username)} - Activity Streak</text>
   <text x="20" y="52" class="meta">Last generated: ${escapeXml(data.updatedAt)}</text>
@@ -381,12 +367,6 @@ function buildLanguagesSvg(data) {
 <svg width="520" height="248" viewBox="0 0 520 248" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Top languages for ${escapeXml(
     data.username
   )}">
-  <defs>
-    <linearGradient id="bgC" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0a1220" />
-      <stop offset="100%" stop-color="#0f172a" />
-    </linearGradient>
-  </defs>
   <style>
     .title { fill: #e5edf7; font: 700 18px 'Segoe UI', Ubuntu, sans-serif; }
     .meta { fill: #8fa0b8; font: 500 11px 'Segoe UI', Ubuntu, sans-serif; }
@@ -394,7 +374,6 @@ function buildLanguagesSvg(data) {
     .count { fill: #9eb0ca; font: 600 11px 'Segoe UI', Ubuntu, sans-serif; text-anchor: end; }
     .helper { fill: #7f91ab; font: 500 11px 'Segoe UI', Ubuntu, sans-serif; }
   </style>
-  <rect width="520" height="248" rx="14" fill="url(#bgC)" />
   <rect x="8" y="8" width="504" height="232" rx="10" fill="none" stroke="#1f2b3d" />
   <text x="20" y="34" class="title">${escapeXml(data.username)} - Top Languages</text>
   <text x="20" y="52" class="meta">Based on ${escapeXml(formatNumber(data.repoCount))} non-fork repos - generated ${escapeXml(

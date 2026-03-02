@@ -369,13 +369,6 @@ export function renderContributionHeatmapSvg({
 
   const svgMarkup = `
 <svg width="${effectiveWidth}" height="${effectiveHeight}" viewBox="0 0 ${effectiveWidth} ${effectiveHeight}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Contribution graph for ${safeUsername}">
-  <defs>
-    <linearGradient id="contrib-bg-${normalizedVariant}" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${theme.bg}" />
-      <stop offset="100%" stop-color="${theme.panel}" />
-    </linearGradient>
-  </defs>
-  <rect width="${effectiveWidth}" height="${effectiveHeight}" rx="${compact ? 12 : 16}" fill="url(#contrib-bg-${normalizedVariant})" />
   <rect x="${compact ? 6 : 8}" y="${compact ? 6 : 8}" width="${
     effectiveWidth - (compact ? 12 : 16)
   }" height="${effectiveHeight - (compact ? 12 : 16)}" rx="${compact ? 10 : 12}" fill="none" stroke="${theme.border}" />
