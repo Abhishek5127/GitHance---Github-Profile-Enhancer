@@ -1,3 +1,7 @@
+import {
+  appendStickerOverlayToSvg,
+  buildSvgStickerOverlay,
+} from "@/app/lib/renderers/stickerSvg";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const YEARLY_WEEKS_TO_RENDER = 53;
 const MONTHLY_WEEKS_TO_RENDER = 6;
@@ -202,6 +206,8 @@ export function renderContributionHeatmapSvg({
   days = [],
   variant = "classic",
   range = "yearly",
+  stickers = {},
+  stickerHrefs = {},
   title = "Contribution Graph",
   width = 0,
   height = 0,
@@ -361,7 +367,7 @@ export function renderContributionHeatmapSvg({
     )
     .join("");
 
-  return `
+  const svgMarkup = `
 <svg width="${effectiveWidth}" height="${effectiveHeight}" viewBox="0 0 ${effectiveWidth} ${effectiveHeight}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Contribution graph for ${safeUsername}">
   <defs>
     <linearGradient id="contrib-bg-${normalizedVariant}" x1="0" y1="0" x2="1" y2="1">
@@ -400,4 +406,15 @@ export function renderContributionHeatmapSvg({
     compact ? 9 : 10
   }" font-family="Inter, Segoe UI, sans-serif">More</text>
 </svg>`.trim();
+
+  const stickerOverlay = buildSvgStickerOverlay({
+    stickers,
+    width: effectiveWidth,
+    height: effectiveHeight,
+    stickerSize: compact ? 38 : 56,
+    margin: compact ? 8 : 12,
+    hrefMap: stickerHrefs,
+  });
+
+  return appendStickerOverlayToSvg(svgMarkup, stickerOverlay);
 }

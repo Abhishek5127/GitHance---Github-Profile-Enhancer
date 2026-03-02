@@ -381,6 +381,7 @@ export function buildTrophyUrl({
   achievements = [],
   theme = "midnight",
   columns = 4,
+  stickers = "",
 }) {
   return buildRenderUrl({
     baseUrl,
@@ -391,6 +392,7 @@ export function buildTrophyUrl({
       theme,
       columns,
       a: achievements,
+      ...(stickers ? { stickers } : {}),
     },
   });
 }

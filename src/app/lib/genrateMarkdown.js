@@ -8,6 +8,7 @@ import {
 import { getRepoCommitStatItemById } from "./repoCommitCatalog";
 import { getSectionVariantById } from "./sectionCatalog";
 import { CONTRIBUTION_GRAPH_ASSET_PATH } from "./contributionGraphAssets";
+import { normalizeStickerAssignments } from "./stickerCatalog";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
 
@@ -24,6 +25,17 @@ const normalizeContributionAssetPath = (value) =>
     .replaceAll("\\", "/")
     .replace(/^\.\//, "")
     .replace(/^\/+/, "") || CONTRIBUTION_GRAPH_ASSET_PATH;
+
+const encodeStickersParam = (value) => {
+  const normalized = normalizeStickerAssignments(value);
+  if (!Object.keys(normalized).length) return "";
+
+  try {
+    return JSON.stringify(normalized);
+  } catch {
+    return "";
+  }
+};
 
 export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
   const {
@@ -187,12 +199,14 @@ export default function generateMarkdown(canvasItems, options = {}) {
 
     if (block === "header" && item.variant === "trophy") {
       const baseUrl = resolveBaseUrl();
+      const stickersParam = encodeStickersParam(item?.data?.stickers);
       const url = buildTrophyUrl({
         baseUrl,
         title: item.data?.trophyTitle || "Highlights",
         achievements: item.data?.trophyList || [],
         columns: item.data?.trophyColumns || 4,
         theme: item.data?.trophyTheme || "midnight",
+        stickers: stickersParam,
       });
 
       markdown += `
@@ -208,6 +222,7 @@ export default function generateMarkdown(canvasItems, options = {}) {
       ["constellation", "signal", "terminal", "stacked"].includes(item.variant)
     ) {
       const baseUrl = resolveBaseUrl();
+      const stickersParam = encodeStickersParam(item?.data?.stickers);
       const url = buildRenderUrl({
         baseUrl,
         type: "header",
@@ -217,6 +232,7 @@ export default function generateMarkdown(canvasItems, options = {}) {
           subtitle: item.data?.customSubtitle || "Building thoughtful software",
           theme: item.data?.customTheme || "midnight",
           a: item.data?.customAccents || [],
+          ...(stickersParam ? { stickers: stickersParam } : {}),
         },
       });
 
@@ -357,6 +373,7 @@ ${content || "&nbsp;"}
         .trim()
         .toLowerCase();
       const selectedStat = getRepoCommitStatItemById(statId);
+      const stickersParam = encodeStickersParam(item?.data?.stickers);
 
       if (username && selectedStat) {
         const statUrl = buildRenderUrl({
@@ -372,6 +389,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             ...(selectedStat.metric ? { metric: selectedStat.metric } : {}),
+            ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
 
@@ -398,6 +416,7 @@ ${content || "&nbsp;"}
       const baseUrl = resolveBaseUrl();
       const username = String(item.data?.username || "").trim();
       const installationId = Number(item.data?.installationId || 0) || null;
+      const stickersParam = encodeStickersParam(item?.data?.stickers);
 
       if (username) {
         const contributionUrl = buildRenderUrl({
@@ -407,6 +426,7 @@ ${content || "&nbsp;"}
           params: {
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
+            ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
         const streakUrl = buildRenderUrl({
@@ -416,6 +436,7 @@ ${content || "&nbsp;"}
           params: {
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
+            ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
         const lastRepoUrl = buildRenderUrl({
@@ -426,6 +447,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "last_repo",
+            ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
         const totalCommitsUrl = buildRenderUrl({
@@ -436,6 +458,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "total_commits",
+            ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
         const activeDaysUrl = buildRenderUrl({
@@ -446,6 +469,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "active_days",
+            ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
         const topRepoUrl = buildRenderUrl({
@@ -456,6 +480,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "top_repo",
+            ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
 

@@ -42,6 +42,7 @@ import {
 import {
   canItemAcceptStickers,
   getStickerById,
+  normalizeStickerAssignments,
   parseStickerDropId,
 } from "../lib/stickerCatalog";
 import {
@@ -246,6 +247,40 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     }
   };
 
+  const loadStickerDataUri = async (stickerId) => {
+    const normalizedStickerId = String(stickerId || "").trim();
+    if (!normalizedStickerId) return "";
+
+    const sticker = getStickerById(normalizedStickerId);
+    const stickerPath = String(sticker?.assetPath || "").trim();
+    if (!stickerPath) return "";
+
+    try {
+      const response = await fetch(stickerPath, { cache: "force-cache" });
+      if (!response.ok) return "";
+
+      const raw = await response.text();
+      return `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`;
+    } catch {
+      return "";
+    }
+  };
+
+  const buildStickerHrefMapForAssignments = async (stickers) => {
+    const normalizedStickers = normalizeStickerAssignments(stickers);
+    const stickerIds = [...new Set(Object.values(normalizedStickers).filter(Boolean))];
+    if (!stickerIds.length) return {};
+
+    const hrefEntries = await Promise.all(
+      stickerIds.map(async (stickerId) => {
+        const href = await loadStickerDataUri(stickerId);
+        return [stickerId, href];
+      })
+    );
+
+    return Object.fromEntries(hrefEntries.filter(([, href]) => Boolean(href)));
+  };
+
   const enrichContributionBlocks = async (items) => {
     const contributionBlocks = items.filter((item) => item.type === "contribution");
     if (!contributionBlocks.length) return items;
@@ -325,7 +360,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       contributionFileMap.set(entry.path, entry);
     };
 
-    contributionBlocks.forEach((contributionBlock) => {
+    for (const contributionBlock of contributionBlocks) {
       const contributionUsername = String(
         contributionBlock?.data?.username || session?.username || ""
       )
@@ -341,8 +376,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         String(contributionBlock?.data?.assetPath || "").trim() ||
         resolveContributionAssetPath(contributionRange);
       const contributionSnapshot = contributionBlock?.data?.contributionSnapshot || null;
+      const contributionStickers = normalizeStickerAssignments(
+        contributionBlock?.data?.stickers
+      );
 
-      if (!contributionUsername) return;
+      if (!contributionUsername) continue;
+
+      const stickerHrefs = await buildStickerHrefMapForAssignments(
+        contributionStickers
+      );
 
       const contributionSvg = renderContributionHeatmapSvg({
         username: contributionUsername,
@@ -351,6 +393,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           : [],
         variant: contributionVariant,
         range: contributionRange,
+        stickers: contributionStickers,
+        stickerHrefs,
         title: "Contribution Graph",
         width: contributionRange === "monthly" ? 460 : 900,
         height: contributionRange === "monthly" ? 196 : 240,
@@ -369,7 +413,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       } else {
         workflowDefaults.yearlyVariant = contributionVariant;
       }
-    });
+    }
 
     if (contributionBlocks.length) {
       upsertContributionFile({

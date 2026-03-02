@@ -8,8 +8,12 @@ import { getGithubStatsForUser } from "@/app/lib/githubStats";
 import renderContributionSvg from "@/app/lib/renderers/contributionSvg";
 import renderStreakSvg from "@/app/lib/renderers/streakSvg";
 import renderRepoSvg from "@/app/lib/renderers/repoSvg";
+import {
+  appendStickerOverlayToSvg,
+  buildSvgStickerOverlay,
+} from "@/app/lib/renderers/stickerSvg";
+import { normalizeStickerAssignments } from "@/app/lib/stickerCatalog";
 import { NextResponse } from "next/server";
-import { log } from "console";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -60,6 +64,90 @@ function isTruthyParam(value) {
     .trim()
     .toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
+function parseStickerAssignments(searchParams) {
+  const raw = searchParams.get("stickers");
+  if (!raw) return {};
+
+  const candidates = [raw];
+  try {
+    const decoded = decodeURIComponent(raw);
+    if (decoded && decoded !== raw) {
+      candidates.push(decoded);
+    }
+  } catch {
+    // Ignore URI decoding errors and fall back to the raw value.
+  }
+
+  for (const value of candidates) {
+    try {
+      const parsed = JSON.parse(value);
+      return normalizeStickerAssignments(parsed);
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  return {};
+}
+
+function parseSvgDimension(svgMarkup, attribute) {
+  const normalizedAttr = String(attribute || "").trim();
+  if (!normalizedAttr) return 0;
+
+  const directMatch = new RegExp(
+    `<svg[^>]*\\b${normalizedAttr}="([0-9]+(?:\\.[0-9]+)?)`,
+    "i"
+  ).exec(svgMarkup);
+  if (directMatch?.[1]) {
+    const value = Number(directMatch[1]);
+    if (Number.isFinite(value) && value > 0) {
+      return Math.floor(value);
+    }
+  }
+
+  return 0;
+}
+
+function getSvgDimensions(svgMarkup, fallbackWidth = 0, fallbackHeight = 0) {
+  const parsedWidth = parseSvgDimension(svgMarkup, "width");
+  const parsedHeight = parseSvgDimension(svgMarkup, "height");
+
+  const widthFromViewBox = (() => {
+    const match = /<svg[^>]*\bviewBox="([^"]+)"/i.exec(svgMarkup);
+    if (!match?.[1]) return 0;
+    const parts = match[1]
+      .trim()
+      .split(/\s+/)
+      .map((value) => Number(value));
+    if (parts.length !== 4) return 0;
+    const width = Number(parts[2]);
+    return Number.isFinite(width) && width > 0 ? Math.floor(width) : 0;
+  })();
+
+  const heightFromViewBox = (() => {
+    const match = /<svg[^>]*\bviewBox="([^"]+)"/i.exec(svgMarkup);
+    if (!match?.[1]) return 0;
+    const parts = match[1]
+      .trim()
+      .split(/\s+/)
+      .map((value) => Number(value));
+    if (parts.length !== 4) return 0;
+    const height = Number(parts[3]);
+    return Number.isFinite(height) && height > 0 ? Math.floor(height) : 0;
+  })();
+
+  return {
+    width:
+      parsedWidth ||
+      widthFromViewBox ||
+      (Number.isFinite(fallbackWidth) && fallbackWidth > 0 ? Math.floor(fallbackWidth) : 500),
+    height:
+      parsedHeight ||
+      heightFromViewBox ||
+      (Number.isFinite(fallbackHeight) && fallbackHeight > 0 ? Math.floor(fallbackHeight) : 180),
+  };
 }
 
 export async function GET(request) {
@@ -148,6 +236,24 @@ export async function GET(request) {
     svg = generateTrophySvg({ title, achievements, columns, theme });
   } else {
     svg = generateHeaderSvg({ variant: "stacked", name: "GitHance", subtitle: "Dynamic header" });
+  }
+
+  const stickers = parseStickerAssignments(searchParams);
+  if (Object.keys(stickers).length) {
+    const dimensions = getSvgDimensions(svg, width, height);
+    const stickerSize = Math.max(
+      28,
+      Math.min(72, Math.floor(dimensions.height * 0.3))
+    );
+    const overlay = buildSvgStickerOverlay({
+      stickers,
+      width: dimensions.width,
+      height: dimensions.height,
+      stickerSize,
+      margin: Math.max(8, Math.floor(stickerSize * 0.2)),
+    });
+
+    svg = appendStickerOverlayToSvg(svg, overlay);
   }
 
   return new NextResponse(svg, {
