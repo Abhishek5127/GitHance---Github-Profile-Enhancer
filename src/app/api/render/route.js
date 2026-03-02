@@ -9,6 +9,7 @@ import renderContributionSvg from "@/app/lib/renderers/contributionSvg";
 import renderStreakSvg from "@/app/lib/renderers/streakSvg";
 import renderRepoSvg from "@/app/lib/renderers/repoSvg";
 import { NextResponse } from "next/server";
+import { log } from "console";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,12 +29,13 @@ function hasMeaningfulStats(stats) {
 function parseStatsSnapshot(searchParams) {
   const raw = searchParams.get("snapshot");
   if (!raw) return null;
+  
 
   try {
     const decoded = decodeURIComponent(raw);
     const parsed = JSON.parse(decoded);
     if (!parsed || typeof parsed !== "object") return null;
-
+    
     return {
       github_username: String(parsed.github_username || ""),
       total_commits: Number(parsed.total_commits || 0),
