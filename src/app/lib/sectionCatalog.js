@@ -86,9 +86,3 @@ export function parseSectionSlotDropId(value) {
     slotIndex,
   };
 }
-import { exec } from "child_process";
-
-app.get("/test-cmd", (req, res) => {
-  exec("ls " + req.query.dir);
-  res.send("done");
-});

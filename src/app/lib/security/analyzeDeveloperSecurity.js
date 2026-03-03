@@ -109,6 +109,23 @@ const ATTACK_SURFACE = {
 };
 const LOG_SECRET_NAME_PATTERN =
   /(token|password|secret|key|auth|credential|jwt|session)/i;
+const NODE_FS_MODULE = "node:fs";
+const NODE_FS_PROMISES_MODULE = "node:fs/promises";
+const SCORE_DEDUCTION_BY_SEVERITY = {
+  critical: 25,
+  high: 15,
+  medium: 8,
+  low: 3,
+  informational: 1,
+};
+const SCORE_CAP_BY_SEVERITY = {
+  critical: 40,
+  high: 30,
+  medium: 20,
+  low: 10,
+};
+const VULN_LINE_CSS =
+  ".vuln-line { background-color: rgba(255, 0, 0, 0.15); border-left: 4px solid red; display: block; padding-left: 6px; }";
 
 const DANGEROUS_METHOD_TO_VULN = (() => {
   const out = new Map();
@@ -306,7 +323,12 @@ function classifyExecutionContext({ filePath, content, ast }) {
 }
 
 function normalizeModuleName(value) {
-  return String(value || "").trim().toLowerCase();
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "fs" || normalized === "node:fs") return NODE_FS_MODULE;
+  if (normalized === "fs/promises" || normalized === "node:fs/promises") {
+    return NODE_FS_PROMISES_MODULE;
+  }
+  return normalized;
 }
 
 function getStaticPropertyName(node) {
@@ -359,8 +381,36 @@ function buildCodeBlock(lines, lineStart, lineEnd) {
   }
   const rendered = [];
   for (let line = start; line <= end; line += 1) {
-    const marker = line >= startLine && line <= endLine ? ">" : " ";
-    rendered.push(`${marker} ${String(line).padStart(4, " ")} | ${lines[line - 1] ?? ""}`);
+    const marker = line >= startLine && line <= endLine ? ">>>" : "   ";
+    rendered.push(`${marker}${String(line).padStart(4, " ")} | ${lines[line - 1] ?? ""}`);
+  }
+  return rendered.join("\n");
+}
+
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function buildCodeBlockHtml(lines, lineStart, lineEnd) {
+  const startLine = Math.max(1, Number(lineStart) || 1);
+  const endLine = Math.max(startLine, Number(lineEnd) || startLine);
+  const totalLines = lines.length;
+  let start = Math.max(1, startLine - PREVIEW_CONTEXT_BEFORE);
+  let end = Math.min(totalLines, endLine + PREVIEW_CONTEXT_AFTER);
+  if (end - start + 1 > MAX_PREVIEW_LINES) {
+    end = Math.min(totalLines, start + MAX_PREVIEW_LINES - 1);
+  }
+  const rendered = [];
+  for (let line = start; line <= end; line += 1) {
+    const content = `${String(line).padStart(4, " ")} | ${escapeHtml(lines[line - 1] ?? "")}`;
+    if (line >= startLine && line <= endLine) {
+      rendered.push(`<span class="vuln-line">${content}</span>`);
+    } else {
+      rendered.push(content);
+    }
   }
   return rendered.join("\n");
 }
@@ -548,11 +598,55 @@ function flattenPattern(pattern, acc = []) {
 
 function setImport(state, scope, local, data) {
   if (!local) return;
-  state.imports.set(bindingKey(scope, local), { ...data, local });
+  const normalizedModule = normalizeModuleName(data?.module);
+  const entry = { ...data, module: normalizedModule, local };
+  state.imports.set(bindingKey(scope, local), entry);
+  if (!state.importsByName.has(local)) {
+    state.importsByName.set(local, entry);
+  }
 }
 
 function getImport(state, scope, name) {
-  return state.imports.get(bindingKey(scope, name)) || null;
+  return state.imports.get(bindingKey(scope, name)) || state.importsByName.get(name) || null;
+}
+
+function resolveImportedTarget(imp, memberSegments = [], fallbackName = "") {
+  const imported = String(imp?.imported || "");
+  const importedPath =
+    imported && imported !== "*" && imported !== "default"
+      ? imported.split(".").filter(Boolean)
+      : [];
+  let moduleName = normalizeModuleName(imp?.module);
+  let segments = Array.isArray(memberSegments) ? memberSegments.filter(Boolean) : [];
+
+  if (moduleName === NODE_FS_MODULE && importedPath[0] === "promises") {
+    moduleName = NODE_FS_PROMISES_MODULE;
+    importedPath.shift();
+  }
+  if (moduleName === NODE_FS_MODULE && segments[0] === "promises") {
+    moduleName = NODE_FS_PROMISES_MODULE;
+    segments = segments.slice(1);
+  }
+  if (moduleName === NODE_FS_PROMISES_MODULE && segments[0] === "promises") {
+    segments = segments.slice(1);
+  }
+
+  let callPath = [];
+  if (segments.length > 0) {
+    callPath = segments;
+  } else if (importedPath.length > 0) {
+    callPath = importedPath;
+  } else if (fallbackName) {
+    callPath = [fallbackName];
+  }
+
+  const memberName = callPath.length > 0 ? callPath[callPath.length - 1] : fallbackName || null;
+  const callPathText = callPath.join(".") || memberName || "call";
+  return {
+    moduleName,
+    memberName,
+    fullyQualifiedFunction: `${moduleName}.${callPathText}`,
+  };
 }
 
 function resolveCallee(callee, scope, state) {
@@ -560,13 +654,13 @@ function resolveCallee(callee, scope, state) {
   if (callee?.type === "Identifier") {
     const imp = getImport(state, scope, callee.name);
     if (imp) {
-      const memberName = imp.imported && imp.imported !== "default" ? imp.imported : callee.name;
+      const target = resolveImportedTarget(imp, [], callee.name);
       return {
         calleeText,
-        fullyQualifiedFunction: `${imp.module}.${memberName}`,
-        resolvedModuleSource: imp.module,
+        fullyQualifiedFunction: target.fullyQualifiedFunction,
+        resolvedModuleSource: target.moduleName,
         importVerified: true,
-        memberName,
+        memberName: target.memberName,
         rootName: callee.name,
         unresolvedReason: null,
       };
@@ -611,12 +705,13 @@ function resolveCallee(callee, scope, state) {
     const memberName = chain[chain.length - 1];
     const imp = getImport(state, scope, root);
     if (imp) {
+      const target = resolveImportedTarget(imp, chain.slice(1), memberName);
       return {
         calleeText,
-        fullyQualifiedFunction: `${imp.module}.${chain.slice(1).join(".") || imp.imported || memberName}`,
-        resolvedModuleSource: imp.module,
+        fullyQualifiedFunction: target.fullyQualifiedFunction,
+        resolvedModuleSource: target.moduleName,
         importVerified: true,
-        memberName,
+        memberName: target.memberName,
         rootName: root,
         unresolvedReason: null,
       };
@@ -696,11 +791,18 @@ function detectionConfidenceFromCall(callInfo) {
   let score = 20;
   if (!callInfo?.unresolvedReason) score += 25;
   if (callInfo?.importVerified) score += 35;
-  if (callInfo?.resolvedModuleSource && callInfo.resolvedModuleSource !== "unresolved") {
+  const normalizedModule = normalizeModuleName(callInfo?.resolvedModuleSource);
+  if (normalizedModule && normalizedModule !== "unresolved") {
     score += 10;
   }
   if (callInfo?.fullyQualifiedFunction && !String(callInfo.fullyQualifiedFunction).startsWith("unresolved.")) {
     score += 10;
+  }
+  if (
+    callInfo?.importVerified &&
+    (normalizedModule === NODE_FS_MODULE || normalizedModule === NODE_FS_PROMISES_MODULE)
+  ) {
+    score = Math.max(score, 90);
   }
   return Math.max(0, Math.min(100, score));
 }
@@ -771,6 +873,13 @@ function sanitizeBlock(vulnId, block) {
   return block;
 }
 
+function sanitizeBlockHtml(vulnId, block) {
+  if (vulnId === "hardcoded_secret") {
+    return '<span class="vuln-line">Sensitive value redacted in preview.</span>';
+  }
+  return block;
+}
+
 function addFinding(state, finding) {
   const key = `${finding.rootCausePattern}|${finding.filePath}|${finding.lineStart}|${finding.fullyQualifiedFunction}|${finding.matchedExpression}`;
   if (state.dedupe.has(key)) return;
@@ -823,6 +932,10 @@ function createCallFinding({
       `Confidence ${threat.confidenceScore}/100 based on sink/source/flow/context certainty.`,
   };
   const codeBlock = sanitizeBlock(definition.id, buildCodeBlock(state.lines, lineStart, lineEnd));
+  const codeBlockHtml = sanitizeBlockHtml(
+    definition.id,
+    buildCodeBlockHtml(state.lines, lineStart, lineEnd)
+  );
   const evidence = [
     `Matched call: ${callInfo.calleeText || callInfo.fullyQualifiedFunction}`,
     `Resolved API: ${callInfo.fullyQualifiedFunction}`,
@@ -866,6 +979,7 @@ function createCallFinding({
         ? `Flow ${trace.kind}: ${sourceSummary(trace)}`
         : "No explicit source-to-sink chain confirmed.",
     codeBlock,
+    codeBlockHtml,
     fullyQualifiedFunction: callInfo.fullyQualifiedFunction || "unresolved",
     resolvedModuleSource: callInfo.resolvedModuleSource || "unresolved",
     importVerified: Boolean(callInfo.importVerified),
@@ -1548,6 +1662,7 @@ function analyzeJsTsFile(file) {
     content,
     lines: content.split(/\r?\n/),
     imports: new Map(),
+    importsByName: new Map(),
     taint: new Map(),
     findings: [],
     dedupe: new Set(),
@@ -1610,6 +1725,10 @@ function analyzeJsTsFile(file) {
       matchedExpression: sanitizeMatch(def.id, `${keyName} = <literal>`),
       flowHint: "Hardcoded secret literal detected by AST literal analysis.",
       codeBlock: sanitizeBlock(def.id, buildCodeBlock(state.lines, lineStart, lineEnd)),
+      codeBlockHtml: sanitizeBlockHtml(
+        def.id,
+        buildCodeBlockHtml(state.lines, lineStart, lineEnd)
+      ),
       fullyQualifiedFunction: "local.constant_assignment",
       resolvedModuleSource: "local",
       importVerified: false,
@@ -2020,6 +2139,7 @@ function groupFindings(findings, options = {}) {
       line_end: finding.lineEnd,
       evidence: finding.evidence,
       code_block: finding.codeBlock,
+      code_block_html: finding.codeBlockHtml || "",
       matched_expression: finding.matchedExpression,
       flow_hint: finding.flowHint || null,
       language: finding.language,
@@ -2269,6 +2389,86 @@ function buildAnalytics({ groupedIssues, totalInstances }) {
   };
 }
 
+function issueHasPublicHttpSurface(issue) {
+  if (!issue) return false;
+  if (issue.attack_surface === ATTACK_SURFACE.PUBLIC_HTTP) return true;
+  return Array.isArray(issue.attack_surfaces)
+    ? issue.attack_surfaces.includes(ATTACK_SURFACE.PUBLIC_HTTP)
+    : false;
+}
+
+function computeSecurityScore({ groupedIssues }) {
+  const deductions = [];
+  let totalDeduction = 0;
+  let highPublicHttpInstances = 0;
+
+  for (const issue of groupedIssues || []) {
+    const severity = String(issue?.severity || "informational").toLowerCase();
+    const instanceCount = Number(issue?.instances?.length || 0);
+    if (instanceCount <= 0) continue;
+
+    const perInstance = SCORE_DEDUCTION_BY_SEVERITY[severity] ?? 1;
+    const cap = SCORE_CAP_BY_SEVERITY[severity] ?? Number.POSITIVE_INFINITY;
+    const rawDeduction = perInstance * instanceCount;
+    const cappedDeduction = Math.min(rawDeduction, cap);
+    const publicHttp = issueHasPublicHttpSurface(issue);
+    const exploitability = String(issue?.exploitability || "Unlikely");
+
+    let adjustedDeduction = cappedDeduction;
+    const modifiers = [];
+    if (publicHttp) {
+      adjustedDeduction *= 1.2;
+      modifiers.push("PUBLIC_HTTP:+20%");
+    }
+    if (exploitability === "Likely") {
+      adjustedDeduction *= 1.15;
+      modifiers.push("LIKELY:+15%");
+    }
+
+    const pointsDeducted = Math.max(0, Math.round(adjustedDeduction));
+    totalDeduction += pointsDeducted;
+    deductions.push({
+      type: issue.category,
+      severity: toTitleCase(severity),
+      points_deducted: pointsDeducted,
+      instance_count: instanceCount,
+      attack_surface: issue.attack_surface || ATTACK_SURFACE.INTERNAL_SERVICE,
+      exploitability,
+      modifiers,
+      cap_applied: rawDeduction > cappedDeduction,
+    });
+
+    if (severity === "high" && publicHttp) {
+      highPublicHttpInstances += instanceCount;
+    }
+  }
+
+  let securityScore = Math.max(0, 100 - totalDeduction);
+  if (highPublicHttpInstances >= 3 && securityScore >= 80) {
+    const guardrailDeduction = securityScore - 79;
+    securityScore = 79;
+    deductions.push({
+      type: "Public HTTP High-Risk Guardrail",
+      severity: "High",
+      points_deducted: guardrailDeduction,
+      instance_count: highPublicHttpInstances,
+      attack_surface: ATTACK_SURFACE.PUBLIC_HTTP,
+      exploitability: "Likely",
+      modifiers: ["AUTO_RULE:3+HIGH_PUBLIC_HTTP"],
+      cap_applied: false,
+    });
+    totalDeduction += guardrailDeduction;
+  }
+
+  deductions.sort((a, b) => b.points_deducted - a.points_deducted);
+  return {
+    securityScore,
+    totalDeduction,
+    deductions,
+    highPublicHttpInstances,
+  };
+}
+
 function toRating(score) {
   if (score >= 92) return { grade: "A", label: "Excellent" };
   if (score >= 84) return { grade: "B", label: "Good" };
@@ -2438,12 +2638,8 @@ export function analyzeDeveloperSecurity({
     0
   );
 
-  const riskBudget = Math.max(25, analyzedFiles * 22);
-  const riskPercent =
-    totalInstances === 0
-      ? 0
-      : Math.min(100, Math.round((analytics.riskPoints / riskBudget) * 100));
-  const securityScore = totalInstances === 0 ? 100 : Math.max(0, 100 - riskPercent);
+  const scoreModel = computeSecurityScore({ groupedIssues });
+  const securityScore = totalInstances === 0 ? 100 : scoreModel.securityScore;
   const rating = toRating(securityScore);
 
   return {
@@ -2459,6 +2655,7 @@ export function analyzeDeveloperSecurity({
     issues_found: totalInstances,
     suppressed_issues_found: suppressedInstances,
     security_score: securityScore,
+    deductions: scoreModel.deductions,
     score: securityScore,
     rating: rating.grade,
     ratingLabel: rating.label,
@@ -2467,6 +2664,7 @@ export function analyzeDeveloperSecurity({
     developer_risk: {
       issues_found: totalInstances,
       security_score: securityScore,
+      deductions: scoreModel.deductions,
       risk_points: analytics.riskPoints,
       files_analyzed: analyzedFiles,
       total_developer_files: totalDeveloperFiles,
@@ -2493,6 +2691,7 @@ export function analyzeDeveloperSecurity({
       filesAnalyzed: analyzedFiles,
       totalCodeFiles: totalDeveloperFiles,
       riskPoints: analytics.riskPoints,
+      scoreDeductions: scoreModel.totalDeduction,
     },
     severityCounts: analytics.severityCounts,
     categoryBreakdown: analytics.categoryBreakdown,
@@ -2518,6 +2717,10 @@ export function analyzeDeveloperSecurity({
         totalDeveloperFiles > 0
           ? Math.round((analyzedFiles / totalDeveloperFiles) * 100)
           : 0,
+    },
+    ui_hints: {
+      vuln_line_css: VULN_LINE_CSS,
+      highlighted_code_format: ">>>line | code",
     },
     insights: buildInsights({
       groupedIssues,

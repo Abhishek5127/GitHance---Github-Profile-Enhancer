@@ -165,6 +165,7 @@ export const JS_TS_SINK_CATALOG = {
   path_traversal: [
     { module: "fs", members: ["readFile", "readFileSync", "writeFile", "writeFileSync", "open", "openSync", "createReadStream", "createWriteStream", "rm", "unlink"] },
     { module: "node:fs", members: ["readFile", "readFileSync", "writeFile", "writeFileSync", "open", "openSync", "createReadStream", "createWriteStream", "rm", "unlink"] },
+    { module: "fs/promises", members: ["readFile", "writeFile", "open", "rm", "unlink"] },
     { module: "node:fs/promises", members: ["readFile", "writeFile", "open", "rm", "unlink"] },
   ],
   weak_crypto: [
