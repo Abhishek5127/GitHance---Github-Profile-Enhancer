@@ -40,7 +40,9 @@ export default function ContributionGraphVariantPicker({
     initialData?.variant || DEFAULT_VARIANT
   );
   const initialRange = normalizeContributionRange(
-    initialData?.range || DEFAULT_RANGE
+    initialVariant === "tortoise"
+      ? "monthly"
+      : initialData?.range || DEFAULT_RANGE
   );
   const [selectedVariant, setSelectedVariant] = useState(initialVariant);
   const [selectedRange, setSelectedRange] = useState(initialRange);

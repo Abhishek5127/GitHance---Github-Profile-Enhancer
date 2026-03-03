@@ -54,6 +54,7 @@ import {
 const PROFILE_BUILDER_DRAFT_STORAGE_KEY = "githance:profile-builder:draft:v1";
 const CONTRIBUTION_DEFAULT_VARIANT = "classic";
 const CONTRIBUTION_DEFAULT_RANGE = "yearly";
+const CONTRIBUTION_SNAPSHOT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
 const collisionDetectionStrategy = (args) => {
   const pointerCollisions = pointerWithin(args);
@@ -218,8 +219,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     });
   };
 
-  const hasContributionSnapshot = (snapshot) =>
-    Boolean(snapshot && Array.isArray(snapshot.days) && snapshot.days.length);
+  const hasContributionSnapshot = (snapshot) => {
+    if (!snapshot || !Array.isArray(snapshot.days) || !snapshot.days.length) {
+      return false;
+    }
+
+    const fetchedAt = new Date(String(snapshot?.fetchedAt || ""));
+    if (Number.isNaN(fetchedAt.getTime())) return false;
+    return Date.now() - fetchedAt.getTime() <= CONTRIBUTION_SNAPSHOT_MAX_AGE_MS;
+  };
 
   const bootstrapContributionSnapshot = async (username) => {
     if (!username) return null;
@@ -396,8 +404,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         stickers: contributionStickers,
         stickerHrefs,
         title: "Contribution Graph",
-        width: contributionRange === "monthly" ? 460 : 900,
-        height: contributionRange === "monthly" ? 196 : 240,
+        width: contributionRange === "monthly" ? 560 : 1120,
+        height: contributionRange === "monthly" ? 228 : 320,
       });
 
       upsertContributionFile({
@@ -1239,7 +1247,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const handleContributionSelection = async ({ variant, range }) => {
     const normalizedVariant = normalizeContributionVariant(variant);
-    const normalizedRange = normalizeContributionRange(range);
+    const normalizedRange = normalizeContributionRange(
+      normalizedVariant === "tortoise" ? "monthly" : range
+    );
 
     if (contributionPickerContext.itemId) {
       updateCanvasItemById(contributionPickerContext.itemId, (entry) => ({

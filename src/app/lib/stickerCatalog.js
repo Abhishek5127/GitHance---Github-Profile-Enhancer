@@ -8,6 +8,7 @@ export const STICKER_LIBRARY = [
     description: "Calm mascot sticker.",
     assetPath: "/assets/readme/tortoise.svg",
     sizeClass: "h-16 w-16",
+    sizePx: 64,
   },
   {
     id: "spark",
@@ -15,6 +16,7 @@ export const STICKER_LIBRARY = [
     description: "Small bright accent.",
     assetPath: "/assets/stickers/spark.svg",
     sizeClass: "h-12 w-12",
+    sizePx: 48,
   },
   {
     id: "rocket",
@@ -22,6 +24,7 @@ export const STICKER_LIBRARY = [
     description: "Launch style accent.",
     assetPath: "/assets/stickers/rocket.svg",
     sizeClass: "h-14 w-14",
+    sizePx: 56,
   },
 ];
 
@@ -66,6 +69,23 @@ const STICKER_TARGET_TYPES = new Set([
 export function getStickerById(stickerId) {
   const normalized = String(stickerId || "").trim();
   return STICKER_BY_ID.get(normalized) || null;
+}
+
+export function getStickerBaseSizePx(stickerId) {
+  const sticker = getStickerById(stickerId);
+  const size = Number(sticker?.sizePx || 0);
+  if (Number.isFinite(size) && size > 0) {
+    return Math.floor(size);
+  }
+  return 56;
+}
+
+export function getMaxStickerBaseSizePx() {
+  return STICKER_LIBRARY.reduce((largest, sticker) => {
+    const size = Number(sticker?.sizePx || 0);
+    if (!Number.isFinite(size) || size <= 0) return largest;
+    return Math.max(largest, Math.floor(size));
+  }, 56);
 }
 
 export function getStickerSlotById(slotId) {

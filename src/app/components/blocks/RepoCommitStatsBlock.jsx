@@ -10,13 +10,15 @@ import {
 import {
   STICKER_SLOT_PRESETS,
   buildStickerDropId,
+  getMaxStickerBaseSizePx,
+  getStickerBaseSizePx,
   getStickerById,
   normalizeStickerAssignments,
 } from "@/app/lib/stickerCatalog";
 
-const COMPACT_CANVAS_WIDTH = 360;
-const COMPACT_CANVAS_HEIGHT_TALL = 132;
-const COMPACT_CANVAS_HEIGHT_REPO = 116;
+const COMPACT_CANVAS_WIDTH = 420;
+const COMPACT_CANVAS_HEIGHT_TALL = 176;
+const COMPACT_CANVAS_HEIGHT_REPO = 154;
 
 function encodeStatsSnapshot(stats) {
   if (!stats || typeof stats !== "object") return "";
@@ -98,20 +100,27 @@ function resolveRequestedStatIds(item) {
   return REPO_COMMIT_STAT_ITEMS.map((entry) => entry.id);
 }
 
-function StickerDropSlot({ itemId, slot, visible }) {
+function StickerDropSlot({ itemId, slot, visible, sizePx = 56 }) {
   const dropId = buildStickerDropId(itemId, slot.id);
   const { setNodeRef, isOver } = useDroppable({ id: dropId });
 
   if (!visible) return null;
 
+  const safeSize = Math.max(38, Number(sizePx) || 56);
+
   return (
     <div
       ref={setNodeRef}
-      className={`pointer-events-auto absolute z-30 flex h-14 w-14 items-center justify-center rounded-xl border border-dashed text-[10px] font-semibold uppercase tracking-[0.08em] transition ${slot.positionClass} ${
+      className={`pointer-events-auto absolute z-30 flex items-center justify-center border border-dashed text-[10px] font-semibold uppercase tracking-[0.08em] transition ${slot.positionClass} ${
         isOver
           ? "border-cyan-200/90 bg-cyan-300/30 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.4)]"
           : "border-cyan-200/45 bg-cyan-300/10 text-cyan-100/80"
       }`}
+      style={{
+        width: `${safeSize}px`,
+        height: `${safeSize}px`,
+        borderRadius: `${Math.max(10, Math.round(safeSize * 0.2))}px`,
+      }}
     >
       {slot.shortLabel}
     </div>
@@ -288,6 +297,10 @@ export default function RepoCommitStatsBlock({
     () => normalizeStickerAssignments(stickerAssignments),
     [stickerAssignments]
   );
+  const stickerBaseMax = useMemo(() => getMaxStickerBaseSizePx(), []);
+  const stickerDisplayMax = stickerBaseMax * 2;
+  const stickerPadding = Math.max(20, Math.round(stickerDisplayMax * 0.5));
+  const slotSizePx = Math.max(56, Math.round(stickerDisplayMax * 0.52));
 
   const handleRemoveSticker = (slotId) => {
     if (!slotId || typeof setItems !== "function") return;
@@ -339,29 +352,34 @@ export default function RepoCommitStatsBlock({
         <p className="mb-2 text-xs text-red-300">{bootstrapStatus.error}</p>
       ) : null}
 
-      <div className="relative mx-auto w-full max-w-[360px]">
-        {statsBlocks.length === 1 ? (
-          <div className={`${cardClass} w-full min-w-0`}>
-            <img
-              src={statsBlocks[0].src}
-              alt={statsBlocks[0].label}
-              className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0f0b0b]"
-            />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-1.5">
-            {statsBlocks.map((block) => (
-              <div key={block.id} className={`${cardClass} w-full min-w-0`}>
-                <p className={labelClass}>{block.label}</p>
-                <img
-                  src={block.src}
-                  alt={block.label}
-                  className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0b0d0f]"
-                />
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="relative mx-auto w-full max-w-[560px]">
+        <div
+          className="relative z-10"
+          style={{ padding: `${stickerPadding}px` }}
+        >
+          {statsBlocks.length === 1 ? (
+            <div className={`${cardClass} w-full min-w-0`}>
+              <img
+                src={statsBlocks[0].src}
+                alt={statsBlocks[0].label}
+                className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0f0b0b]"
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-1.5">
+              {statsBlocks.map((block) => (
+                <div key={block.id} className={`${cardClass} w-full min-w-0`}>
+                  <p className={labelClass}>{block.label}</p>
+                  <img
+                    src={block.src}
+                    alt={block.label}
+                    className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0b0d0f]"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="pointer-events-none absolute inset-0 z-20">
           {STICKER_SLOT_PRESETS.map((slot) => {
@@ -369,13 +387,19 @@ export default function RepoCommitStatsBlock({
             const sticker = getStickerById(stickerId);
             if (!sticker) return null;
 
+            const stickerSizePx = getStickerBaseSizePx(sticker.id) * 2;
+
             return (
               <div key={`${item.id}-${slot.id}`} className={`absolute ${slot.positionClass}`}>
                 <div className="group/sticker relative pointer-events-auto">
                   <img
                     src={sticker.assetPath}
                     alt={sticker.title}
-                    className={`${sticker.sizeClass} object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]`}
+                    className="object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
+                    style={{
+                      width: `${stickerSizePx}px`,
+                      height: `${stickerSizePx}px`,
+                    }}
                   />
                   <button
                     onPointerDown={(event) => event.stopPropagation()}
@@ -403,6 +427,7 @@ export default function RepoCommitStatsBlock({
                 itemId={item.id}
                 slot={slot}
                 visible
+                sizePx={slotSizePx}
               />
             ))}
           </div>

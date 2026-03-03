@@ -1,4 +1,8 @@
-import { getStickerById, normalizeStickerAssignments } from "@/app/lib/stickerCatalog";
+import {
+  getStickerBaseSizePx,
+  getStickerById,
+  normalizeStickerAssignments,
+} from "@/app/lib/stickerCatalog";
 
 function escapeXml(value) {
   return String(value ?? "")
@@ -25,6 +29,7 @@ export function buildSvgStickerOverlay({
   width = 500,
   height = 180,
   stickerSize = 56,
+  stickerSizeById = {},
   margin = 10,
   hrefMap = {},
 } = {}) {
@@ -34,7 +39,9 @@ export function buildSvgStickerOverlay({
 
   const safeWidth = Math.max(64, Number(width) || 500);
   const safeHeight = Math.max(64, Number(height) || 180);
-  const safeSize = Math.max(16, Number(stickerSize) || 56);
+  const defaultSize = Math.max(16, Number(stickerSize) || 56);
+  const sizeById =
+    stickerSizeById && typeof stickerSizeById === "object" ? stickerSizeById : {};
   const safeMargin = Math.max(0, Number(margin) || 10);
 
   const positions = {
@@ -43,16 +50,16 @@ export function buildSvgStickerOverlay({
       y: safeMargin,
     },
     "top-right": {
-      x: Math.max(0, safeWidth - safeMargin - safeSize),
+      x: safeMargin,
       y: safeMargin,
     },
     "bottom-left": {
       x: safeMargin,
-      y: Math.max(0, safeHeight - safeMargin - safeSize),
+      y: safeMargin,
     },
     "bottom-right": {
-      x: Math.max(0, safeWidth - safeMargin - safeSize),
-      y: Math.max(0, safeHeight - safeMargin - safeSize),
+      x: safeMargin,
+      y: safeMargin,
     },
   };
 
@@ -63,8 +70,21 @@ export function buildSvgStickerOverlay({
 
       const coords = positions[slotId];
       if (!coords) return "";
+      const resolvedSize = Math.max(
+        16,
+        Number(sizeById?.[stickerId]) || getStickerBaseSizePx(stickerId) || defaultSize
+      );
 
-      return `<image href="${escapeXml(href)}" x="${coords.x}" y="${coords.y}" width="${safeSize}" height="${safeSize}" preserveAspectRatio="xMidYMid meet" />`;
+      const x =
+        slotId === "top-right" || slotId === "bottom-right"
+          ? Math.max(0, safeWidth - safeMargin - resolvedSize)
+          : coords.x;
+      const y =
+        slotId === "bottom-left" || slotId === "bottom-right"
+          ? Math.max(0, safeHeight - safeMargin - resolvedSize)
+          : coords.y;
+
+      return `<image href="${escapeXml(href)}" x="${x}" y="${y}" width="${resolvedSize}" height="${resolvedSize}" preserveAspectRatio="xMidYMid meet" />`;
     })
     .filter(Boolean)
     .join("");

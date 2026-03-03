@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import HeaderBlock from "./HeaderBlock";
 import BioBlock from "../BioBlock";
@@ -11,6 +11,14 @@ import {
   buildSectionSlotDropId,
   getSectionVariantById,
 } from "@/app/lib/sectionCatalog";
+import {
+  STICKER_SLOT_PRESETS,
+  buildStickerDropId,
+  getMaxStickerBaseSizePx,
+  getStickerBaseSizePx,
+  getStickerById,
+  normalizeStickerAssignments,
+} from "@/app/lib/stickerCatalog";
 
 function SectionSlot({
   sectionId,
@@ -122,13 +130,52 @@ function SectionSlot({
   );
 }
 
-export default function SectionBlock({ item, setItems, onEditItem }) {
+function SectionStickerDropSlot({ itemId, slot, visible, sizePx = 56 }) {
+  const dropId = buildStickerDropId(itemId, slot.id);
+  const { setNodeRef, isOver } = useDroppable({ id: dropId });
+
+  if (!visible) return null;
+
+  const safeSize = Math.max(40, Number(sizePx) || 56);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`pointer-events-auto absolute z-30 flex items-center justify-center border border-dashed text-[10px] font-semibold uppercase tracking-[0.08em] transition ${slot.positionClass} ${
+        isOver
+          ? "border-cyan-200/90 bg-cyan-300/30 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.4)]"
+          : "border-cyan-200/45 bg-cyan-300/10 text-cyan-100/80"
+      }`}
+      style={{
+        width: `${safeSize}px`,
+        height: `${safeSize}px`,
+        borderRadius: `${Math.max(10, Math.round(safeSize * 0.2))}px`,
+      }}
+    >
+      {slot.shortLabel}
+    </div>
+  );
+}
+
+export default function SectionBlock({
+  item,
+  setItems,
+  onEditItem,
+  stickerAssignments = {},
+  showStickerDropSlots = false,
+}) {
   const variant = getSectionVariantById(item?.data?.variantId);
   const slots = Array.isArray(item?.data?.slots) ? item.data.slots : [];
   const showBorders = item?.data?.showBorders !== false;
   const supportsBorderToggle = variant?.supportsBorderToggle !== false;
   const totalSlots = Number(variant.slotCount || 0);
   const [showLimitToast, setShowLimitToast] = useState(false);
+  const normalizedStickers = useMemo(
+    () => normalizeStickerAssignments(stickerAssignments),
+    [stickerAssignments]
+  );
+  const maxStickerDisplayPx = useMemo(() => getMaxStickerBaseSizePx() * 2, []);
+  const slotSizePx = Math.max(56, Math.round(maxStickerDisplayPx * 0.52));
   const resolvedSlots =
     slots.length >= totalSlots
       ? slots.slice(0, totalSlots)
@@ -195,6 +242,30 @@ export default function SectionBlock({ item, setItems, onEditItem }) {
     ? "rounded-2xl border border-cyan-300/25 bg-[linear-gradient(135deg,rgba(6,13,24,0.95),rgba(5,9,20,0.9))] p-3"
     : "rounded-2xl bg-transparent p-3";
 
+  const removeSticker = (slotId) => {
+    if (!slotId || typeof setItems !== "function") return;
+
+    setItems((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== item.id) return entry;
+
+        const currentStickers = normalizeStickerAssignments(entry?.data?.stickers);
+        if (!currentStickers?.[slotId]) return entry;
+
+        const nextStickers = { ...currentStickers };
+        delete nextStickers[slotId];
+
+        return {
+          ...entry,
+          data: {
+            ...entry.data,
+            stickers: nextStickers,
+          },
+        };
+      })
+    );
+  };
+
   return (
     <div className={`relative ${wrapperClass}`}>
       {showLimitToast ? (
@@ -241,6 +312,56 @@ export default function SectionBlock({ item, setItems, onEditItem }) {
           />
         ))}
       </div>
+
+      <div className="pointer-events-none absolute inset-0 z-20">
+        {STICKER_SLOT_PRESETS.map((slot) => {
+          const stickerId = normalizedStickers?.[slot.id];
+          const sticker = getStickerById(stickerId);
+          if (!sticker) return null;
+
+          return (
+            <div key={`${item.id}-${slot.id}`} className={`absolute ${slot.positionClass}`}>
+              <div className="group/sticker relative pointer-events-auto">
+                <img
+                  src={sticker.assetPath}
+                  alt={sticker.title}
+                  className="object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
+                  style={{
+                    width: `${getStickerBaseSizePx(sticker.id) * 2}px`,
+                    height: `${getStickerBaseSizePx(sticker.id) * 2}px`,
+                  }}
+                />
+                <button
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeSticker(slot.id);
+                  }}
+                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-0 transition group-hover/sticker:opacity-100"
+                  title="Remove sticker"
+                  aria-label="Remove sticker"
+                >
+                  x
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showStickerDropSlots ? (
+        <div className="pointer-events-none absolute inset-0 z-30">
+          {STICKER_SLOT_PRESETS.map((slot) => (
+            <SectionStickerDropSlot
+              key={`drop-slot-${item.id}-${slot.id}`}
+              itemId={item.id}
+              slot={slot}
+              visible
+              sizePx={slotSizePx}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,5 +1,13 @@
-const DEFAULT_WIDTH = 500;
-const DEFAULT_HEIGHT = 180;
+const DEFAULT_WIDTH = 420;
+const DEFAULT_HEIGHT = 154;
+
+function resolveDimension(value, fallback, min = 240) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.max(min, Math.floor(parsed));
+}
 function escapeXml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -74,8 +82,15 @@ function resolveMetricText(stats, metric, window) {
 }
 
 export function renderRepoSvg(stats = {}, options = {}) {
-  const width =DEFAULT_WIDTH;
-  const height = DEFAULT_HEIGHT;
+  const width = resolveDimension(
+    options?.width ?? options?.w,
+    DEFAULT_WIDTH
+  );
+  const height = resolveDimension(
+    options?.height ?? options?.h,
+    DEFAULT_HEIGHT,
+    132
+  );
   const metric = String(options.metric || "last_repo");
   const metricText = resolveMetricText(stats, metric, options.window);
   const lastUpdated = String(stats.last_updated || "").replace("T", " ").slice(0, 16);

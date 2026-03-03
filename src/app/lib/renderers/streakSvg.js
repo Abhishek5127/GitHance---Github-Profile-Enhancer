@@ -1,5 +1,13 @@
-const DEFAULT_WIDTH = 500;
-const DEFAULT_HEIGHT = 180;
+const DEFAULT_WIDTH = 420;
+const DEFAULT_HEIGHT = 176;
+
+function resolveDimension(value, fallback, min = 240) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.max(min, Math.floor(parsed));
+}
 
 function escapeXml(value) {
   return String(value ?? "")
@@ -16,8 +24,15 @@ function formatCount(value) {
 }
 
 export default function renderStreakSvg(stats = {}, options = {}) {
-  const width = DEFAULT_WIDTH;
-  const height = DEFAULT_HEIGHT;
+  const width = resolveDimension(
+    options?.width ?? options?.w,
+    DEFAULT_WIDTH
+  );
+  const height = resolveDimension(
+    options?.height ?? options?.h,
+    DEFAULT_HEIGHT,
+    140
+  );
 
   const currentStreak = Number(stats.current_streak || 0);
   const longestStreak = Number(stats.longest_streak || 0);

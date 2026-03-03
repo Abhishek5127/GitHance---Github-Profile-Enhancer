@@ -12,7 +12,10 @@ import {
   appendStickerOverlayToSvg,
   buildSvgStickerOverlay,
 } from "@/app/lib/renderers/stickerSvg";
-import { normalizeStickerAssignments } from "@/app/lib/stickerCatalog";
+import {
+  getStickerBaseSizePx,
+  normalizeStickerAssignments,
+} from "@/app/lib/stickerCatalog";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -241,16 +244,23 @@ export async function GET(request) {
   const stickers = parseStickerAssignments(searchParams);
   if (Object.keys(stickers).length) {
     const dimensions = getSvgDimensions(svg, width, height);
-    const stickerSize = Math.max(
-      28,
-      Math.min(72, Math.floor(dimensions.height * 0.3))
+    const stickerSizeById = {};
+    Object.values(stickers).forEach((stickerId) => {
+      if (!stickerId || stickerSizeById[stickerId]) return;
+      stickerSizeById[stickerId] = getStickerBaseSizePx(stickerId) * 2;
+    });
+
+    const maxStickerSize = Math.max(
+      48,
+      ...Object.values(stickerSizeById).map((value) => Number(value) || 0)
     );
     const overlay = buildSvgStickerOverlay({
       stickers,
       width: dimensions.width,
       height: dimensions.height,
-      stickerSize,
-      margin: Math.max(8, Math.floor(stickerSize * 0.2)),
+      stickerSize: maxStickerSize,
+      stickerSizeById,
+      margin: Math.max(8, Math.floor(maxStickerSize * 0.16)),
     });
 
     svg = appendStickerOverlayToSvg(svg, overlay);

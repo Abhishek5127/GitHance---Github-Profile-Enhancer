@@ -1,5 +1,13 @@
-const DEFAULT_WIDTH = 500;
-const DEFAULT_HEIGHT = 180;
+const DEFAULT_WIDTH = 420;
+const DEFAULT_HEIGHT = 176;
+
+function resolveDimension(value, fallback, min = 240) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.max(min, Math.floor(parsed));
+}
 function escapeXml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -15,8 +23,15 @@ function formatCount(value) {
 }
 
 export default function renderContributionSvg(stats = {}, options = {}) {
-  const width = DEFAULT_WIDTH;
-  const height = DEFAULT_HEIGHT;
+  const width = resolveDimension(
+    options?.width ?? options?.w,
+    DEFAULT_WIDTH
+  );
+  const height = resolveDimension(
+    options?.height ?? options?.h,
+    DEFAULT_HEIGHT,
+    140
+  );
 
   const commits7 = Number(stats.recent_commits_7 || 0);
   const commits30 = Number(stats.recent_commits_30 || 0);

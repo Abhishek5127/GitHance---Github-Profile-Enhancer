@@ -167,7 +167,7 @@ const VARIANTS = {
     month: "#4f5b66",
     legend: "#4f5b66",
     dayLabel: "#4f5b66",
-    levels: ["#edf1f4", "#cfd7de", "#9fabb7", "#6b7a89", "#2f3a45"],
+    levels: ["#eef2f5", "#dde4ea", "#c8d1da", "#adb9c5", "#8e9ba9"],
   },
 };
 
@@ -320,7 +320,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
 
   const today = new Date();
   const endDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  const rawStart = new Date(endDate.getTime() - (weeks * 7 - 1) * DAY_MS);
+  const rawStart = new Date(endDate.getTime() - (weeks - 1) * 7 * DAY_MS);
   const startDate = startOfWeek(rawStart);
 
   const paddingX = 22;
@@ -331,7 +331,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
   const gridWidth = weeks * weekWidth - gap;
   const gridHeight = 7 * (cell + gap) - gap;
   const leftLabelSpace = 52;
-  const targetWidth = effectiveRange === "monthly" ? 460 : 900;
+  const targetWidth = effectiveRange === "monthly" ? 560 : 1120;
   const width = Math.max(targetWidth, paddingX + leftLabelSpace + gridWidth + paddingX);
   const gridX = Math.max(Math.floor((width - gridWidth) / 2), paddingX + leftLabelSpace);
 
@@ -341,7 +341,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
   const gridY = monthY + 12;
   const legendY = gridY + gridHeight + 24;
   const minHeight = legendY + paddingY + 6;
-  const targetHeight = effectiveRange === "monthly" ? 196 : 240;
+  const targetHeight = effectiveRange === "monthly" ? 228 : 320;
   const height = Math.max(targetHeight, minHeight);
   const yShift = Math.floor((height - minHeight) / 2);
   const shiftedTitleY = titleY + yShift;

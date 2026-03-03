@@ -1,6 +1,6 @@
 "use client";
 
-import { useDndContext, useDroppable } from "@dnd-kit/core";
+import { useDndContext } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import ContributionGraph from "../blocks/ContributionGraph";
@@ -10,32 +10,9 @@ import TechStackBlock from "../blocks/TechStackBlock";
 import RepoCommitStatsBlock from "../blocks/RepoCommitStatsBlock";
 import SectionBlock from "../blocks/SectionBlock";
 import {
-  STICKER_SLOT_PRESETS,
-  buildStickerDropId,
   canItemAcceptStickers,
-  getStickerById,
   normalizeStickerAssignments,
 } from "@/app/lib/stickerCatalog";
-
-function StickerDropSlot({ itemId, slot, visible }) {
-  const dropId = buildStickerDropId(itemId, slot.id);
-  const { setNodeRef, isOver } = useDroppable({ id: dropId });
-
-  if (!visible) return null;
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`pointer-events-auto absolute z-30 flex h-14 w-14 items-center justify-center rounded-xl border border-dashed text-[10px] font-semibold uppercase tracking-[0.08em] transition ${slot.positionClass} ${
-        isOver
-          ? "border-cyan-200/90 bg-cyan-300/30 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.4)]"
-          : "border-cyan-200/45 bg-cyan-300/10 text-cyan-100/80"
-      }`}
-    >
-      {slot.shortLabel}
-    </div>
-  );
-}
 
 export default function CanvasItem({ item, setItems, onEditItem }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -45,7 +22,6 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
   const canEdit =
     Boolean(onEditItem) &&
     ["header", "bio", "skills", "contribution"].includes(item.type);
-  const isCommitStatsItem = item.type === "commitStat" || item.type === "commits";
   const acceptsStickers = canItemAcceptStickers(item.type);
   const isStickerDragging = active?.data?.current?.source === "sticker-template";
   const stickerAssignments = normalizeStickerAssignments(item?.data?.stickers);
@@ -71,30 +47,6 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
     }
   };
 
-  const handleRemoveSticker = (slotId) => {
-    if (!slotId) return;
-
-    setItems((prev) =>
-      prev.map((entry) => {
-        if (entry.id !== item.id) return entry;
-
-        const currentStickers = normalizeStickerAssignments(entry?.data?.stickers);
-        if (!currentStickers?.[slotId]) return entry;
-
-        const nextStickers = { ...currentStickers };
-        delete nextStickers[slotId];
-
-        return {
-          ...entry,
-          data: {
-            ...entry.data,
-            stickers: nextStickers,
-          },
-        };
-      })
-    );
-  };
-
   const renderInner = () => {
     switch (item.type) {
       case "header":
@@ -118,10 +70,25 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
         );
 
       case "section":
-        return <SectionBlock item={item} setItems={setItems} onEditItem={onEditItem} />;
+        return (
+          <SectionBlock
+            item={item}
+            setItems={setItems}
+            onEditItem={onEditItem}
+            stickerAssignments={stickerAssignments}
+            showStickerDropSlots={isStickerDragging && acceptsStickers}
+          />
+        );
 
       case "contribution":
-        return <ContributionGraph item={item} setItems={setItems} />;
+        return (
+          <ContributionGraph
+            item={item}
+            setItems={setItems}
+            stickerAssignments={stickerAssignments}
+            showStickerDropSlots={isStickerDragging && acceptsStickers}
+          />
+        );
 
       default:
         return <div>{item.type}</div>;
@@ -170,55 +137,6 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
 
       <div className="relative">
         {renderInner()}
-
-        {!isCommitStatsItem && acceptsStickers ? (
-          <>
-            <div className="pointer-events-none absolute inset-0 z-30">
-              {STICKER_SLOT_PRESETS.map((slot) => {
-                const stickerId = stickerAssignments?.[slot.id];
-                const sticker = getStickerById(stickerId);
-                if (!sticker) return null;
-
-                return (
-                  <div key={`${item.id}-${slot.id}`} className={`absolute ${slot.positionClass}`}>
-                    <div className="group/sticker relative pointer-events-auto">
-                      <img
-                        src={sticker.assetPath}
-                        alt={sticker.title}
-                        className={`${sticker.sizeClass} object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]`}
-                      />
-                      <button
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleRemoveSticker(slot.id);
-                        }}
-                        className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-0 transition group-hover/sticker:opacity-100"
-                        title="Remove sticker"
-                        aria-label="Remove sticker"
-                      >
-                        x
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {isStickerDragging && acceptsStickers ? (
-              <div className="pointer-events-none absolute inset-0 z-40">
-                {STICKER_SLOT_PRESETS.map((slot) => (
-                  <StickerDropSlot
-                    key={`drop-slot-${item.id}-${slot.id}`}
-                    itemId={item.id}
-                    slot={slot}
-                    visible
-                  />
-                ))}
-              </div>
-            ) : null}
-          </>
-        ) : null}
       </div>
     </div>
   );

@@ -2,6 +2,10 @@ import {
   appendStickerOverlayToSvg,
   buildSvgStickerOverlay,
 } from "@/app/lib/renderers/stickerSvg";
+import {
+  getStickerBaseSizePx,
+  normalizeStickerAssignments,
+} from "@/app/lib/stickerCatalog";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const YEARLY_WEEKS_TO_RENDER = 53;
 const MONTHLY_WEEKS_TO_RENDER = 6;
@@ -89,7 +93,7 @@ const VARIANT_THEMES = {
     month: "#4f5b66",
     legend: "#4f5b66",
     dayLabel: "#4f5b66",
-    levels: ["#edf1f4", "#cfd7de", "#9fabb7", "#6b7a89", "#2f3a45"],
+    levels: ["#eef2f5", "#dde4ea", "#c8d1da", "#adb9c5", "#8e9ba9"],
   },
 };
 
@@ -233,7 +237,9 @@ export function renderContributionHeatmapSvg({
 
   const today = new Date();
   const endDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  const rawStart = new Date(endDate.getTime() - (weeksToRender * 7 - 1) * DAY_MS);
+  const rawStart = new Date(
+    endDate.getTime() - (weeksToRender - 1) * 7 * DAY_MS
+  );
   const startDate = startOfWeekUtc(rawStart);
 
   const outerPaddingX = compact ? 16 : 22;
@@ -249,19 +255,19 @@ export function renderContributionHeatmapSvg({
   const defaultWidth =
     effectiveRange === "monthly"
       ? compact
-        ? 360
-        : 460
+        ? 500
+        : 560
       : compact
-        ? 760
-        : 900;
+        ? 860
+        : 1120;
   const defaultHeight =
     effectiveRange === "monthly"
       ? compact
-        ? 176
-        : 196
+        ? 206
+        : 228
       : compact
-        ? 212
-        : 240;
+        ? 292
+        : 320;
   const targetWidth =
     Number.isFinite(requestedWidth) && requestedWidth > 0
       ? Math.floor(requestedWidth)
@@ -400,12 +406,32 @@ export function renderContributionHeatmapSvg({
   }" font-family="Inter, Segoe UI, sans-serif">More</text>
 </svg>`.trim();
 
+  const normalizedStickers = normalizeStickerAssignments(stickers);
+  const stickerSizeById = {};
+  const monthlyStickerSize = Math.max(
+    compact ? 96 : 112,
+    Math.min(170, effectiveHeight - (compact ? 18 : 24))
+  );
+
+  Object.values(normalizedStickers).forEach((stickerId) => {
+    if (!stickerId || stickerSizeById[stickerId]) return;
+    stickerSizeById[stickerId] =
+      effectiveRange === "monthly"
+        ? monthlyStickerSize
+        : getStickerBaseSizePx(stickerId) * 2;
+  });
+
+  const maxStickerSize = Math.max(
+    compact ? 44 : 56,
+    ...Object.values(stickerSizeById).map((value) => Number(value) || 0)
+  );
   const stickerOverlay = buildSvgStickerOverlay({
-    stickers,
+    stickers: normalizedStickers,
     width: effectiveWidth,
     height: effectiveHeight,
-    stickerSize: compact ? 38 : 56,
-    margin: compact ? 8 : 12,
+    stickerSize: maxStickerSize,
+    stickerSizeById,
+    margin: compact ? 8 : 10,
     hrefMap: stickerHrefs,
   });
 
