@@ -3,6 +3,7 @@ export const SEVERITY_WEIGHTS = {
   high: 11,
   medium: 6,
   low: 3,
+  informational: 1,
 };
 
 export const SUPPORTED_SEMANTIC_LANGUAGES = new Set(["javascript", "typescript"]);
@@ -231,5 +232,6 @@ export function severityRank(severity) {
   if (severity === "critical") return 4;
   if (severity === "high") return 3;
   if (severity === "medium") return 2;
-  return 1;
+  if (severity === "low") return 1;
+  return 0;
 }

@@ -2,13 +2,14 @@
 
 import React, { useMemo, useState } from "react";
 
-const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
+const SEVERITY_ORDER = ["critical", "high", "medium", "low", "informational"];
 
 const SEVERITY_LABELS = {
   critical: "Critical",
   high: "High",
   medium: "Medium",
   low: "Low",
+  informational: "Informational",
 };
 
 const SEVERITY_COLORS = {
@@ -16,6 +17,7 @@ const SEVERITY_COLORS = {
   high: "#f97316",
   medium: "#f59e0b",
   low: "#84cc16",
+  informational: "#38bdf8",
 };
 
 const SEVERITY_BADGE_CLASSES = {
@@ -23,6 +25,7 @@ const SEVERITY_BADGE_CLASSES = {
   high: "border-orange-400/40 bg-orange-500/15 text-orange-200",
   medium: "border-amber-400/40 bg-amber-500/15 text-amber-200",
   low: "border-lime-400/40 bg-lime-500/15 text-lime-200",
+  informational: "border-sky-400/40 bg-sky-500/15 text-sky-200",
 };
 
 const CONFIDENCE_BADGE_CLASSES = {
@@ -35,7 +38,8 @@ function severityValue(severity) {
   if (severity === "critical") return 4;
   if (severity === "high") return 3;
   if (severity === "medium") return 2;
-  return 1;
+  if (severity === "low") return 1;
+  return 0;
 }
 
 function polarToCartesian(cx, cy, radius, angleInDegrees) {
@@ -462,6 +466,11 @@ function FindingCard({ finding }) {
         <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${confidenceClass}`}>
           confidence: {finding.confidence || "Low"}
         </span>
+        {typeof finding.confidence_score === "number" ? (
+          <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-xs text-white/75">
+            confidence score: {finding.confidence_score}
+          </span>
+        ) : null}
         {finding.cwe ? (
           <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-xs text-white/70">
             {finding.cwe}
@@ -474,6 +483,16 @@ function FindingCard({ finding }) {
 
       <h4 className="mt-3 text-base font-semibold text-white">{finding.category}</h4>
       <p className="mt-1 text-xs text-white/55">Root pattern: {finding.root_cause_pattern}</p>
+      <div className="mt-2 grid gap-1 text-xs text-white/65 sm:grid-cols-2">
+        <p>Execution context: {finding.execution_context || "UNKNOWN"}</p>
+        <p>Input source rank: {finding.input_source_rank || "UNKNOWN"}</p>
+        <p>Exploitability: {finding.exploitability || "Unlikely"}</p>
+      </div>
+      {finding.reasoning ? (
+        <p className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/75">
+          {finding.reasoning}
+        </p>
+      ) : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
@@ -512,11 +531,18 @@ function FindingCard({ finding }) {
                   ? "confirmed"
                   : instance.flow_status || "not confirmed"}
               </p>
+              <p>Execution context: {instance.execution_context || "UNKNOWN"}</p>
+              <p>Input source rank: {instance.input_source_rank || "UNKNOWN"}</p>
+              <p>Exploitability: {instance.exploitability || "Unlikely"}</p>
+              <p>Confidence score: {instance.confidence_score ?? "N/A"}</p>
             </div>
             {instance.confidence_reason ? (
               <p className="mt-2 text-xs text-amber-200/80">
                 Confidence note: {instance.confidence_reason}
               </p>
+            ) : null}
+            {instance.needs_manual_review ? (
+              <p className="mt-2 text-xs text-amber-300/90">Manual Review Suggested</p>
             ) : null}
             <code className="mt-2 block max-w-full overflow-auto whitespace-pre-wrap break-all text-xs text-cyan-200/90">
               {instance.evidence}

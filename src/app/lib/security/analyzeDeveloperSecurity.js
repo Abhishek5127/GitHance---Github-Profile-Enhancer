@@ -39,6 +39,66 @@ const SECURITY_CONTEXT = /(token|secret|nonce|otp|session|auth|password|key)/i;
 const WEAK_HASH = /^(md5|sha1|sha-1)$/i;
 const PLACEHOLDER_SECRET =
   /^(changeme|change-me|example|sample|dummy|test|password|secret|token|your[_-]?key|xxxx+|<.*>)$/i;
+const HTTP_ROUTE_METHODS = new Set([
+  "get",
+  "post",
+  "put",
+  "delete",
+  "patch",
+  "all",
+  "use",
+]);
+const WEB_FRAMEWORK_MODULES = new Set([
+  "express",
+  "fastify",
+  "koa",
+  "@koa/router",
+  "hono",
+  "next/server",
+  "next",
+  "@nestjs/common",
+  "flask",
+  "spring",
+]);
+const BUILD_TOOL_MODULES = new Set([
+  "webpack",
+  "vite",
+  "rollup",
+  "esbuild",
+  "gulp",
+  "grunt",
+  "tsup",
+  "swc",
+]);
+const CLI_MODULES = new Set(["commander", "yargs", "oclif", "cac"]);
+const EXECUTION_CONTEXTS = {
+  WEB_SERVER: "WEB_SERVER",
+  BACKEND_SERVICE: "BACKEND_SERVICE",
+  CLI_TOOL: "CLI_TOOL",
+  BUILD_SCRIPT: "BUILD_SCRIPT",
+  TEST_FILE: "TEST_FILE",
+  CONFIG_FILE: "CONFIG_FILE",
+  INTERNAL_LIB: "INTERNAL_LIB",
+  MIXED: "MIXED",
+};
+const INPUT_RANK = {
+  CRITICAL: "CRITICAL",
+  MEDIUM: "MEDIUM",
+  LOW: "LOW",
+  UNKNOWN: "UNKNOWN",
+};
+const INPUT_RANK_SCORE = {
+  [INPUT_RANK.CRITICAL]: 3,
+  [INPUT_RANK.MEDIUM]: 2,
+  [INPUT_RANK.LOW]: 1,
+  [INPUT_RANK.UNKNOWN]: 0,
+};
+const EXPLOITABILITY_SCORE = {
+  Confirmed: 4,
+  Likely: 3,
+  Possible: 2,
+  Unlikely: 1,
+};
 
 const DANGEROUS_METHOD_TO_VULN = (() => {
   const out = new Map();
@@ -76,6 +136,145 @@ function mergeSeverity(current, incoming) {
 
 function mergeConfidence(current, incoming) {
   return confidenceRank(incoming) > confidenceRank(current) ? incoming : current;
+}
+
+function inputRankValue(rank) {
+  return INPUT_RANK_SCORE[rank] ?? 0;
+}
+
+function mergeInputRank(current, incoming) {
+  const left = current || INPUT_RANK.UNKNOWN;
+  const right = incoming || INPUT_RANK.UNKNOWN;
+  return inputRankValue(right) > inputRankValue(left) ? right : left;
+}
+
+function exploitabilityValue(label) {
+  return EXPLOITABILITY_SCORE[label] ?? 1;
+}
+
+function mergeExploitability(current, incoming) {
+  const left = current || "Unlikely";
+  const right = incoming || "Unlikely";
+  return exploitabilityValue(right) > exploitabilityValue(left) ? right : left;
+}
+
+function toConfidenceLabel(score) {
+  if (score >= 80) return "high";
+  if (score >= 60) return "medium";
+  return "low";
+}
+
+function getPathLower(filePath) {
+  return String(filePath || "").replace(/\\/g, "/").toLowerCase();
+}
+
+function hasPathSegment(filePath, segment) {
+  const normalized = getPathLower(filePath);
+  return normalized.includes(`/${segment}/`) || normalized.startsWith(`${segment}/`);
+}
+
+function classifyExecutionContext({ filePath, content, ast }) {
+  const normalizedPath = getPathLower(filePath);
+  const fileName = normalizedPath.split("/").pop() || "";
+  const imports = new Set();
+  let hasHttpRouting = false;
+  let hasCliSignals = false;
+
+  traverse(ast, {
+    ImportDeclaration(path) {
+      const source = String(path.node.source?.value || "").toLowerCase();
+      if (source) imports.add(source);
+    },
+    VariableDeclarator(path) {
+      const init = path.node.init;
+      if (
+        init?.type === "CallExpression" &&
+        init.callee?.type === "Identifier" &&
+        init.callee.name === "require" &&
+        init.arguments?.[0]?.type === "StringLiteral"
+      ) {
+        imports.add(String(init.arguments[0].value || "").toLowerCase());
+      }
+    },
+    CallExpression(path) {
+      const chain = getMemberChain(path.node.callee);
+      if (Array.isArray(chain) && chain.length >= 2) {
+        const root = String(chain[0] || "").toLowerCase();
+        const method = String(chain[chain.length - 1] || "").toLowerCase();
+        if ((root === "app" || root === "router" || root === "fastify") && HTTP_ROUTE_METHODS.has(method)) {
+          hasHttpRouting = true;
+        }
+        if (root === "program" && method === "command") hasCliSignals = true;
+      }
+    },
+    ExportNamedDeclaration(path) {
+      const declaration = path.node.declaration;
+      const fnName =
+        declaration?.type === "FunctionDeclaration" ? declaration.id?.name : null;
+      if (fnName && /^(GET|POST|PUT|DELETE|PATCH|OPTIONS)$/i.test(fnName)) {
+        hasHttpRouting = true;
+      }
+    },
+    MemberExpression(path) {
+      const chain = getMemberChain(path.node);
+      if (Array.isArray(chain) && chain[0] === "process" && chain[1] === "argv") {
+        hasCliSignals = true;
+      }
+    },
+  });
+
+  const isTestPath =
+    hasPathSegment(normalizedPath, "__tests__") ||
+    hasPathSegment(normalizedPath, "test") ||
+    /\.(spec|test)\.(js|jsx|ts|tsx|mjs|cjs)$/.test(fileName);
+  if (isTestPath) return EXECUTION_CONTEXTS.TEST_FILE;
+
+  const isConfigPath =
+    hasPathSegment(normalizedPath, "config") ||
+    /\.config\.(js|ts|mjs|cjs)$/.test(fileName) ||
+    /^(package|tsconfig|eslint|prettier|babel|jest|vitest|webpack|vite|rollup|gulp|grunt)\./.test(
+      fileName
+    );
+  if (isConfigPath) return EXECUTION_CONTEXTS.CONFIG_FILE;
+
+  const hasBuildImport = Array.from(imports).some((moduleName) =>
+    BUILD_TOOL_MODULES.has(moduleName)
+  );
+  const isBuildPath =
+    hasPathSegment(normalizedPath, "build") ||
+    hasPathSegment(normalizedPath, "scripts/build") ||
+    /^webpack\.config|^vite\.config|^rollup\.config|^gulpfile|^gruntfile|^postcss\.config/.test(
+      fileName
+    );
+  if (isBuildPath || hasBuildImport) return EXECUTION_CONTEXTS.BUILD_SCRIPT;
+
+  const hasCliImport = Array.from(imports).some((moduleName) => CLI_MODULES.has(moduleName));
+  const hasShebang = String(content || "").startsWith("#!/usr/bin/env node");
+  const isCliPath = hasPathSegment(normalizedPath, "bin") || hasPathSegment(normalizedPath, "scripts");
+  if (isCliPath || hasCliImport || hasShebang || hasCliSignals) {
+    return EXECUTION_CONTEXTS.CLI_TOOL;
+  }
+
+  const hasWebImport = Array.from(imports).some((moduleName) =>
+    WEB_FRAMEWORK_MODULES.has(moduleName)
+  );
+  const isWebPath =
+    hasPathSegment(normalizedPath, "api") ||
+    hasPathSegment(normalizedPath, "routes") ||
+    hasPathSegment(normalizedPath, "controllers") ||
+    hasPathSegment(normalizedPath, "middleware") ||
+    normalizedPath.includes("/app/api/");
+  if (isWebPath || hasWebImport || hasHttpRouting) return EXECUTION_CONTEXTS.WEB_SERVER;
+
+  const isServicePath =
+    hasPathSegment(normalizedPath, "service") ||
+    hasPathSegment(normalizedPath, "services") ||
+    hasPathSegment(normalizedPath, "worker") ||
+    hasPathSegment(normalizedPath, "workers") ||
+    hasPathSegment(normalizedPath, "jobs");
+  if (isServicePath) return EXECUTION_CONTEXTS.BACKEND_SERVICE;
+
+  return EXECUTION_CONTEXTS.INTERNAL_LIB;
 }
 
 function normalizeModuleName(value) {
@@ -167,6 +366,40 @@ function isEnvChain(chain) {
   return Array.isArray(chain) && chain.length >= 2 && chain[0] === "process" && chain[1] === "env";
 }
 
+function isCliArgChain(chain) {
+  return Array.isArray(chain) && chain.length >= 2 && chain[0] === "process" && chain[1] === "argv";
+}
+
+function isWebSocketChain(chain) {
+  if (!Array.isArray(chain) || chain.length < 2) return false;
+  const root = String(chain[0] || "").toLowerCase();
+  const joined = chain.join(".").toLowerCase();
+  if (!["ws", "socket", "websocket", "connection", "message", "event"].includes(root)) {
+    return false;
+  }
+  return joined.includes("message") || joined.endsWith(".data");
+}
+
+function sourceMetaFromChain(chain) {
+  if (isRequestChain(chain)) {
+    const requestField = String(chain[1] || "").toLowerCase();
+    if (requestField === "files") {
+      return { kind: "confirmed", type: "file_upload", rank: INPUT_RANK.MEDIUM };
+    }
+    return { kind: "confirmed", type: "user_input", rank: INPUT_RANK.CRITICAL };
+  }
+  if (isWebSocketChain(chain)) {
+    return { kind: "confirmed", type: "websocket_message", rank: INPUT_RANK.CRITICAL };
+  }
+  if (isCliArgChain(chain)) {
+    return { kind: "confirmed", type: "cli_argument", rank: INPUT_RANK.MEDIUM };
+  }
+  if (isEnvChain(chain)) {
+    return { kind: "partial", type: "environment", rank: INPUT_RANK.LOW };
+  }
+  return null;
+}
+
 function traceRank(kind) {
   if (kind === "confirmed") return 3;
   if (kind === "partial") return 2;
@@ -198,11 +431,9 @@ function traceExpression(node, scope, state, depth = 0) {
 
   if (node.type === "MemberExpression" || node.type === "OptionalMemberExpression") {
     const chain = getMemberChain(node);
-    if (isRequestChain(chain)) {
-      return makeTrace("confirmed", chain.join("."), node.loc?.start?.line, "user_input");
-    }
-    if (isEnvChain(chain)) {
-      return makeTrace("partial", chain.join("."), node.loc?.start?.line, "environment");
+    const sourceMeta = sourceMetaFromChain(chain);
+    if (sourceMeta) {
+      return makeTrace(sourceMeta.kind, chain.join("."), node.loc?.start?.line, sourceMeta.type);
     }
     const objectTrace = traceExpression(node.object, scope, state, depth + 1);
     if (node.computed) {
@@ -426,37 +657,6 @@ function matchedVulns(callInfo) {
     .map(([id]) => id);
 }
 
-function severityFromTrace(kind, options = {}) {
-  if (kind === "confirmed") {
-    return {
-      severity: options.allowCritical === false ? "high" : "critical",
-      confidence: "high",
-      sourceToSinkDetected: true,
-      flowStatus: "confirmed",
-      needsManualReview: false,
-      confidenceReason: "Confirmed source-to-sink flow from external input.",
-    };
-  }
-  if (kind === "partial") {
-    return {
-      severity: "high",
-      confidence: "medium",
-      sourceToSinkDetected: false,
-      flowStatus: "partial",
-      needsManualReview: true,
-      confidenceReason: "Partial input trace detected; manual validation needed.",
-    };
-  }
-  return {
-    severity: options.defaultNoFlowSeverity || "medium",
-    confidence: "low",
-    sourceToSinkDetected: false,
-    flowStatus: "none",
-    needsManualReview: true,
-    confidenceReason: "Sink confirmed but no explicit source-to-sink flow detected.",
-  };
-}
-
 function sourceSummary(trace) {
   return (trace.sources || [])
     .slice(0, 4)
@@ -490,21 +690,57 @@ function createCallFinding({
   reason,
   model,
   matchedExpression,
+  meta = {},
 }) {
   const lineStart = Number(path.node?.loc?.start?.line || 1);
   const lineEnd = Number(path.node?.loc?.end?.line || lineStart);
-  const severityModel = model || severityFromTrace(trace.kind);
+  const threat = evaluateThreatModel({
+    definition,
+    callInfo,
+    trace,
+    executionContext: state.executionContext,
+    path,
+    state,
+    meta,
+  });
+  const severityModel = {
+    severity: model?.severity || threat.severity,
+    confidence: model?.confidence || threat.confidence,
+    sourceToSinkDetected:
+      model?.sourceToSinkDetected !== undefined
+        ? model.sourceToSinkDetected
+        : threat.flowConfidence === "HIGH" && threat.sourceRank !== INPUT_RANK.UNKNOWN,
+    flowStatus:
+      model?.flowStatus ||
+      (threat.flowConfidence === "HIGH"
+        ? "confirmed"
+        : threat.flowConfidence === "PARTIAL"
+        ? "partial"
+        : "none"),
+    needsManualReview:
+      model?.needsManualReview !== undefined
+        ? model.needsManualReview
+        : threat.manualReviewSuggested,
+    confidenceReason:
+      model?.confidenceReason ||
+      `Confidence ${threat.confidenceScore}/100 based on sink/source/flow/context certainty.`,
+  };
   const codeBlock = sanitizeBlock(definition.id, buildCodeBlock(state.lines, lineStart, lineEnd));
   const evidence = [
     `Matched call: ${callInfo.calleeText || callInfo.fullyQualifiedFunction}`,
     `Resolved API: ${callInfo.fullyQualifiedFunction}`,
     `Module source: ${callInfo.resolvedModuleSource}`,
     `Import verified: ${callInfo.importVerified ? "yes" : "no"}`,
+    `Execution context: ${state.executionContext}`,
+    `Input source rank: ${threat.sourceRank}`,
+    `Exploitability: ${threat.exploitability}`,
+    `Confidence score: ${threat.confidenceScore}`,
     `Why matched: ${reason}`,
     trace.kind !== "none"
       ? `Source flow: ${trace.kind}. ${sourceSummary(trace)}.`
       : "Source flow: explicit source-to-sink chain not confidently detected.",
     callInfo.unresolvedReason ? `Resolution: ${callInfo.unresolvedReason}` : "Resolution: call origin resolved.",
+    `Reasoning: ${threat.reasoning}`,
   ].join(" | ");
 
   addFinding(state, {
@@ -536,6 +772,11 @@ function createCallFinding({
     flowStatus: severityModel.flowStatus || "none",
     confidenceReason: severityModel.confidenceReason,
     needsManualReview: Boolean(severityModel.needsManualReview),
+    executionContext: state.executionContext,
+    inputSourceRank: threat.sourceRank,
+    exploitability: threat.exploitability,
+    confidenceScore: threat.confidenceScore,
+    reasoning: threat.reasoning,
   });
 }
 
@@ -568,15 +809,13 @@ function hasBypassOptions(node) {
 function containsSensitive(node, depth = 0) {
   if (!node || depth > MAX_DEPTH) return false;
   if (node.type === "Identifier") return SENSITIVE_NAME.test(node.name);
-  if (node.type === "StringLiteral") return SENSITIVE_NAME.test(node.value || "");
+  if (node.type === "StringLiteral") return false;
   if (node.type === "MemberExpression" || node.type === "OptionalMemberExpression") {
     const chain = getMemberChain(node);
     if (Array.isArray(chain) && chain.some((part) => SENSITIVE_NAME.test(part))) return true;
     return containsSensitive(node.object, depth + 1);
   }
   if (node.type === "TemplateLiteral") {
-    const text = node.quasis.map((item) => item.value?.cooked || "").join(" ");
-    if (SENSITIVE_NAME.test(text)) return true;
     return (node.expressions || []).some((item) => containsSensitive(item, depth + 1));
   }
   if (node.type === "CallExpression" || node.type === "OptionalCallExpression") {
@@ -623,6 +862,227 @@ function securityContext(path, state) {
   return SECURITY_CONTEXT.test(getNodeText(state.content, path.parentPath?.node, 200));
 }
 
+function sourceRankFromType(type) {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized === "user_input" || normalized === "websocket_message") {
+    return INPUT_RANK.CRITICAL;
+  }
+  if (
+    normalized === "cli_argument" ||
+    normalized === "file_upload" ||
+    normalized === "external_api"
+  ) {
+    return INPUT_RANK.MEDIUM;
+  }
+  if (
+    normalized === "environment" ||
+    normalized === "config" ||
+    normalized === "hardcoded"
+  ) {
+    return INPUT_RANK.LOW;
+  }
+  return INPUT_RANK.UNKNOWN;
+}
+
+function rankFromTrace(trace) {
+  let best = INPUT_RANK.UNKNOWN;
+  for (const source of trace?.sources || []) {
+    const sourceRank = sourceRankFromType(source.type);
+    if (inputRankValue(sourceRank) > inputRankValue(best)) best = sourceRank;
+  }
+  return best;
+}
+
+function flowConfidenceFromTrace(trace) {
+  if (trace?.kind === "confirmed") return "HIGH";
+  if (trace?.kind === "partial") return "PARTIAL";
+  return "NONE";
+}
+
+function isNetworkExposedContext(executionContext) {
+  return executionContext === EXECUTION_CONTEXTS.WEB_SERVER;
+}
+
+function detectPathValidation(path, firstArg, state) {
+  const argText = getNodeText(state.content, firstArg, 240).toLowerCase();
+  if (
+    argText.includes("path.normalize") ||
+    argText.includes("path.resolve") ||
+    argText.includes("path.basename") ||
+    argText.includes("sanitize")
+  ) {
+    return true;
+  }
+
+  const line = Number(path.node?.loc?.start?.line || 1);
+  const from = Math.max(1, line - 4);
+  const to = Math.min(state.lines.length, line + 4);
+  const localWindow = state.lines.slice(from - 1, to).join("\n").toLowerCase();
+  return /(sanitize|validate|whitelist|allowlist|normalize|canonical|safepath|safe_path)/.test(
+    localWindow
+  );
+}
+
+function classifyExploitability({
+  sinkConfirmed,
+  sourceRank,
+  flowConfidence,
+}) {
+  if (!sinkConfirmed || flowConfidence === "NONE") return "Unlikely";
+  if (sourceRank === INPUT_RANK.CRITICAL && flowConfidence === "HIGH") return "Confirmed";
+  if (sourceRank === INPUT_RANK.CRITICAL && flowConfidence === "PARTIAL") return "Likely";
+  if (sourceRank === INPUT_RANK.MEDIUM) return "Possible";
+  if (sourceRank === INPUT_RANK.LOW) return "Unlikely";
+  return "Possible";
+}
+
+function baseSeverityFromExploitability({
+  sinkConfirmed,
+  sourceRank,
+  flowConfidence,
+}) {
+  if (!sinkConfirmed || flowConfidence === "NONE") return "informational";
+  if (sourceRank === INPUT_RANK.CRITICAL && flowConfidence === "HIGH") return "critical";
+  if (sourceRank === INPUT_RANK.CRITICAL && flowConfidence === "PARTIAL") return "high";
+  if (sourceRank === INPUT_RANK.MEDIUM) return "medium";
+  if (sourceRank === INPUT_RANK.LOW) return "low";
+  return "informational";
+}
+
+function calculateConfidenceScore({
+  sinkConfirmed,
+  importVerified,
+  sourceRank,
+  flowConfidence,
+  executionContext,
+  unresolvedReason,
+}) {
+  let score = 18;
+  if (sinkConfirmed) score += 24;
+  if (importVerified) score += 16;
+  if (!unresolvedReason) score += 10;
+  if (sourceRank !== INPUT_RANK.UNKNOWN) score += 14;
+  if (sourceRank === INPUT_RANK.CRITICAL) score += 6;
+  if (flowConfidence === "HIGH") score += 18;
+  else if (flowConfidence === "PARTIAL") score += 10;
+  if (executionContext && executionContext !== EXECUTION_CONTEXTS.INTERNAL_LIB) score += 8;
+  if (executionContext === EXECUTION_CONTEXTS.WEB_SERVER) score += 4;
+  return Math.max(0, Math.min(100, score));
+}
+
+function evaluateThreatModel({
+  definition,
+  callInfo,
+  trace,
+  executionContext,
+  path,
+  state,
+  meta = {},
+}) {
+  const sinkConfirmed = Boolean(
+    meta.sinkConfirmedOverride !== undefined
+      ? meta.sinkConfirmedOverride
+      : callInfo.importVerified
+  );
+  const sourceRank = meta.inputSourceRankOverride || rankFromTrace(trace);
+  const flowConfidence = meta.flowConfidenceOverride || flowConfidenceFromTrace(trace);
+  let severity = baseSeverityFromExploitability({
+    sinkConfirmed,
+    sourceRank,
+    flowConfidence,
+  });
+  let exploitability = classifyExploitability({
+    sinkConfirmed,
+    sourceRank,
+    flowConfidence,
+  });
+
+  const vulnerabilityId = definition?.id || "";
+  const notes = [];
+
+  if (vulnerabilityId === "path_traversal") {
+    const firstArg = path.node.arguments?.[0] || null;
+    const isValidated = detectPathValidation(path, firstArg, state);
+    const networkExposed = isNetworkExposedContext(executionContext);
+    if (
+      sourceRank === INPUT_RANK.CRITICAL &&
+      flowConfidence !== "NONE" &&
+      !isValidated &&
+      networkExposed
+    ) {
+      severity = "high";
+      exploitability = flowConfidence === "HIGH" ? "Likely" : exploitability;
+      notes.push("Path comes from network input, no clear validation/normalization, and network exposure is present.");
+    } else if (
+      executionContext === EXECUTION_CONTEXTS.CLI_TOOL ||
+      executionContext === EXECUTION_CONTEXTS.BUILD_SCRIPT
+    ) {
+      severity = flowConfidence === "NONE" ? "informational" : "low";
+      exploitability = "Unlikely";
+      notes.push("Path handling occurs in CLI/build context; downgraded due to limited remote attack surface.");
+    } else if (isValidated) {
+      severity = severityRank(severity) > severityRank("low") ? "low" : severity;
+      notes.push("Path appears normalized or validated near sink.");
+    } else if (sourceRank === INPUT_RANK.CRITICAL && flowConfidence !== "NONE") {
+      severity = networkExposed ? "medium" : "low";
+      exploitability = networkExposed ? "Possible" : "Unlikely";
+      notes.push("Path traversal prerequisites are partial; high severity is not assigned.");
+    } else {
+      severity = flowConfidence === "NONE" ? "informational" : "low";
+      exploitability = "Unlikely";
+    }
+  }
+
+  if (vulnerabilityId === "sensitive_logging") {
+    if (flowConfidence === "NONE" && sourceRank === INPUT_RANK.UNKNOWN) {
+      severity = "informational";
+      exploitability = "Unlikely";
+      notes.push("No concrete sensitive value flow into log arguments was confirmed.");
+    } else if (sourceRank === INPUT_RANK.LOW) {
+      severity = "low";
+      notes.push("Logged source appears low-risk (environment/config) and not direct attacker input.");
+    }
+  }
+
+  if (sourceRank === INPUT_RANK.LOW && vulnerabilityId !== "hardcoded_secret") {
+    severity = severityRank(severity) > severityRank("low") ? "low" : severity;
+    notes.push("Input source rank is LOW (env/config/static), so high severity is not assigned.");
+  }
+
+  const confidenceScore = calculateConfidenceScore({
+    sinkConfirmed,
+    importVerified: Boolean(callInfo.importVerified),
+    sourceRank,
+    flowConfidence,
+    executionContext,
+    unresolvedReason: callInfo.unresolvedReason,
+  });
+  const confidence = toConfidenceLabel(confidenceScore);
+  const manualReviewSuggested = confidenceScore < 60;
+
+  const reasoningParts = [
+    `Execution context: ${executionContext}`,
+    `Sink confirmed: ${sinkConfirmed ? "yes" : "no"}`,
+    `Input source rank: ${sourceRank}`,
+    `Flow confidence: ${flowConfidence}`,
+    `Exploitability: ${exploitability}`,
+  ];
+  if (notes.length > 0) reasoningParts.push(...notes);
+  if (manualReviewSuggested) reasoningParts.push("Manual Review Suggested (confidence < 60).");
+
+  return {
+    severity,
+    confidence,
+    confidenceScore,
+    sourceRank,
+    flowConfidence,
+    exploitability,
+    sinkConfirmed,
+    manualReviewSuggested,
+    reasoning: reasoningParts.join(" "),
+  };
+}
+
 function analyzeJsTsFile(file) {
   const content = String(file.content || "");
   let ast;
@@ -658,6 +1118,11 @@ function analyzeJsTsFile(file) {
     taint: new Map(),
     findings: [],
     dedupe: new Set(),
+    executionContext: classifyExecutionContext({
+      filePath: file.path,
+      content,
+      ast,
+    }),
   };
 
   const trackHardcodedSecret = (lineNode, keyName, rawValue) => {
@@ -667,6 +1132,8 @@ function analyzeJsTsFile(file) {
     if (!def) return;
     const lineStart = Number(lineNode?.loc?.start?.line || 1);
     const lineEnd = Number(lineNode?.loc?.end?.line || lineStart);
+    const confidenceScore = rawValue.startsWith("-----BEGIN") ? 96 : 82;
+    const executionContext = state.executionContext;
     addFinding(state, {
       filePath: file.path,
       language: file.language,
@@ -697,8 +1164,13 @@ function analyzeJsTsFile(file) {
       importVerified: false,
       sourceToSinkDetected: false,
       flowStatus: "none",
-      confidenceReason: "Credential-like name and secret-like literal value.",
-      needsManualReview: !rawValue.startsWith("-----BEGIN"),
+      confidenceReason: `Confidence ${confidenceScore}/100 based on direct literal detection.`,
+      needsManualReview: confidenceScore < 60,
+      executionContext,
+      inputSourceRank: INPUT_RANK.LOW,
+      exploitability: rawValue.startsWith("-----BEGIN") ? "Confirmed" : "Likely",
+      confidenceScore,
+      reasoning: `Execution context: ${executionContext}. Hardcoded secret in source is directly exposed if repository or build artifacts leak.`,
     });
   };
 
@@ -868,9 +1340,6 @@ function analyzeJsTsFile(file) {
             definition: def,
             callInfo,
             trace: firstTrace,
-            model: severityFromTrace(firstTrace.kind, {
-              defaultNoFlowSeverity: dynamic ? "medium" : "low",
-            }),
             reason: dynamic
               ? "SQL query text appears dynamically composed at DB sink."
               : "SQL sink consumes externally influenced query input.",
@@ -1000,7 +1469,7 @@ function analyzeJsTsFile(file) {
             callInfo: { ...callInfo, unresolvedReason: "Unresolved call - insufficient context" },
             trace: allTrace,
             model: {
-              severity: allTrace.kind === "confirmed" ? "medium" : "low",
+              severity: allTrace.kind === "confirmed" ? "low" : "informational",
               confidence: "low",
               sourceToSinkDetected: false,
               flowStatus: allTrace.kind === "confirmed" ? "partial" : "none",
@@ -1055,6 +1524,11 @@ function groupFindings(findings) {
       flow_status: finding.flowStatus || "none",
       confidence_reason: finding.confidenceReason || "",
       needs_manual_review: Boolean(finding.needsManualReview),
+      execution_context: finding.executionContext || EXECUTION_CONTEXTS.INTERNAL_LIB,
+      input_source_rank: finding.inputSourceRank || INPUT_RANK.UNKNOWN,
+      exploitability: finding.exploitability || "Unlikely",
+      confidence_score: Number(finding.confidenceScore || 0),
+      reasoning: finding.reasoning || "",
     };
 
     if (!groups.has(key)) {
@@ -1063,12 +1537,20 @@ function groupFindings(findings) {
         cwe: finding.cwe,
         severity: toTitleCase(finding.severity),
         confidence: toTitleCase(finding.confidence),
+        confidence_score: Number(finding.confidenceScore || 0),
+        execution_context: finding.executionContext || EXECUTION_CONTEXTS.INTERNAL_LIB,
+        execution_contexts: [finding.executionContext || EXECUTION_CONTEXTS.INTERNAL_LIB],
+        input_source_rank: finding.inputSourceRank || INPUT_RANK.UNKNOWN,
+        exploitability: finding.exploitability || "Unlikely",
+        reasoning: finding.reasoning || "",
         root_cause_pattern: finding.rootCausePattern,
         title: finding.title,
         description: finding.description,
         impact: finding.impact,
         recommendation: finding.recommendation,
         instances: [instance],
+        _confidence_score_sum: Number(finding.confidenceScore || 0),
+        _confidence_score_count: 1,
       });
       continue;
     }
@@ -1080,17 +1562,45 @@ function groupFindings(findings) {
     current.confidence = toTitleCase(
       mergeConfidence(String(current.confidence || "").toLowerCase(), finding.confidence)
     );
+    current.input_source_rank = mergeInputRank(
+      current.input_source_rank,
+      finding.inputSourceRank
+    );
+    current.exploitability = mergeExploitability(
+      current.exploitability,
+      finding.exploitability
+    );
+    current.execution_contexts = Array.from(
+      new Set([
+        ...(current.execution_contexts || []),
+        finding.executionContext || EXECUTION_CONTEXTS.INTERNAL_LIB,
+      ])
+    );
+    current.execution_context =
+      current.execution_contexts.length === 1
+        ? current.execution_contexts[0]
+        : EXECUTION_CONTEXTS.MIXED;
+    current._confidence_score_sum += Number(finding.confidenceScore || 0);
+    current._confidence_score_count += 1;
+    if (!current.reasoning && finding.reasoning) current.reasoning = finding.reasoning;
     current.instances.push(instance);
   }
 
   return Array.from(groups.values())
-    .map((group) => ({
-      ...group,
-      instances: group.instances.sort((a, b) => {
+    .map((group) => {
+      const confidenceScore = group._confidence_score_count
+        ? Math.round(group._confidence_score_sum / group._confidence_score_count)
+        : 0;
+      const { _confidence_score_sum, _confidence_score_count, ...rest } = group;
+      return {
+        ...rest,
+        confidence_score: confidenceScore,
+        instances: group.instances.sort((a, b) => {
         if (a.file !== b.file) return a.file.localeCompare(b.file);
         return a.line_start - b.line_start;
       }),
-    }))
+      };
+    })
     .sort((a, b) => {
       const severityDiff =
         severityRank(String(b.severity || "").toLowerCase()) -
@@ -1101,7 +1611,13 @@ function groupFindings(findings) {
 }
 
 function buildAnalytics({ groupedIssues, totalInstances }) {
-  const severityCounts = { critical: 0, high: 0, medium: 0, low: 0 };
+  const severityCounts = {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    informational: 0,
+  };
   const categoryMap = new Map();
   const ruleMap = new Map();
   const fileRiskMap = new Map();
@@ -1113,6 +1629,7 @@ function buildAnalytics({ groupedIssues, totalInstances }) {
     const weight = SEVERITY_WEIGHTS[severity] || 0;
     const instances = issue.instances.length;
     const issueRisk = weight * instances;
+    if (severityCounts[severity] === undefined) severityCounts[severity] = 0;
     severityCounts[severity] += instances;
     riskPoints += issueRisk;
 
