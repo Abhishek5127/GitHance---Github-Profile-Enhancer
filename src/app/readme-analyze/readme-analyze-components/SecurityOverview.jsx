@@ -1,15 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 
 const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
-
-const SEVERITY_STYLES = {
-  critical: "bg-red-500",
-  high: "bg-orange-500",
-  medium: "bg-amber-400",
-  low: "bg-lime-400",
-};
 
 const SEVERITY_LABELS = {
   critical: "Critical",
@@ -18,76 +11,220 @@ const SEVERITY_LABELS = {
   low: "Low",
 };
 
-function Gauge({ score, rating, ratingLabel }) {
-  const radius = 46;
-  const circumference = 2 * Math.PI * radius;
-  const progress = Math.max(0, Math.min(100, score));
-  const dashOffset = circumference - (progress / 100) * circumference;
+const SEVERITY_COLORS = {
+  critical: "#ef4444",
+  high: "#f97316",
+  medium: "#f59e0b",
+  low: "#84cc16",
+};
 
-  const ringColor =
-    score >= 85 ? "#22c55e" : score >= 70 ? "#f59e0b" : score >= 55 ? "#f97316" : "#ef4444";
+const SEVERITY_BADGE_CLASSES = {
+  critical: "border-red-400/40 bg-red-500/15 text-red-200",
+  high: "border-orange-400/40 bg-orange-500/15 text-orange-200",
+  medium: "border-amber-400/40 bg-amber-500/15 text-amber-200",
+  low: "border-lime-400/40 bg-lime-500/15 text-lime-200",
+};
+
+const CONFIDENCE_BADGE_CLASSES = {
+  high: "border-cyan-400/40 bg-cyan-500/15 text-cyan-200",
+  medium: "border-indigo-400/40 bg-indigo-500/15 text-indigo-200",
+  low: "border-slate-400/40 bg-slate-500/15 text-slate-200",
+};
+
+function severityValue(severity) {
+  if (severity === "critical") return 4;
+  if (severity === "high") return 3;
+  if (severity === "medium") return 2;
+  return 1;
+}
+
+function polarToCartesian(cx, cy, radius, angleInDegrees) {
+  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
+  return {
+    x: cx + radius * Math.cos(angleInRadians),
+    y: cy + radius * Math.sin(angleInRadians),
+  };
+}
+
+function describeArc(cx, cy, radius, startAngle, endAngle) {
+  const start = polarToCartesian(cx, cy, radius, endAngle);
+  const end = polarToCartesian(cx, cy, radius, startAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
+}
+
+function getScoreColor(score) {
+  if (score >= 85) return "#22c55e";
+  if (score >= 70) return "#eab308";
+  if (score >= 55) return "#f97316";
+  return "#ef4444";
+}
+
+function DonutChart({ title, data, total, centerLabel, centerSubLabel }) {
+  const safeTotal = Math.max(0, Number(total || 0));
+  const displayTotal = safeTotal === 0 ? 1 : safeTotal;
+  const radius = 56;
+  const strokeWidth = 18;
+  const cx = 90;
+  const cy = 90;
+
+  const segments = data
+    .filter((item) => Number(item.value || 0) > 0)
+    .reduce(
+      (acc, item) => {
+        const value = Number(item.value || 0);
+        const angle = Math.max(0, (value / displayTotal) * 360);
+        const startAngle = acc.runningAngle;
+        const endAngle = acc.runningAngle + (angle >= 360 ? 359.99 : angle);
+        const segment = {
+          ...item,
+          startAngle,
+          endAngle,
+          percentage: safeTotal > 0 ? Math.round((value / safeTotal) * 100) : 0,
+        };
+
+        return {
+          runningAngle: acc.runningAngle + angle,
+          segments: [...acc.segments, segment],
+        };
+      },
+      { runningAngle: 0, segments: [] }
+    )
+    .segments;
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <p className="text-xs uppercase tracking-[0.2em] text-white/50">Security Score</p>
-      <div className="mt-4 flex items-center gap-6">
-        <svg width="120" height="120" viewBox="0 0 120 120" className="shrink-0">
-          <circle cx="60" cy="60" r={radius} fill="none" stroke="#1f2937" strokeWidth="10" />
-          <circle
-            cx="60"
-            cy="60"
-            r={radius}
-            fill="none"
-            stroke={ringColor}
-            strokeWidth="10"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={dashOffset}
-            transform="rotate(-90 60 60)"
-          />
-          <text
-            x="60"
-            y="57"
-            textAnchor="middle"
-            className="fill-white text-2xl font-semibold"
-          >
-            {score}
-          </text>
-          <text x="60" y="76" textAnchor="middle" className="fill-white/60 text-xs">
-            /100
-          </text>
-        </svg>
+      <p className="text-xs uppercase tracking-[0.2em] text-white/50">{title}</p>
+      <div className="mt-4 grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-center">
+        <div className="mx-auto w-fit">
+          <svg width="180" height="180" viewBox="0 0 180 180">
+            <circle
+              cx={cx}
+              cy={cy}
+              r={radius}
+              fill="none"
+              stroke="#1f2937"
+              strokeWidth={strokeWidth}
+            />
+            {segments.map((segment) => (
+              <path
+                key={`${segment.label}-${segment.value}`}
+                d={describeArc(cx, cy, radius, segment.startAngle, segment.endAngle)}
+                fill="none"
+                stroke={segment.color}
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+              />
+            ))}
+            <text x={cx} y={85} textAnchor="middle" className="fill-white text-2xl font-semibold">
+              {centerLabel}
+            </text>
+            <text x={cx} y={103} textAnchor="middle" className="fill-white/60 text-xs">
+              {centerSubLabel}
+            </text>
+          </svg>
+        </div>
 
-        <div>
-          <p className="text-3xl font-semibold text-white">{rating}</p>
-          <p className="mt-1 text-sm text-white/60">{ratingLabel}</p>
+        <div className="space-y-2">
+          {segments.length === 0 ? (
+            <p className="text-sm text-white/60">No data available for this chart.</p>
+          ) : (
+            segments.map((segment) => (
+              <div key={segment.label} className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <div className="flex items-center gap-2 text-white/80">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: segment.color }}
+                    />
+                    <span>{segment.label}</span>
+                  </div>
+                  <div className="text-white/60">
+                    {segment.value} ({segment.percentage}%)
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function StatGrid({ totals, truncated, maxAnalyzedFiles }) {
+function ScoreGauge({ score, rating, ratingLabel }) {
+  const radius = 50;
+  const circumference = 2 * Math.PI * radius;
+  const clampedScore = Math.max(0, Math.min(100, Number(score || 0)));
+  const dashOffset = circumference - (clampedScore / 100) * circumference;
+  const scoreColor = getScoreColor(clampedScore);
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/50">Security Rating</p>
+      <div className="mt-4 flex flex-wrap items-center gap-6">
+        <svg width="132" height="132" viewBox="0 0 132 132" className="shrink-0">
+          <circle cx="66" cy="66" r={radius} fill="none" stroke="#1f2937" strokeWidth="11" />
+          <circle
+            cx="66"
+            cy="66"
+            r={radius}
+            fill="none"
+            stroke={scoreColor}
+            strokeWidth="11"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            transform="rotate(-90 66 66)"
+          />
+          <text x="66" y="62" textAnchor="middle" className="fill-white text-3xl font-semibold">
+            {clampedScore}
+          </text>
+          <text x="66" y="82" textAnchor="middle" className="fill-white/60 text-xs">
+            score / 100
+          </text>
+        </svg>
+
+        <div>
+          <p className="text-4xl font-semibold text-white">{rating}</p>
+          <p className="mt-1 text-sm text-white/60">{ratingLabel}</p>
+          <p className="mt-3 max-w-sm text-sm text-white/70">
+            Rating is computed from weighted risk points by severity and normalized by analyzed file count.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCards({ report, meta }) {
+  const totals = report?.totals || {};
+  const coverage = report?.coverage || {};
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Findings</p>
-        <p className="mt-2 text-2xl font-semibold text-white">{totals.findings}</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Total Findings</p>
+        <p className="mt-2 text-3xl font-semibold text-white">{totals.findings || 0}</p>
       </div>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Risk Points</p>
-        <p className="mt-2 text-2xl font-semibold text-white">{totals.riskPoints}</p>
+        <p className="mt-2 text-3xl font-semibold text-white">{totals.riskPoints || 0}</p>
       </div>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Files Analyzed</p>
-        <p className="mt-2 text-2xl font-semibold text-white">{totals.filesAnalyzed}</p>
+        <p className="mt-2 text-3xl font-semibold text-white">{totals.filesAnalyzed || 0}</p>
       </div>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Code Files</p>
-        <p className="mt-2 text-2xl font-semibold text-white">{totals.totalCodeFiles}</p>
-        {truncated ? (
+        <p className="mt-2 text-3xl font-semibold text-white">{totals.totalCodeFiles || 0}</p>
+      </div>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Coverage</p>
+        <p className="mt-2 text-3xl font-semibold text-white">{coverage.analyzedPercent || 0}%</p>
+        {meta?.truncated ? (
           <p className="mt-2 text-xs text-amber-300">
-            Large repo: capped at {maxAnalyzedFiles} files in this pass.
+            Repository is large. Analysis capped at {meta.maxAnalyzedFiles} files.
           </p>
         ) : null}
       </div>
@@ -95,103 +232,106 @@ function StatGrid({ totals, truncated, maxAnalyzedFiles }) {
   );
 }
 
-function SeverityChart({ severityCounts }) {
-  const maxCount = Math.max(
-    1,
-    ...SEVERITY_ORDER.map((severity) => Number(severityCounts?.[severity] || 0))
-  );
+function CoverageBar({ report }) {
+  const coverage = report?.coverage || {};
+  const analyzedFiles = Number(coverage.analyzedFiles || 0);
+  const skippedFiles = Number(coverage.skippedFiles || 0);
+  const total = Math.max(1, analyzedFiles + skippedFiles);
+  const analyzedPercent = Math.round((analyzedFiles / total) * 100);
+  const skippedPercent = 100 - analyzedPercent;
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <p className="text-xs uppercase tracking-[0.2em] text-white/50">By Severity</p>
-      <div className="mt-4 space-y-3">
-        {SEVERITY_ORDER.map((severity) => {
-          const count = Number(severityCounts?.[severity] || 0);
-          const width = `${Math.max(6, Math.round((count / maxCount) * 100))}%`;
-
-          return (
-            <div key={severity}>
-              <div className="mb-1 flex items-center justify-between text-xs text-white/60">
-                <span>{SEVERITY_LABELS[severity]}</span>
-                <span>{count}</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className={`h-full rounded-full ${SEVERITY_STYLES[severity]}`}
-                  style={{ width }}
-                />
-              </div>
-            </div>
-          );
-        })}
+      <p className="text-xs uppercase tracking-[0.2em] text-white/50">Scan Coverage</p>
+      <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full bg-cyan-400" style={{ width: `${analyzedPercent}%` }} />
+      </div>
+      <div className="mt-3 grid gap-2 text-sm text-white/70 sm:grid-cols-2">
+        <div>Analyzed files: {analyzedFiles}</div>
+        <div>Skipped files: {skippedFiles}</div>
+        <div>Analyzed coverage: {analyzedPercent}%</div>
+        <div>Skipped share: {skippedPercent}%</div>
       </div>
     </div>
   );
 }
 
-function CategoryChart({ categoryBreakdown = [] }) {
-  const topCategories = categoryBreakdown.slice(0, 7);
-  const maxRisk = Math.max(1, ...topCategories.map((item) => item.riskPoints || 0));
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <p className="text-xs uppercase tracking-[0.2em] text-white/50">Risk By Category</p>
-      <div className="mt-4 space-y-3">
-        {topCategories.length === 0 ? (
-          <p className="text-sm text-white/60">No category risks detected.</p>
-        ) : (
-          topCategories.map((category) => (
-            <div key={category.category}>
-              <div className="mb-1 flex items-center justify-between text-xs text-white/60">
-                <span>{category.category}</span>
-                <span>
-                  {category.findings} findings / {category.riskPoints} pts
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-cyan-400"
-                  style={{
-                    width: `${Math.max(6, Math.round((category.riskPoints / maxRisk) * 100))}%`,
-                  }}
-                />
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TopFilesChart({ topRiskFiles = [] }) {
-  const maxRisk = Math.max(1, ...topRiskFiles.map((item) => item.riskPoints || 0));
-  const rows = topRiskFiles.slice(0, 8);
+function TopRiskFilesChart({ files = [] }) {
+  const rows = files.slice(0, 10);
+  const maxRisk = Math.max(1, ...rows.map((item) => Number(item.riskPoints || 0)));
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
       <p className="text-xs uppercase tracking-[0.2em] text-white/50">Top Risky Files</p>
       <div className="mt-4 space-y-3">
         {rows.length === 0 ? (
-          <p className="text-sm text-white/60">No high-risk files detected.</p>
+          <p className="text-sm text-white/60">No risky files detected in analyzed code.</p>
         ) : (
-          rows.map((file) => (
-            <div key={file.path}>
-              <div className="mb-1 flex items-center justify-between gap-3 text-xs text-white/60">
-                <span className="truncate">{file.path}</span>
-                <span>
-                  {file.riskPoints} pts ({file.findings})
-                </span>
+          rows.map((item) => {
+            const width = Math.max(8, Math.round((item.riskPoints / maxRisk) * 100));
+            return (
+              <div key={item.path}>
+                <div className="mb-1 flex items-center justify-between gap-2 text-xs text-white/60">
+                  <span className="truncate">{item.path}</span>
+                  <span>
+                    {item.riskPoints} pts / {item.findings} findings
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-orange-400" style={{ width: `${width}%` }} />
+                </div>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-orange-400"
-                  style={{
-                    width: `${Math.max(6, Math.round((file.riskPoints / maxRisk) * 100))}%`,
-                  }}
-                />
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RuleFrequencyChart({ rules = [] }) {
+  const topRules = rules.slice(0, 8);
+  const maxCount = Math.max(1, ...topRules.map((item) => Number(item.findings || 0)));
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/50">Top Issue Types</p>
+      <div className="mt-4 space-y-3">
+        {topRules.length === 0 ? (
+          <p className="text-sm text-white/60">No issue types to display.</p>
+        ) : (
+          topRules.map((rule) => {
+            const width = Math.max(8, Math.round((rule.findings / maxCount) * 100));
+            return (
+              <div key={rule.ruleId}>
+                <div className="mb-1 flex items-center justify-between gap-2 text-xs text-white/60">
+                  <span className="truncate">{rule.title}</span>
+                  <span>{rule.findings}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-fuchsia-400" style={{ width: `${width}%` }} />
+                </div>
               </div>
-            </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InsightsPanel({ insights = [] }) {
+  return (
+    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-5">
+      <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">What This Means</p>
+      <div className="mt-3 space-y-2">
+        {insights.length === 0 ? (
+          <p className="text-sm text-white/70">No additional insights generated.</p>
+        ) : (
+          insights.map((insight, index) => (
+            <p key={`${index}-${insight.slice(0, 24)}`} className="text-sm text-white/80">
+              {index + 1}. {insight}
+            </p>
           ))
         )}
       </div>
@@ -199,49 +339,125 @@ function TopFilesChart({ topRiskFiles = [] }) {
   );
 }
 
-function FindingsTable({ findings = [] }) {
+function FindingCard({ finding }) {
+  const severityClass = SEVERITY_BADGE_CLASSES[finding.severity] || SEVERITY_BADGE_CLASSES.low;
+  const confidenceClass =
+    CONFIDENCE_BADGE_CLASSES[finding.confidence] || CONFIDENCE_BADGE_CLASSES.low;
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-      <div className="border-b border-white/10 px-4 py-3 text-xs uppercase tracking-[0.2em] text-white/50">
-        Findings Preview
+    <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${severityClass}`}>
+          {SEVERITY_LABELS[finding.severity] || finding.severity}
+        </span>
+        <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${confidenceClass}`}>
+          confidence: {finding.confidence || "low"}
+        </span>
+        {finding.cwe ? (
+          <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+            {finding.cwe}
+          </span>
+        ) : null}
       </div>
-      <div className="max-h-[360px] overflow-auto">
-        {findings.length === 0 ? (
-          <p className="p-4 text-sm text-white/60">No obvious vulnerability signals found in scanned files.</p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="bg-white/5 text-xs uppercase tracking-[0.12em] text-white/50">
-              <tr>
-                <th className="px-4 py-3 font-medium">Severity</th>
-                <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium">Location</th>
-                <th className="px-4 py-3 font-medium">Issue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {findings.slice(0, 30).map((finding, index) => (
-                <tr key={`${finding.filePath}-${finding.line}-${finding.ruleId}-${index}`} className="border-t border-white/10">
-                  <td className="px-4 py-3 text-white/80">{finding.severity}</td>
-                  <td className="px-4 py-3 text-white/70">{finding.category}</td>
-                  <td className="px-4 py-3 text-white/70">
-                    <div className="max-w-[280px] truncate">{finding.filePath}</div>
-                    <div className="text-xs text-white/45">Line {finding.line}</div>
-                  </td>
-                  <td className="px-4 py-3 text-white/70">
-                    <p>{finding.message}</p>
-                    {finding.snippet ? (
-                      <code className="mt-1 block max-w-[340px] truncate rounded bg-black/20 px-2 py-1 text-xs text-white/55">
-                        {finding.snippet}
-                      </code>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+
+      <h4 className="mt-3 text-base font-semibold text-white">{finding.title || finding.message}</h4>
+      <p className="mt-1 text-xs text-white/55">
+        {finding.filePath}:{finding.line}
+      </p>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">What Is The Issue</p>
+          <p className="mt-1.5 text-sm text-white/80">{finding.message}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Why This Is Risky</p>
+          <p className="mt-1.5 text-sm text-white/80">{finding.explanation || "Potential security risk detected."}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">How To Fix</p>
+          <p className="mt-1.5 text-sm text-white/80">{finding.remediation || "Review and apply secure coding best practices."}</p>
+        </div>
       </div>
-    </div>
+
+      <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+        <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Potential Impact</p>
+        <p className="mt-1.5 text-sm text-white/80">{finding.impact || "May increase exploitability if reachable by attacker input."}</p>
+      </div>
+
+      {finding.evidence ? (
+        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Evidence Match</p>
+          <code className="mt-1.5 block max-w-full overflow-auto whitespace-pre-wrap break-all text-xs text-cyan-200/85">
+            {finding.evidence}
+          </code>
+        </div>
+      ) : null}
+
+      {finding.snippet ? (
+        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Code Preview</p>
+          <pre className="mt-1.5 max-w-full overflow-auto whitespace-pre-wrap break-all text-xs text-white/75">
+            {finding.snippet}
+          </pre>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function FindingsPreview({ findings = [] }) {
+  const [visibleCount, setVisibleCount] = useState(8);
+  const sortedFindings = useMemo(
+    () =>
+      [...findings].sort((a, b) => {
+        const rankDiff = severityValue(b.severity) - severityValue(a.severity);
+        if (rankDiff !== 0) return rankDiff;
+        if (a.filePath !== b.filePath) return a.filePath.localeCompare(b.filePath);
+        return (a.line || 0) - (b.line || 0);
+      }),
+    [findings]
+  );
+
+  const visibleFindings = sortedFindings.slice(0, visibleCount);
+  const canShowMore = visibleCount < sortedFindings.length;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/50">Detailed Finding Preview</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">Exact issue breakdown and remediation</h3>
+        </div>
+        <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs text-white/70">
+          {sortedFindings.length} findings
+        </span>
+      </div>
+
+      {sortedFindings.length === 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
+          No findings in this scan window.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {visibleFindings.map((finding, index) => (
+            <FindingCard
+              key={`${finding.filePath}-${finding.line}-${finding.ruleId}-${index}`}
+              finding={finding}
+            />
+          ))}
+          {canShowMore ? (
+            <button
+              type="button"
+              onClick={() => setVisibleCount((count) => count + 8)}
+              className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm text-white/80 transition hover:bg-white/10"
+            >
+              Load 8 more findings
+            </button>
+          ) : null}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -269,30 +485,67 @@ export default function SecurityOverview({
 
   if (!report) return null;
 
+  const severityData = SEVERITY_ORDER.map((severity) => ({
+    label: SEVERITY_LABELS[severity],
+    value: Number(report?.severityCounts?.[severity] || 0),
+    color: SEVERITY_COLORS[severity],
+  }));
+
+  const categoryData = (report?.categoryBreakdown || []).slice(0, 6).map((item, index) => {
+    const palette = ["#22d3ee", "#38bdf8", "#818cf8", "#a78bfa", "#f472b6", "#fb7185"];
+    return {
+      label: item.category,
+      value: Number(item.riskPoints || 0),
+      color: palette[index % palette.length],
+    };
+  });
+
   return (
-    <section className="space-y-4">
-      <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Repository Security</p>
-        <h2 className="mt-2 text-2xl font-semibold text-white">Vulnerability and risk analytics</h2>
+    <section className="space-y-5">
+      <div className="rounded-3xl border border-white/10 bg-[linear-gradient(130deg,rgba(14,20,32,0.95),rgba(16,24,30,0.9),rgba(28,16,36,0.88))] p-6">
+        <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Repository Security Lab</p>
+        <h2 className="mt-3 text-3xl font-semibold text-white">Detailed vulnerability analytics</h2>
+        <p className="mt-2 max-w-3xl text-sm text-white/70">
+          This report explains what was detected, why it matters, and what to change next.
+        </p>
       </div>
 
-      <StatGrid
-        totals={report.totals}
-        truncated={Boolean(meta?.truncated)}
-        maxAnalyzedFiles={meta?.maxAnalyzedFiles}
-      />
+      <SummaryCards report={report} meta={meta} />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Gauge score={report.score} rating={report.rating} ratingLabel={report.ratingLabel} />
-        <SeverityChart severityCounts={report.severityCounts} />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <ScoreGauge
+          score={report.score}
+          rating={report.rating}
+          ratingLabel={report.ratingLabel}
+        />
+        <CoverageBar report={report} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <CategoryChart categoryBreakdown={report.categoryBreakdown} />
-        <TopFilesChart topRiskFiles={report.topRiskFiles} />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <DonutChart
+          title="Severity Distribution"
+          data={severityData}
+          total={report?.totals?.findings || 0}
+          centerLabel={report?.totals?.findings || 0}
+          centerSubLabel="total findings"
+        />
+        <DonutChart
+          title="Category Risk Share"
+          data={categoryData}
+          total={(categoryData || []).reduce((sum, item) => sum + item.value, 0)}
+          centerLabel={(categoryData || []).length}
+          centerSubLabel="categories"
+        />
       </div>
 
-      <FindingsTable findings={report.findings} />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <TopRiskFilesChart files={report?.topRiskFiles || []} />
+        <RuleFrequencyChart rules={report?.ruleBreakdown || []} />
+      </div>
+
+      <InsightsPanel insights={report?.insights || []} />
+
+      <FindingsPreview findings={report?.findings || []} />
     </section>
   );
 }

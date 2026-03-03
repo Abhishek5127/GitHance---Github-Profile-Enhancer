@@ -67,6 +67,13 @@ const SEVERITY_WEIGHTS = {
   low: 2,
 };
 
+function severityRank(severity) {
+  if (severity === "critical") return 4;
+  if (severity === "high") return 3;
+  if (severity === "medium") return 2;
+  return 1;
+}
+
 const VULNERABILITY_RULES = [
   {
     id: "private-key-material",
@@ -177,6 +184,152 @@ const VULNERABILITY_RULES = [
   },
 ];
 
+const RULE_DETAILS = {
+  "private-key-material": {
+    title: "Private key committed",
+    explanation:
+      "A private key block is present in source control. Keys in a public or shared repository are considered compromised.",
+    impact:
+      "Attackers can impersonate services, decrypt traffic, or access infrastructure if the key is still valid.",
+    remediation:
+      "Revoke and rotate the key immediately. Remove key material from git history and load secrets from a secure vault.",
+    cwe: "CWE-798",
+    confidence: "high",
+  },
+  "hardcoded-secret": {
+    title: "Hardcoded credential",
+    explanation:
+      "The code appears to contain a static token/password-like value assigned directly in source.",
+    impact:
+      "Leaked credentials can allow unauthorized access to APIs, databases, or cloud resources.",
+    remediation:
+      "Move secrets to environment variables or secret managers. Rotate exposed credentials and invalidate old tokens.",
+    cwe: "CWE-798",
+    confidence: "medium",
+  },
+  "tls-verification-disabled": {
+    title: "TLS verification disabled",
+    explanation:
+      "Certificate verification is turned off, which allows untrusted certificates during secure connections.",
+    impact:
+      "Enables man-in-the-middle attacks and data interception on supposedly secure channels.",
+    remediation:
+      "Enable certificate validation in all environments. Use valid CA chains and avoid bypass flags.",
+    cwe: "CWE-295",
+    confidence: "high",
+  },
+  "unsafe-eval": {
+    title: "Dynamic code execution primitive",
+    explanation:
+      "The code uses eval/new Function, which executes runtime-generated code and is dangerous with untrusted input.",
+    impact:
+      "Can lead to remote code execution or arbitrary logic injection.",
+    remediation:
+      "Replace with structured parsing, whitelisted logic, or safe expression evaluators.",
+    cwe: "CWE-95",
+    confidence: "medium",
+  },
+  "command-injection": {
+    title: "Potential command injection path",
+    explanation:
+      "Shell/process execution appears to include dynamic values, often a source of injection risk.",
+    impact:
+      "An attacker may execute arbitrary operating system commands.",
+    remediation:
+      "Use allowlisted command arguments and parameterized process APIs. Never pass raw user input to shell commands.",
+    cwe: "CWE-78",
+    confidence: "medium",
+  },
+  "sql-string-concat": {
+    title: "Dynamic SQL construction",
+    explanation:
+      "SQL query strings seem assembled with interpolation or concatenation instead of parameters.",
+    impact:
+      "May enable SQL injection, exposing or modifying sensitive data.",
+    remediation:
+      "Use parameterized queries/prepared statements and strict input validation.",
+    cwe: "CWE-89",
+    confidence: "medium",
+  },
+  "dangerous-html": {
+    title: "HTML injection sink",
+    explanation:
+      "An HTML sink (dangerouslySetInnerHTML/innerHTML) is used and can be exploitable without sanitization.",
+    impact:
+      "May allow stored/reflected XSS and session hijacking.",
+    remediation:
+      "Render text safely by default. If raw HTML is required, sanitize with a trusted HTML sanitizer.",
+    cwe: "CWE-79",
+    confidence: "medium",
+  },
+  "cors-any-origin": {
+    title: "Wildcard CORS policy",
+    explanation:
+      "The app appears configured to allow all origins, which broadens browser access to endpoints.",
+    impact:
+      "Sensitive API responses may be exposed to untrusted web origins.",
+    remediation:
+      "Restrict CORS origins to trusted domains and scope methods/headers minimally.",
+    cwe: "CWE-942",
+    confidence: "medium",
+  },
+  "insecure-http-url": {
+    title: "Insecure HTTP endpoint usage",
+    explanation:
+      "A non-TLS URL is referenced, which transmits data without transport encryption.",
+    impact:
+      "Traffic may be sniffed or modified in transit.",
+    remediation:
+      "Use HTTPS endpoints and enforce secure transport policies.",
+    cwe: "CWE-319",
+    confidence: "low",
+  },
+  "weak-hash-function": {
+    title: "Weak hash algorithm usage",
+    explanation:
+      "MD5/SHA1 usage is detected. These algorithms are weak for security-sensitive contexts.",
+    impact:
+      "Increases risk of collisions and compromised integrity checks/signatures.",
+    remediation:
+      "Use SHA-256/512 or modern password hashing algorithms (Argon2, bcrypt, scrypt).",
+    cwe: "CWE-328",
+    confidence: "medium",
+  },
+  "insecure-randomness": {
+    title: "Non-cryptographic randomness",
+    explanation:
+      "Math.random is used where cryptographic randomness may be expected.",
+    impact:
+      "Predictable values can break token/session/nonce security.",
+    remediation:
+      "Use cryptographically secure RNG APIs (crypto.randomBytes, crypto.getRandomValues).",
+    cwe: "CWE-338",
+    confidence: "low",
+  },
+  "open-redirect": {
+    title: "Potential open redirect",
+    explanation:
+      "Redirect target seems derived from request data without strict allowlisting.",
+    impact:
+      "Users may be redirected to phishing domains or malicious sites.",
+    remediation:
+      "Allowlist redirect targets and reject absolute external URLs unless explicitly trusted.",
+    cwe: "CWE-601",
+    confidence: "low",
+  },
+  "path-traversal": {
+    title: "Potential path traversal",
+    explanation:
+      "Filesystem calls appear to include request-derived path segments.",
+    impact:
+      "Attackers may read/write files outside intended directories.",
+    remediation:
+      "Normalize and validate paths, enforce base-directory constraints, and reject traversal sequences.",
+    cwe: "CWE-22",
+    confidence: "medium",
+  },
+};
+
 function getExtension(filePath) {
   const fileName = filePath.split("/").pop() || "";
   const dotIndex = fileName.lastIndexOf(".");
@@ -222,10 +375,35 @@ function snippetFromIndex(source, index) {
   return source.slice(lineStart, lineEnd).trim().slice(0, 180);
 }
 
+function sanitizeMatch(ruleId, matchValue) {
+  const normalized = String(matchValue || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140);
+
+  if (ruleId === "private-key-material") {
+    return "-----BEGIN ... PRIVATE KEY-----";
+  }
+
+  if (ruleId === "hardcoded-secret") {
+    return "Sensitive credential-like value detected and redacted.";
+  }
+
+  return normalized;
+}
+
+function sanitizeSnippet(ruleId, snippetValue) {
+  if (ruleId === "private-key-material" || ruleId === "hardcoded-secret") {
+    return "Sensitive value redacted for safety.";
+  }
+  return snippetValue;
+}
+
 function collectFindingsForFile(path, content) {
   const findings = [];
 
   for (const rule of VULNERABILITY_RULES) {
+    const details = RULE_DETAILS[rule.id] || {};
     const flags = rule.regex.flags.includes("g")
       ? rule.regex.flags
       : `${rule.regex.flags}g`;
@@ -236,20 +414,28 @@ function collectFindingsForFile(path, content) {
     while ((match = regex.exec(content)) !== null) {
       const index = Number.isFinite(match.index) ? match.index : 0;
       const line = lineFromIndex(content, index);
+      const snippet = sanitizeSnippet(rule.id, snippetFromIndex(content, index));
       findings.push({
         filePath: path,
         line,
         ruleId: rule.id,
+        title: details.title || rule.id,
         category: rule.category,
         severity: rule.severity,
         message: rule.message,
-        snippet: snippetFromIndex(content, index),
+        explanation: details.explanation || "",
+        impact: details.impact || "",
+        remediation: details.remediation || "",
+        cwe: details.cwe || null,
+        confidence: details.confidence || "low",
+        evidence: sanitizeMatch(rule.id, match?.[0] || ""),
+        snippet,
       });
 
       foundCount += 1;
       if (foundCount >= (rule.maxPerFile || 4)) break;
       if (match.index === regex.lastIndex) regex.lastIndex += 1;
-      if (findings.length >= 40) break;
+      if (findings.length >= 60) break;
     }
   }
 
@@ -381,6 +567,7 @@ function buildSecurityReport({
   };
 
   const categoryMap = new Map();
+  const ruleMap = new Map();
   const fileRiskPoints = new Map();
   const fileFindingCounts = new Map();
 
@@ -403,6 +590,21 @@ function buildSecurityReport({
     prevCategory.riskPoints += weight;
     categoryMap.set(finding.category, prevCategory);
 
+    const prevRule = ruleMap.get(finding.ruleId) || {
+      ruleId: finding.ruleId,
+      title: finding.title,
+      category: finding.category,
+      severity: finding.severity,
+      cwe: finding.cwe || null,
+      confidence: finding.confidence || "low",
+      findings: 0,
+      riskPoints: 0,
+      explanation: finding.explanation || finding.message,
+    };
+    prevRule.findings += 1;
+    prevRule.riskPoints += weight;
+    ruleMap.set(finding.ruleId, prevRule);
+
     fileRiskPoints.set(
       finding.filePath,
       (fileRiskPoints.get(finding.filePath) || 0) + weight
@@ -417,6 +619,13 @@ function buildSecurityReport({
 
   const categoryBreakdown = Array.from(categoryMap.values()).sort(
     (a, b) => b.riskPoints - a.riskPoints || b.findings - a.findings
+  );
+
+  const ruleBreakdown = Array.from(ruleMap.values()).sort(
+    (a, b) =>
+      b.riskPoints - a.riskPoints ||
+      severityRank(b.severity) - severityRank(a.severity) ||
+      b.findings - a.findings
   );
 
   const topRiskFiles = Array.from(fileRiskPoints.entries())
@@ -435,6 +644,60 @@ function buildSecurityReport({
   );
   const score = Math.max(0, 100 - riskPercent);
   const rating = toRating(score);
+  const totalFindings = findings.length;
+  const severityPercentages = Object.fromEntries(
+    Object.entries(severityCounts).map(([severity, count]) => [
+      severity,
+      totalFindings > 0 ? Math.round((count / totalFindings) * 100) : 0,
+    ])
+  );
+  const skippedFiles = Object.values(skippedSummary).reduce(
+    (sum, value) => sum + Number(value || 0),
+    0
+  );
+
+  const insights = [];
+  if (totalFindings === 0) {
+    insights.push(
+      "No high-signal vulnerability patterns were detected in the analyzed files."
+    );
+    insights.push(
+      "This does not guarantee security; dependency checks, runtime testing, and manual review are still required."
+    );
+  } else {
+    if (severityCounts.critical > 0 || severityCounts.high > 0) {
+      insights.push(
+        `${severityCounts.critical} critical and ${severityCounts.high} high severity findings require immediate review.`
+      );
+    }
+
+    if (categoryBreakdown.length > 0) {
+      const topCategory = categoryBreakdown[0];
+      insights.push(
+        `Highest concentration of risk is in ${topCategory.category} (${topCategory.findings} findings, ${topCategory.riskPoints} risk points).`
+      );
+    }
+
+    if (topRiskFiles.length > 0) {
+      const topFile = topRiskFiles[0];
+      insights.push(
+        `Most exposed file is ${topFile.path} with ${topFile.findings} findings (${topFile.riskPoints} risk points).`
+      );
+    }
+
+    if (ruleBreakdown.length > 0) {
+      const topRule = ruleBreakdown[0];
+      insights.push(
+        `Most frequent issue type is "${topRule.title}" (${topRule.findings} occurrences).`
+      );
+    }
+  }
+
+  if (skippedFiles > 0) {
+    insights.push(
+      `${skippedFiles} files were skipped due to size/encoding/availability constraints, so results may be incomplete.`
+    );
+  }
 
   return {
     score,
@@ -447,10 +710,22 @@ function buildSecurityReport({
       riskPoints: totalRiskPoints,
     },
     severityCounts,
+    severityPercentages,
     categoryBreakdown,
+    ruleBreakdown,
     topRiskFiles,
     findings: findings.slice(0, MAX_FINDINGS_RETURNED),
     skippedSummary,
+    coverage: {
+      analyzedFiles: filesAnalyzed,
+      skippedFiles,
+      totalCodeFiles,
+      analyzedPercent:
+        totalCodeFiles > 0
+          ? Math.round((filesAnalyzed / totalCodeFiles) * 100)
+          : 0,
+    },
+    insights,
     generatedAt: new Date().toISOString(),
   };
 }

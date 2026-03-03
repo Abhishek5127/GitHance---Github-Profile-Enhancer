@@ -128,7 +128,13 @@ export default function ReadmeClient({ reponame }) {
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">
       <div className="mx-auto w-full max-w-7xl space-y-6 p-6">
-        <h1 className="text-xl font-semibold">{reponame}</h1>
+        <header className="rounded-3xl border border-white/10 bg-[linear-gradient(140deg,rgba(20,20,28,0.95),rgba(14,26,36,0.88))] p-6">
+          <p className="text-xs uppercase tracking-[0.3em] text-white/45">Repository Analysis</p>
+          <h1 className="mt-2 text-3xl font-semibold">{reponame}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-white/65">
+            Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository.
+          </p>
+        </header>
 
         <SecurityOverview
           loading={securityLoading}
