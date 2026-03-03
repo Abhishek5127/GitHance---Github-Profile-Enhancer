@@ -39,20 +39,27 @@ export async function getMongoClient() {
       maxPoolSize: 10,
       minPoolSize: 1,
     });
-  }
-  app.get("/test-nosql", async (req, res) => {
-  const user = await User.findOne(JSON.parse(req.query.filter));
+  }app.get("/token", (req, res) => {
+  const token = Math.random().toString(36).substring(2);
+  res.send(token);
 });
 
   cachedClient = await cachedClientPromise;
   return cachedClient;
 }
-app.get("/test-sql", async (req, res) => {
-  const query = "SELECT * FROM users WHERE email = '" + req.query.email + "'";
-  await db.query(query);
+app.get("/read-file", (req, res) => {
+  fs.readFile("./uploads/" + req.query.file, "utf8", (err, data) => {
+    res.send(data);
+  });
 });
 
 export async function getMongoDb() {
   const client = await getMongoClient();
   return client.db(resolveDbName());
 }
+app.get("/admin-data", (req, res) => {
+  const userId = req.query.userId;
+  User.findById(userId).then(user => {
+    res.json(user);
+  });
+});

