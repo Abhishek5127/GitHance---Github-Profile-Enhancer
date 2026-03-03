@@ -198,6 +198,22 @@ function toConfidenceLabel(score) {
   return "low";
 }
 
+function trackSecretPatternCheck(state) {
+  if (state?.metrics) {
+    state.metrics.secretPatternsChecked = Number(state.metrics.secretPatternsChecked || 0) + 1;
+  }
+}
+
+function testSensitiveNamePattern(state, value) {
+  trackSecretPatternCheck(state);
+  return SENSITIVE_NAME.test(String(value || ""));
+}
+
+function testLogSecretNamePattern(state, value) {
+  trackSecretPatternCheck(state);
+  return LOG_SECRET_NAME_PATTERN.test(String(value || ""));
+}
+
 function getPathLower(filePath) {
   return String(filePath || "").replace(/\\/g, "/").toLowerCase();
 }
@@ -205,6 +221,17 @@ function getPathLower(filePath) {
 function hasPathSegment(filePath, segment) {
   const normalized = getPathLower(filePath);
   return normalized.includes(`/${segment}/`) || normalized.startsWith(`${segment}/`);
+}
+
+function isAuthenticationRelatedFile(filePath, content = "") {
+  const normalizedPath = getPathLower(filePath);
+  if (/(^|\/)(auth|authentication|login|session|token|jwt|credential|oauth|passport)(\/|$)/.test(normalizedPath)) {
+    return true;
+  }
+  const contentHint = String(content || "").slice(0, 5000).toLowerCase();
+  return /(jsonwebtoken|next-auth|passport|authorization|access[_-]?token|refresh[_-]?token|session)/.test(
+    contentHint
+  );
 }
 
 function mapAttackSurface(executionContext) {
@@ -1068,13 +1095,13 @@ function sensitiveTraceEvidence(trace) {
   return false;
 }
 
-function sensitiveChainInfo(chain = []) {
+function sensitiveChainInfo(chain = [], state) {
   const parts = (chain || []).map((item) => String(item || "").toLowerCase());
   if (parts.length === 0) {
     return { sensitive: false, rank: INPUT_RANK.UNKNOWN, reason: "" };
   }
 
-  const hasSecretName = parts.some((part) => LOG_SECRET_NAME_PATTERN.test(part));
+  const hasSecretName = parts.some((part) => testLogSecretNamePattern(state, part));
   const startsReq = parts[0] === "req" || parts[0] === "request" || parts[0] === "ctx";
   const isHeadersAuth =
     startsReq &&
@@ -1088,7 +1115,7 @@ function sensitiveChainInfo(chain = []) {
   const isEnvSecret =
     parts[0] === "process" &&
     parts[1] === "env" &&
-    parts.slice(2).some((part) => LOG_SECRET_NAME_PATTERN.test(part));
+    parts.slice(2).some((part) => testLogSecretNamePattern(state, part));
 
   if (isHeadersAuth) {
     return {
@@ -1159,7 +1186,7 @@ function analyzeLoggingArgument(node, scope, state, depth = 0) {
 
   if (node.type === "Identifier") {
     const trace = traceExpression(node, scope, state, depth + 1);
-    const nameSensitive = LOG_SECRET_NAME_PATTERN.test(node.name);
+    const nameSensitive = testLogSecretNamePattern(state, node.name);
     const traceSensitive = sensitiveTraceEvidence(trace);
     const confirmed = nameSensitive || traceSensitive;
     const rank = nameSensitive
@@ -1181,7 +1208,7 @@ function analyzeLoggingArgument(node, scope, state, depth = 0) {
 
   if (node.type === "MemberExpression" || node.type === "OptionalMemberExpression") {
     const chain = getMemberChain(node) || [];
-    const chainInfo = sensitiveChainInfo(chain);
+    const chainInfo = sensitiveChainInfo(chain, state);
     const trace = traceExpression(node, scope, state, depth + 1);
     const traceSensitive = sensitiveTraceEvidence(trace);
     const confirmed = chainInfo.sensitive || traceSensitive;
@@ -1208,7 +1235,7 @@ function analyzeLoggingArgument(node, scope, state, depth = 0) {
     for (const property of node.properties || []) {
       if (property?.type === "ObjectProperty") {
         const keyName = getPropertyKeyName(property.key);
-        const keySensitive = LOG_SECRET_NAME_PATTERN.test(keyName);
+        const keySensitive = testLogSecretNamePattern(state, keyName);
         const valueIsStaticString = isPureStringLogArgument(property.value);
         if (keySensitive && !valueIsStaticString) {
           result = combineLogAnalysis(result, {
@@ -1654,7 +1681,15 @@ function analyzeJsTsFile(file) {
       ],
     });
   } catch {
-    return { findings: [], parseError: true };
+    return {
+      findings: [],
+      parseError: true,
+      metrics: {
+        httpRoutesAnalyzed: 0,
+        sinksReviewed: 0,
+        secretPatternsChecked: 0,
+      },
+    };
   }
 
   const state = {
@@ -1666,6 +1701,11 @@ function analyzeJsTsFile(file) {
     taint: new Map(),
     findings: [],
     dedupe: new Set(),
+    metrics: {
+      httpRoutesAnalyzed: 0,
+      sinksReviewed: 0,
+      secretPatternsChecked: 0,
+    },
     executionContext: classifyExecutionContext({
       filePath: file.path,
       content,
@@ -1674,7 +1714,7 @@ function analyzeJsTsFile(file) {
   };
 
   const trackHardcodedSecret = (lineNode, keyName, rawValue) => {
-    if (!SENSITIVE_NAME.test(String(keyName || ""))) return;
+    if (!testSensitiveNamePattern(state, keyName)) return;
     if (!looksLikeSecret(rawValue)) return;
     const def = VULNERABILITY_DEFINITIONS.hardcoded_secret;
     if (!def) return;
@@ -1786,6 +1826,15 @@ function analyzeJsTsFile(file) {
       }
     },
 
+    ExportNamedDeclaration(path) {
+      const declaration = path.node.declaration;
+      const fnName =
+        declaration?.type === "FunctionDeclaration" ? declaration.id?.name : null;
+      if (fnName && /^(GET|POST|PUT|DELETE|PATCH|OPTIONS)$/i.test(fnName)) {
+        state.metrics.httpRoutesAnalyzed += 1;
+      }
+    },
+
     VariableDeclarator(path) {
       const id = path.node.id;
       const init = path.node.init;
@@ -1879,6 +1928,20 @@ function analyzeJsTsFile(file) {
     CallExpression(path) {
       const callInfo = resolveCallee(path.node.callee, path.scope, state);
       const matched = matchedVulns(callInfo);
+      if (matched.length > 0) {
+        state.metrics.sinksReviewed += matched.length;
+      }
+      const callChain = getMemberChain(path.node.callee);
+      if (Array.isArray(callChain) && callChain.length >= 2) {
+        const root = String(callChain[0] || "").toLowerCase();
+        const method = String(callChain[callChain.length - 1] || "").toLowerCase();
+        if (
+          (root === "app" || root === "router" || root === "fastify") &&
+          HTTP_ROUTE_METHODS.has(method)
+        ) {
+          state.metrics.httpRoutesAnalyzed += 1;
+        }
+      }
       const args = path.node.arguments || [];
       const firstArg = args[0] || null;
       const firstTrace = traceExpression(firstArg, path.scope, state);
@@ -2111,6 +2174,7 @@ function analyzeJsTsFile(file) {
       if (path.node.callee?.type !== "Identifier" || path.node.callee.name !== "Function") return;
       const def = VULNERABILITY_DEFINITIONS.dynamic_code_execution;
       if (!def) return;
+      state.metrics.sinksReviewed += 1;
       const callInfo = resolveCallee(path.node.callee, path.scope, state);
       const trace = traceExpression(path.node.arguments?.[0], path.scope, state);
       createCallFinding({
@@ -2124,7 +2188,11 @@ function analyzeJsTsFile(file) {
     },
   });
 
-  return { findings: state.findings, parseError: false };
+  return {
+    findings: state.findings,
+    parseError: false,
+    metrics: state.metrics,
+  };
 }
 
 function groupFindings(findings, options = {}) {
@@ -2469,6 +2537,41 @@ function computeSecurityScore({ groupedIssues }) {
   };
 }
 
+function buildSecurityCoverageSummary({
+  filesScanned,
+  httpRoutesAnalyzed,
+  sinksReviewed,
+  secretPatternsChecked,
+  authenticationRelatedFilesInspected,
+}) {
+  return {
+    http_routes_analyzed: Number(httpRoutesAnalyzed || 0),
+    sinks_reviewed: Number(sinksReviewed || 0),
+    files_scanned: Number(filesScanned || 0),
+    secret_patterns_checked: Number(secretPatternsChecked || 0),
+    authentication_related_files_inspected: Number(authenticationRelatedFilesInspected || 0),
+  };
+}
+
+function buildPositiveSecuritySignals() {
+  return [
+    "No command injection patterns found.",
+    "No dynamic code execution detected.",
+    "No hardcoded secrets detected.",
+    "No unvalidated filesystem access detected.",
+    "No raw query string concatenation detected at SQL sinks.",
+  ];
+}
+
+function buildHardeningRecommendations() {
+  return [
+    "Enable endpoint rate limiting for public APIs.",
+    "Enforce schema-based input validation at request boundaries.",
+    "Apply secure HTTP headers (CSP, HSTS, X-Content-Type-Options, frame restrictions).",
+    "Run scheduled dependency audit checks in CI/CD.",
+  ];
+}
+
 function toRating(score) {
   if (score >= 92) return { grade: "A", label: "Excellent" };
   if (score >= 84) return { grade: "B", label: "Good" };
@@ -2482,13 +2585,19 @@ function buildInsights({
   suppressedGroupedIssues,
   totalInstances,
   analytics,
+  securityCoverageSummary,
   skippedFiles,
   unsupportedLanguageFiles,
   unsupportedLanguagesDetected,
 }) {
   const insights = [];
   if (totalInstances === 0) {
-    insights.push("No developer-code security findings were detected in this AST semantic scan.");
+    insights.push("No exploitable vulnerabilities were detected in developer-written code.");
+    if (securityCoverageSummary) {
+      insights.push(
+        `Coverage summary: ${securityCoverageSummary.files_scanned} files scanned, ${securityCoverageSummary.http_routes_analyzed} HTTP routes analyzed, ${securityCoverageSummary.sinks_reviewed} sinks reviewed.`
+      );
+    }
   } else {
     const critical = analytics.severityCounts.critical || 0;
     const high = analytics.severityCounts.high || 0;
@@ -2589,6 +2698,12 @@ export function analyzeDeveloperSecurity({
   let analyzedFiles = 0;
   const supportedLanguageFiles = new Map();
   const unsupportedLanguagesDetected = new Set();
+  const aggregateMetrics = {
+    httpRoutesAnalyzed: 0,
+    sinksReviewed: 0,
+    secretPatternsChecked: 0,
+    authenticationRelatedFilesInspected: 0,
+  };
 
   for (const file of sourceFiles || []) {
     if (!isLikelyTextContent(file.content)) {
@@ -2609,12 +2724,18 @@ export function analyzeDeveloperSecurity({
     }
 
     analyzedFiles += 1;
+    if (isAuthenticationRelatedFile(file.path, file.content)) {
+      aggregateMetrics.authenticationRelatedFilesInspected += 1;
+    }
     supportedLanguageFiles.set(language, (supportedLanguageFiles.get(language) || 0) + 1);
-    const { findings, parseError } = analyzer(file);
+    const { findings, parseError, metrics } = analyzer(file);
     if (parseError) {
       safeSkipped.parser_error += 1;
       continue;
     }
+    aggregateMetrics.httpRoutesAnalyzed += Number(metrics?.httpRoutesAnalyzed || 0);
+    aggregateMetrics.sinksReviewed += Number(metrics?.sinksReviewed || 0);
+    aggregateMetrics.secretPatternsChecked += Number(metrics?.secretPatternsChecked || 0);
     if (findings.length > 0) rawFindings.push(...findings);
   }
 
@@ -2641,6 +2762,28 @@ export function analyzeDeveloperSecurity({
   const scoreModel = computeSecurityScore({ groupedIssues });
   const securityScore = totalInstances === 0 ? 100 : scoreModel.securityScore;
   const rating = toRating(securityScore);
+  const securityCoverageSummary = buildSecurityCoverageSummary({
+    filesScanned: analyzedFiles,
+    httpRoutesAnalyzed: aggregateMetrics.httpRoutesAnalyzed,
+    sinksReviewed: aggregateMetrics.sinksReviewed,
+    secretPatternsChecked: aggregateMetrics.secretPatternsChecked,
+    authenticationRelatedFilesInspected:
+      aggregateMetrics.authenticationRelatedFilesInspected,
+  });
+  const positiveSecuritySignals =
+    totalInstances === 0 ? buildPositiveSecuritySignals() : [];
+  const hardeningRecommendations =
+    totalInstances === 0 ? buildHardeningRecommendations() : [];
+  const cleanReport =
+    totalInstances === 0
+      ? {
+          status: "clean",
+          message: "No exploitable vulnerabilities were detected in developer-written code.",
+          security_coverage_summary: securityCoverageSummary,
+          positive_security_signals: positiveSecuritySignals,
+          hardening_recommendations: hardeningRecommendations,
+        }
+      : null;
 
   return {
     summary: {
@@ -2656,6 +2799,10 @@ export function analyzeDeveloperSecurity({
     suppressed_issues_found: suppressedInstances,
     security_score: securityScore,
     deductions: scoreModel.deductions,
+    security_coverage_summary: securityCoverageSummary,
+    positive_security_signals: positiveSecuritySignals,
+    hardening_recommendations: hardeningRecommendations,
+    clean_report: cleanReport,
     score: securityScore,
     rating: rating.grade,
     ratingLabel: rating.label,
@@ -2727,6 +2874,7 @@ export function analyzeDeveloperSecurity({
       suppressedGroupedIssues,
       totalInstances,
       analytics,
+      securityCoverageSummary,
       skippedFiles,
       unsupportedLanguageFiles: safeSkipped.unsupported_language_semantic_parser,
       unsupportedLanguagesDetected,

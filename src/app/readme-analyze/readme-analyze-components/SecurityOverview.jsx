@@ -454,6 +454,84 @@ function InsightsPanel({ insights = [] }) {
   );
 }
 
+function CleanReportPanel({ report }) {
+  const issuesFound = Number(report?.issues_found || 0);
+  const cleanReport = report?.clean_report;
+  if (issuesFound !== 0 || !cleanReport) return null;
+
+  const coverage =
+    cleanReport?.security_coverage_summary || report?.security_coverage_summary || {};
+  const positiveSignals = Array.isArray(cleanReport?.positive_security_signals)
+    ? cleanReport.positive_security_signals
+    : [];
+  const hardening = Array.isArray(cleanReport?.hardening_recommendations)
+    ? cleanReport.hardening_recommendations
+    : [];
+
+  const coverageRows = [
+    ["HTTP Routes Analyzed", coverage.http_routes_analyzed || 0],
+    ["Sinks Reviewed", coverage.sinks_reviewed || 0],
+    ["Files Scanned", coverage.files_scanned || 0],
+    ["Secret Patterns Checked", coverage.secret_patterns_checked || 0],
+    [
+      "Auth-Related Files Inspected",
+      coverage.authentication_related_files_inspected || 0,
+    ],
+  ];
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/5 p-5">
+      <div>
+        <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/80">Clean Security Report</p>
+        <h3 className="mt-1 text-xl font-semibold text-white">
+          {cleanReport.message ||
+            "No exploitable vulnerabilities were detected in developer-written code."}
+        </h3>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {coverageRows.map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+          >
+            <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">{label}</p>
+            <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">
+            Positive Security Signals
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {positiveSignals.map((signal) => (
+              <p key={signal} className="text-sm text-white/80">
+                • {signal}
+              </p>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">
+            Hardening Recommendations
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {hardening.map((item) => (
+              <p key={item} className="text-sm text-white/80">
+                • {item}
+              </p>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FindingCard({ finding }) {
   const severityValueRaw = String(finding.severity || "low").toLowerCase();
   const confidenceValueRaw = String(finding.confidence || "low").toLowerCase();
@@ -736,6 +814,7 @@ export default function SecurityOverview({
       </div>
 
       <SummaryCards report={report} meta={meta} />
+      <CleanReportPanel report={report} />
       <ScopeAndClassification report={report} />
       <ExclusionSummary summary={report?.exclusion_summary || {}} />
 
