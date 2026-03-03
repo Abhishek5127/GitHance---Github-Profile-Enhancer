@@ -205,9 +205,10 @@ function SummaryCards({ report, meta }) {
   const totals = report?.totals || {};
   const coverage = report?.coverage || {};
   const summary = report?.summary || {};
+  const suppressedSummary = report?.suppressed_summary || {};
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Issue Types</p>
         <p className="mt-2 text-3xl font-semibold text-white">
@@ -241,6 +242,12 @@ function SummaryCards({ report, meta }) {
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Security Score</p>
         <p className="mt-2 text-3xl font-semibold text-white">
           {summary.security_score ?? report?.security_score ?? report?.score ?? 100}
+        </p>
+      </div>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Suppressed</p>
+        <p className="mt-2 text-3xl font-semibold text-white">
+          {suppressedSummary.instances ?? totals.suppressedFindings ?? 0}
         </p>
       </div>
     </div>
@@ -471,6 +478,11 @@ function FindingCard({ finding }) {
             confidence score: {finding.confidence_score}
           </span>
         ) : null}
+        {finding.suppressed ? (
+          <span className="rounded-full border border-amber-400/40 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200">
+            suppressed
+          </span>
+        ) : null}
         {finding.cwe ? (
           <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-xs text-white/70">
             {finding.cwe}
@@ -485,8 +497,13 @@ function FindingCard({ finding }) {
       <p className="mt-1 text-xs text-white/55">Root pattern: {finding.root_cause_pattern}</p>
       <div className="mt-2 grid gap-1 text-xs text-white/65 sm:grid-cols-2">
         <p>Execution context: {finding.execution_context || "UNKNOWN"}</p>
+        <p>Attack surface: {finding.attack_surface || "UNKNOWN"}</p>
         <p>Input source rank: {finding.input_source_rank || "UNKNOWN"}</p>
         <p>Exploitability: {finding.exploitability || "Unlikely"}</p>
+        <p>Detection confidence: {finding.detection_confidence ?? "N/A"}</p>
+        <p>Flow confidence: {finding.flow_confidence ?? "N/A"}</p>
+        <p>Exploitability confidence: {finding.exploitability_confidence ?? "N/A"}</p>
+        <p>Overall confidence: {finding.overall_confidence ?? finding.confidence_score ?? "N/A"}</p>
       </div>
       {finding.reasoning ? (
         <p className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/75">
@@ -496,16 +513,22 @@ function FindingCard({ finding }) {
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">What Is The Issue</p>
-          <p className="mt-1.5 text-sm text-white/80">{finding.description}</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Why This Matters</p>
+          <p className="mt-1.5 text-sm text-white/80">
+            {finding.why_this_matters || finding.description}
+          </p>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Potential Impact</p>
-          <p className="mt-1.5 text-sm text-white/80">{finding.impact || "Potential security impact if exploitable."}</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Realistic Risk</p>
+          <p className="mt-1.5 text-sm text-white/80">
+            {finding.realistic_risk_assessment || finding.impact || "Potential security impact if exploitable."}
+          </p>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">How To Fix</p>
-          <p className="mt-1.5 text-sm text-white/80">{finding.recommendation || "Apply secure coding best practices."}</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Developer Action</p>
+          <p className="mt-1.5 text-sm text-white/80">
+            {finding.developer_action || finding.recommendation || "Apply secure coding best practices."}
+          </p>
         </div>
       </div>
 
@@ -532,9 +555,14 @@ function FindingCard({ finding }) {
                   : instance.flow_status || "not confirmed"}
               </p>
               <p>Execution context: {instance.execution_context || "UNKNOWN"}</p>
+              <p>Attack surface: {instance.attack_surface || "UNKNOWN"}</p>
               <p>Input source rank: {instance.input_source_rank || "UNKNOWN"}</p>
               <p>Exploitability: {instance.exploitability || "Unlikely"}</p>
               <p>Confidence score: {instance.confidence_score ?? "N/A"}</p>
+              <p>Detection confidence: {instance.detection_confidence ?? "N/A"}</p>
+              <p>Flow confidence: {instance.flow_confidence ?? "N/A"}</p>
+              <p>Exploitability confidence: {instance.exploitability_confidence ?? "N/A"}</p>
+              <p>Overall confidence: {instance.overall_confidence ?? instance.confidence_score ?? "N/A"}</p>
             </div>
             {instance.confidence_reason ? (
               <p className="mt-2 text-xs text-amber-200/80">
@@ -615,6 +643,45 @@ function FindingsPreview({ groupedIssues = [] }) {
           ) : null}
         </div>
       )}
+    </section>
+  );
+}
+
+function SuppressedFindingsSection({ suppressedIssues = [] }) {
+  const [expanded, setExpanded] = useState(false);
+  const suppressed = Array.isArray(suppressedIssues) ? suppressedIssues : [];
+  if (suppressed.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-amber-200/80">Suppressed Noise</p>
+            <p className="mt-1 text-sm text-white/80">
+              {suppressed.length} low-value issue types were suppressed by the Precision & Trust layer.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="rounded-lg border border-amber-300/30 bg-black/20 px-3 py-1.5 text-xs text-amber-100 transition hover:bg-black/35"
+          >
+            {expanded ? "Hide Suppressed Issues" : "Show Suppressed Issues"}
+          </button>
+        </div>
+      </div>
+
+      {expanded ? (
+        <div className="space-y-3">
+          {suppressed.map((finding, index) => (
+            <FindingCard
+              key={`suppressed-${finding.cwe}-${finding.category}-${finding.root_cause_pattern}-${index}`}
+              finding={finding}
+            />
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -706,6 +773,7 @@ export default function SecurityOverview({
       <InsightsPanel insights={report?.insights || []} />
 
       <FindingsPreview groupedIssues={report?.grouped_issues || report?.findings || []} />
+      <SuppressedFindingsSection suppressedIssues={report?.suppressed_issues || []} />
     </section>
   );
 }

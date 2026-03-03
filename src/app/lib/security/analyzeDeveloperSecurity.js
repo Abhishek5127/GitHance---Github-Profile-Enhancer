@@ -99,6 +99,20 @@ const EXPLOITABILITY_SCORE = {
   Possible: 2,
   Unlikely: 1,
 };
+const ATTACK_SURFACE = {
+  PUBLIC_HTTP: "PUBLIC_HTTP",
+  INTERNAL_SERVICE: "INTERNAL_SERVICE",
+  CLI_LOCAL: "CLI_LOCAL",
+  BUILD_TIME: "BUILD_TIME",
+  TEST_ONLY: "TEST_ONLY",
+  MIXED: "MIXED",
+};
+const LOG_SECRET_NAME_PATTERN =
+  /(token|password|secret|key|auth|credential|jwt|session)/i;
+const BASE64_LIKE_TOKEN_PATTERN = /\b[A-Za-z0-9+/_-]{24,}={0,2}\b/;
+const API_KEY_PREFIX_PATTERN =
+  /\b(?:ghp_|github_pat_|sk_live_|sk_test_|xox[baprs]-|AKIA|AIza|ya29\.)[A-Za-z0-9._-]{8,}\b/;
+const JWT_PATTERN = /\b[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/;
 
 const DANGEROUS_METHOD_TO_VULN = (() => {
   const out = new Map();
@@ -158,6 +172,13 @@ function mergeExploitability(current, incoming) {
   return exploitabilityValue(right) > exploitabilityValue(left) ? right : left;
 }
 
+function mergeAttackSurface(current, incoming) {
+  if (!current) return incoming || ATTACK_SURFACE.INTERNAL_SERVICE;
+  if (!incoming) return current;
+  if (current === incoming) return current;
+  return ATTACK_SURFACE.MIXED;
+}
+
 function toConfidenceLabel(score) {
   if (score >= 80) return "high";
   if (score >= 60) return "medium";
@@ -171,6 +192,17 @@ function getPathLower(filePath) {
 function hasPathSegment(filePath, segment) {
   const normalized = getPathLower(filePath);
   return normalized.includes(`/${segment}/`) || normalized.startsWith(`${segment}/`);
+}
+
+function mapAttackSurface(executionContext) {
+  if (executionContext === EXECUTION_CONTEXTS.WEB_SERVER) return ATTACK_SURFACE.PUBLIC_HTTP;
+  if (executionContext === EXECUTION_CONTEXTS.BACKEND_SERVICE) {
+    return ATTACK_SURFACE.INTERNAL_SERVICE;
+  }
+  if (executionContext === EXECUTION_CONTEXTS.CLI_TOOL) return ATTACK_SURFACE.CLI_LOCAL;
+  if (executionContext === EXECUTION_CONTEXTS.BUILD_SCRIPT) return ATTACK_SURFACE.BUILD_TIME;
+  if (executionContext === EXECUTION_CONTEXTS.TEST_FILE) return ATTACK_SURFACE.TEST_ONLY;
+  return ATTACK_SURFACE.INTERNAL_SERVICE;
 }
 
 function classifyExecutionContext({ filePath, content, ast }) {
@@ -664,6 +696,75 @@ function sourceSummary(trace) {
     .join("; ");
 }
 
+function detectionConfidenceFromCall(callInfo) {
+  let score = 20;
+  if (!callInfo?.unresolvedReason) score += 25;
+  if (callInfo?.importVerified) score += 35;
+  if (callInfo?.resolvedModuleSource && callInfo.resolvedModuleSource !== "unresolved") {
+    score += 10;
+  }
+  if (callInfo?.fullyQualifiedFunction && !String(callInfo.fullyQualifiedFunction).startsWith("unresolved.")) {
+    score += 10;
+  }
+  return Math.max(0, Math.min(100, score));
+}
+
+function flowConfidenceScoreFromTrace(trace) {
+  if (!trace || trace.kind === "none") return 20;
+  const sourceCount = Math.min(3, Number(trace?.sources?.length || 0));
+  if (trace.kind === "confirmed") return Math.min(100, 72 + sourceCount * 8);
+  if (trace.kind === "partial") return Math.min(80, 52 + sourceCount * 7);
+  return 20;
+}
+
+function flowConfidenceLabel(score) {
+  if (score >= 81) return "HIGH";
+  if (score >= 46) return "PARTIAL";
+  return "NONE";
+}
+
+function exploitabilityConfidenceScore({
+  executionContext,
+  attackSurface,
+  sourceRank,
+  exploitability,
+}) {
+  let score = 20;
+  if (attackSurface === ATTACK_SURFACE.PUBLIC_HTTP) score += 35;
+  else if (attackSurface === ATTACK_SURFACE.INTERNAL_SERVICE) score += 18;
+  else if (attackSurface === ATTACK_SURFACE.CLI_LOCAL) score += 10;
+  else if (attackSurface === ATTACK_SURFACE.BUILD_TIME) score += 8;
+  else score += 6;
+
+  if (sourceRank === INPUT_RANK.CRITICAL) score += 30;
+  else if (sourceRank === INPUT_RANK.MEDIUM) score += 18;
+  else if (sourceRank === INPUT_RANK.LOW) score += 8;
+
+  if (executionContext === EXECUTION_CONTEXTS.WEB_SERVER) score += 10;
+  if (exploitability === "Confirmed") score += 8;
+  if (exploitability === "Unlikely") score -= 10;
+  return Math.max(0, Math.min(100, score));
+}
+
+function computeOverallConfidence({
+  detectionConfidence,
+  flowConfidence,
+  exploitabilityConfidence,
+  flowConfidenceLabelValue,
+  exploitability,
+}) {
+  let score = Math.round(
+    0.4 * detectionConfidence + 0.3 * flowConfidence + 0.3 * exploitabilityConfidence
+  );
+  if (flowConfidenceLabelValue === "PARTIAL") score = Math.min(score, 80);
+  if (exploitability === "Unlikely") score = Math.min(score, 70);
+  return Math.max(0, Math.min(100, score));
+}
+
+function severityLabel(severity) {
+  return toTitleCase(severity || "informational");
+}
+
 function sanitizeMatch(vulnId, value) {
   if (vulnId === "hardcoded_secret") return "[REDACTED_SECRET_LITERAL]";
   return String(value || "").slice(0, 220);
@@ -732,9 +833,13 @@ function createCallFinding({
     `Module source: ${callInfo.resolvedModuleSource}`,
     `Import verified: ${callInfo.importVerified ? "yes" : "no"}`,
     `Execution context: ${state.executionContext}`,
+    `Attack surface: ${threat.attackSurface}`,
     `Input source rank: ${threat.sourceRank}`,
     `Exploitability: ${threat.exploitability}`,
-    `Confidence score: ${threat.confidenceScore}`,
+    `Detection confidence: ${threat.detectionConfidence}`,
+    `Flow confidence: ${threat.flowConfidenceScore}`,
+    `Exploitability confidence: ${threat.exploitabilityConfidence}`,
+    `Overall confidence: ${threat.overallConfidence}`,
     `Why matched: ${reason}`,
     trace.kind !== "none"
       ? `Source flow: ${trace.kind}. ${sourceSummary(trace)}.`
@@ -773,10 +878,27 @@ function createCallFinding({
     confidenceReason: severityModel.confidenceReason,
     needsManualReview: Boolean(severityModel.needsManualReview),
     executionContext: state.executionContext,
+    attackSurface: threat.attackSurface,
     inputSourceRank: threat.sourceRank,
     exploitability: threat.exploitability,
     confidenceScore: threat.confidenceScore,
+    detectionConfidence: threat.detectionConfidence,
+    flowConfidenceValue: threat.flowConfidenceScore,
+    exploitabilityConfidence: threat.exploitabilityConfidence,
+    overallConfidence: threat.overallConfidence,
     reasoning: threat.reasoning,
+    whyThisMatters:
+      definition.impact ||
+      "This pattern can create a real security path if untrusted input reaches sensitive code.",
+    realisticRiskAssessment:
+      threat.attackSurface !== ATTACK_SURFACE.PUBLIC_HTTP
+        ? `This occurs in ${state.executionContext} with ${threat.attackSurface} exposure. Remote exploitability is limited.`
+        : `This occurs in a public HTTP surface and can be exploited if attacker-controlled input reaches the sink.`,
+    developerAction:
+      severityRank(threat.severity) <= severityRank("informational")
+        ? "No urgent action required; monitor and keep current safeguards."
+        : definition.recommendation || "Apply secure coding controls around this sink.",
+    suppressed: false,
   });
 }
 
@@ -834,6 +956,33 @@ function containsSensitive(node, depth = 0) {
     return (node.elements || []).some((item) => containsSensitive(item, depth + 1));
   }
   return false;
+}
+
+function matchesSecretStringPattern(text) {
+  const value = String(text || "");
+  if (!value) return false;
+  return (
+    LOG_SECRET_NAME_PATTERN.test(value) ||
+    JWT_PATTERN.test(value) ||
+    API_KEY_PREFIX_PATTERN.test(value) ||
+    BASE64_LIKE_TOKEN_PATTERN.test(value)
+  );
+}
+
+function loggingHasSecretStringArgument(args = []) {
+  return args.some((arg) => {
+    if (!arg) return false;
+    if (arg.type === "StringLiteral") return matchesSecretStringPattern(arg.value);
+    if (arg.type === "TemplateLiteral") {
+      if (arg.expressions.length === 0) {
+        return matchesSecretStringPattern(
+          arg.quasis.map((item) => item.value?.cooked || "").join("")
+        );
+      }
+      return arg.expressions.some((expr) => containsSensitive(expr));
+    }
+    return false;
+  });
 }
 
 function looksLikeSecret(value) {
@@ -923,6 +1072,33 @@ function detectPathValidation(path, firstArg, state) {
   );
 }
 
+function isStaticPathExpression(node, depth = 0) {
+  if (!node || depth > MAX_DEPTH) return false;
+  if (node.type === "StringLiteral") return true;
+  if (node.type === "TemplateLiteral") return node.expressions.length === 0;
+  if (node.type === "Identifier") {
+    return node.name === "__dirname" || node.name === "__filename";
+  }
+  if (node.type === "BinaryExpression" && node.operator === "+") {
+    return (
+      isStaticPathExpression(node.left, depth + 1) &&
+      isStaticPathExpression(node.right, depth + 1)
+    );
+  }
+  if (node.type === "CallExpression" || node.type === "OptionalCallExpression") {
+    const chain = getMemberChain(node.callee) || [];
+    const leaf = String(chain[chain.length - 1] || "").toLowerCase();
+    if (!["join", "resolve", "normalize", "basename"].includes(leaf)) return false;
+    return (node.arguments || []).every((arg) => isStaticPathExpression(arg, depth + 1));
+  }
+  return false;
+}
+
+function capSeverityForAttackSurface(severity, attackSurface) {
+  if (attackSurface === ATTACK_SURFACE.PUBLIC_HTTP) return severity;
+  return severityRank(severity) > severityRank("medium") ? "medium" : severity;
+}
+
 function classifyExploitability({
   sinkConfirmed,
   sourceRank,
@@ -949,27 +1125,6 @@ function baseSeverityFromExploitability({
   return "informational";
 }
 
-function calculateConfidenceScore({
-  sinkConfirmed,
-  importVerified,
-  sourceRank,
-  flowConfidence,
-  executionContext,
-  unresolvedReason,
-}) {
-  let score = 18;
-  if (sinkConfirmed) score += 24;
-  if (importVerified) score += 16;
-  if (!unresolvedReason) score += 10;
-  if (sourceRank !== INPUT_RANK.UNKNOWN) score += 14;
-  if (sourceRank === INPUT_RANK.CRITICAL) score += 6;
-  if (flowConfidence === "HIGH") score += 18;
-  else if (flowConfidence === "PARTIAL") score += 10;
-  if (executionContext && executionContext !== EXECUTION_CONTEXTS.INTERNAL_LIB) score += 8;
-  if (executionContext === EXECUTION_CONTEXTS.WEB_SERVER) score += 4;
-  return Math.max(0, Math.min(100, score));
-}
-
 function evaluateThreatModel({
   definition,
   callInfo,
@@ -985,7 +1140,11 @@ function evaluateThreatModel({
       : callInfo.importVerified
   );
   const sourceRank = meta.inputSourceRankOverride || rankFromTrace(trace);
-  const flowConfidence = meta.flowConfidenceOverride || flowConfidenceFromTrace(trace);
+  const initialFlowConfidence = meta.flowConfidenceOverride || flowConfidenceFromTrace(trace);
+  const flowConfidenceScoreRaw = flowConfidenceScoreFromTrace(trace);
+  const flowConfidence =
+    meta.flowConfidenceOverride || flowConfidenceLabel(flowConfidenceScoreRaw);
+  const attackSurface = mapAttackSurface(executionContext);
   let severity = baseSeverityFromExploitability({
     sinkConfirmed,
     sourceRank,
@@ -1003,15 +1162,33 @@ function evaluateThreatModel({
   if (vulnerabilityId === "path_traversal") {
     const firstArg = path.node.arguments?.[0] || null;
     const isValidated = detectPathValidation(path, firstArg, state);
-    const networkExposed = isNetworkExposedContext(executionContext);
-    if (
+    const networkExposed = attackSurface === ATTACK_SURFACE.PUBLIC_HTTP;
+    const staticPath = isStaticPathExpression(firstArg);
+    const hasCliSource = (trace?.sources || []).some((source) => source.type === "cli_argument");
+    const envOnly =
+      trace?.sources?.length > 0 &&
+      trace.sources.every((source) => source.type === "environment");
+
+    if (staticPath && flowConfidence === "NONE") {
+      severity = "informational";
+      exploitability = "Unlikely";
+      notes.push("Path operation uses static constant path components.");
+    } else if (envOnly) {
+      severity = "low";
+      exploitability = "Unlikely";
+      notes.push("Path is derived from environment values only.");
+    } else if (hasCliSource) {
+      severity = "medium";
+      exploitability = "Possible";
+      notes.push("Path is influenced by CLI arguments.");
+    } else if (
       sourceRank === INPUT_RANK.CRITICAL &&
-      flowConfidence !== "NONE" &&
+      flowConfidence === "HIGH" &&
       !isValidated &&
       networkExposed
     ) {
       severity = "high";
-      exploitability = flowConfidence === "HIGH" ? "Likely" : exploitability;
+      exploitability = "Likely";
       notes.push("Path comes from network input, no clear validation/normalization, and network exposure is present.");
     } else if (
       executionContext === EXECUTION_CONTEXTS.CLI_TOOL ||
@@ -1034,11 +1211,22 @@ function evaluateThreatModel({
   }
 
   if (vulnerabilityId === "sensitive_logging") {
-    if (flowConfidence === "NONE" && sourceRank === INPUT_RANK.UNKNOWN) {
+    const hasSecretEvidence = Boolean(meta.hasSecretEvidence);
+    const sourceRiskCondition =
+      sourceRank === INPUT_RANK.CRITICAL || sourceRank === INPUT_RANK.MEDIUM;
+    if (!hasSecretEvidence && !sourceRiskCondition) {
       severity = "informational";
       exploitability = "Unlikely";
-      notes.push("No concrete sensitive value flow into log arguments was confirmed.");
-    } else if (sourceRank === INPUT_RANK.LOW) {
+      notes.push("No secret evidence or medium/critical source risk found in logging arguments.");
+    } else if (
+      executionContext === EXECUTION_CONTEXTS.CLI_TOOL &&
+      sourceRank === INPUT_RANK.LOW &&
+      !hasSecretEvidence
+    ) {
+      severity = "informational";
+      exploitability = "Unlikely";
+      notes.push("CLI logging with LOW-ranked source and no secret evidence is treated as suppressed noise.");
+    } else if (sourceRank === INPUT_RANK.LOW && !hasSecretEvidence) {
       severity = "low";
       notes.push("Logged source appears low-risk (environment/config) and not direct attacker input.");
     }
@@ -1049,23 +1237,59 @@ function evaluateThreatModel({
     notes.push("Input source rank is LOW (env/config/static), so high severity is not assigned.");
   }
 
-  const confidenceScore = calculateConfidenceScore({
-    sinkConfirmed,
-    importVerified: Boolean(callInfo.importVerified),
-    sourceRank,
-    flowConfidence,
+  severity = capSeverityForAttackSurface(severity, attackSurface);
+
+  const detectionConfidence = detectionConfidenceFromCall(callInfo);
+  const flowConfidenceScore = flowConfidenceScoreRaw;
+  const flowConfidenceLabelValue = flowConfidence;
+  const exploitabilityConfidence = exploitabilityConfidenceScore({
     executionContext,
-    unresolvedReason: callInfo.unresolvedReason,
+    attackSurface,
+    sourceRank,
+    exploitability,
   });
-  const confidence = toConfidenceLabel(confidenceScore);
-  const manualReviewSuggested = confidenceScore < 60;
+  const overallConfidence = computeOverallConfidence({
+    detectionConfidence,
+    flowConfidence: flowConfidenceScore,
+    exploitabilityConfidence,
+    flowConfidenceLabelValue,
+    exploitability,
+  });
+  const confidenceScore = overallConfidence;
+  const confidence = toConfidenceLabel(overallConfidence);
+  const manualReviewSuggested = overallConfidence < 60;
+  const suppressionEligible =
+    [EXECUTION_CONTEXTS.CLI_TOOL, EXECUTION_CONTEXTS.BUILD_SCRIPT, EXECUTION_CONTEXTS.TEST_FILE].includes(
+      executionContext
+    ) &&
+    sourceRank === INPUT_RANK.LOW &&
+    exploitability === "Unlikely" &&
+    flowConfidenceLabelValue !== "HIGH";
+
+  const whyThisMatters =
+    definition?.impact ||
+    "This pattern can become a security issue when attacker-controlled data reaches a sensitive operation.";
+  const realisticRiskAssessment =
+    attackSurface === ATTACK_SURFACE.PUBLIC_HTTP
+      ? "Code appears reachable from a public HTTP surface, so attacker-controlled requests are plausible."
+      : `This runs in ${executionContext} with ${attackSurface} exposure, which lowers realistic remote exploitability.`;
+  const developerAction =
+    severityRank(severity) <= severityRank("informational")
+      ? "No urgent fix required. Keep safeguards and monitor changes to exposure."
+      : definition?.recommendation ||
+        "Apply input validation, safe API usage, and strict authorization checks.";
 
   const reasoningParts = [
     `Execution context: ${executionContext}`,
+    `Attack surface: ${attackSurface}`,
     `Sink confirmed: ${sinkConfirmed ? "yes" : "no"}`,
     `Input source rank: ${sourceRank}`,
-    `Flow confidence: ${flowConfidence}`,
+    `Flow confidence: ${flowConfidenceLabelValue}`,
     `Exploitability: ${exploitability}`,
+    `Detection confidence: ${detectionConfidence}`,
+    `Flow confidence score: ${flowConfidenceScore}`,
+    `Exploitability confidence: ${exploitabilityConfidence}`,
+    `Overall confidence: ${overallConfidence}`,
   ];
   if (notes.length > 0) reasoningParts.push(...notes);
   if (manualReviewSuggested) reasoningParts.push("Manual Review Suggested (confidence < 60).");
@@ -1075,11 +1299,21 @@ function evaluateThreatModel({
     confidence,
     confidenceScore,
     sourceRank,
-    flowConfidence,
+    flowConfidence: flowConfidenceLabelValue,
     exploitability,
     sinkConfirmed,
     manualReviewSuggested,
+    attackSurface,
+    detectionConfidence,
+    flowConfidenceScore,
+    exploitabilityConfidence,
+    overallConfidence,
+    suppressionEligible,
+    whyThisMatters,
+    realisticRiskAssessment,
+    developerAction,
     reasoning: reasoningParts.join(" "),
+    flowConfidenceRaw: initialFlowConfidence,
   };
 }
 
@@ -1132,8 +1366,26 @@ function analyzeJsTsFile(file) {
     if (!def) return;
     const lineStart = Number(lineNode?.loc?.start?.line || 1);
     const lineEnd = Number(lineNode?.loc?.end?.line || lineStart);
-    const confidenceScore = rawValue.startsWith("-----BEGIN") ? 96 : 82;
     const executionContext = state.executionContext;
+    const attackSurface = mapAttackSurface(executionContext);
+    const baseSeverity = rawValue.startsWith("-----BEGIN") ? "critical" : "high";
+    const severity = capSeverityForAttackSurface(baseSeverity, attackSurface);
+    const detectionConfidence = 95;
+    const flowConfidenceValue = 35;
+    const exploitabilityConfidence = exploitabilityConfidenceScore({
+      executionContext,
+      attackSurface,
+      sourceRank: INPUT_RANK.LOW,
+      exploitability: rawValue.startsWith("-----BEGIN") ? "Likely" : "Possible",
+    });
+    const overallConfidence = computeOverallConfidence({
+      detectionConfidence,
+      flowConfidence: flowConfidenceValue,
+      exploitabilityConfidence,
+      flowConfidenceLabelValue: "NONE",
+      exploitability: attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? "Likely" : "Possible",
+    });
+    const confidenceScore = overallConfidence;
     addFinding(state, {
       filePath: file.path,
       language: file.language,
@@ -1143,8 +1395,8 @@ function analyzeJsTsFile(file) {
       rootCausePattern: def.rootCausePattern,
       category: toTitleCase(def.concept || def.category),
       cwe: def.cwe,
-      severity: rawValue.startsWith("-----BEGIN") ? "critical" : "high",
-      confidence: rawValue.startsWith("-----BEGIN") ? "high" : "medium",
+      severity,
+      confidence: toConfidenceLabel(overallConfidence),
       title: def.title,
       description: def.description,
       impact: def.impact,
@@ -1167,10 +1419,29 @@ function analyzeJsTsFile(file) {
       confidenceReason: `Confidence ${confidenceScore}/100 based on direct literal detection.`,
       needsManualReview: confidenceScore < 60,
       executionContext,
+      attackSurface,
       inputSourceRank: INPUT_RANK.LOW,
-      exploitability: rawValue.startsWith("-----BEGIN") ? "Confirmed" : "Likely",
+      exploitability:
+        attackSurface === ATTACK_SURFACE.PUBLIC_HTTP
+          ? rawValue.startsWith("-----BEGIN")
+            ? "Likely"
+            : "Possible"
+          : "Unlikely",
       confidenceScore,
-      reasoning: `Execution context: ${executionContext}. Hardcoded secret in source is directly exposed if repository or build artifacts leak.`,
+      detectionConfidence,
+      flowConfidenceValue,
+      exploitabilityConfidence,
+      overallConfidence,
+      reasoning: `Execution context: ${executionContext}. Hardcoded secret in source can expose credentials if code or artifacts leak.`,
+      whyThisMatters:
+        "Hardcoded credentials can be leaked through source access, logs, backups, or build artifacts.",
+      realisticRiskAssessment:
+        attackSurface === ATTACK_SURFACE.PUBLIC_HTTP
+          ? "Public deployment increases blast radius if this secret is compromised."
+          : "No direct public HTTP attack surface detected, but secret exposure still creates account compromise risk.",
+      developerAction:
+        "Move this secret to a secure secret manager and rotate any value already committed.",
+      suppressed: false,
     });
   };
 
@@ -1361,7 +1632,8 @@ function analyzeJsTsFile(file) {
         }
 
         if (vulnId === "path_traversal") {
-          if (firstTrace.kind === "none") continue;
+          const staticPathCandidate = isStaticPathExpression(firstArg);
+          if (firstTrace.kind === "none" && !staticPathCandidate) continue;
           createCallFinding({
             state,
             path,
@@ -1383,7 +1655,6 @@ function analyzeJsTsFile(file) {
             trace: { kind: "none", sources: [] },
             model: {
               severity: "medium",
-              confidence: "high",
               sourceToSinkDetected: false,
               flowStatus: "none",
               needsManualReview: false,
@@ -1425,7 +1696,20 @@ function analyzeJsTsFile(file) {
 
         if (vulnId === "sensitive_logging") {
           const sensitiveArg = args.some((arg) => containsSensitive(arg));
-          if (!sensitiveArg && allTrace.kind === "none") continue;
+          const secretStringArg = loggingHasSecretStringArgument(args);
+          const sourceRank = rankFromTrace(allTrace);
+          const sourceRiskCondition =
+            sourceRank === INPUT_RANK.CRITICAL || sourceRank === INPUT_RANK.MEDIUM;
+          const shouldFlag = sensitiveArg || secretStringArg || sourceRiskCondition;
+          if (!shouldFlag) continue;
+          if (
+            state.executionContext === EXECUTION_CONTEXTS.CLI_TOOL &&
+            sourceRank === INPUT_RANK.LOW &&
+            !sensitiveArg &&
+            !secretStringArg
+          ) {
+            continue;
+          }
           createCallFinding({
             state,
             path,
@@ -1433,6 +1717,10 @@ function analyzeJsTsFile(file) {
             callInfo,
             trace: allTrace,
             reason: "Logging sink receives sensitive fields or auth-related payload.",
+            meta: {
+              hasSecretEvidence: sensitiveArg || secretStringArg,
+              inputSourceRankOverride: sourceRank,
+            },
           });
           continue;
         }
@@ -1447,7 +1735,6 @@ function analyzeJsTsFile(file) {
             trace: { kind: "none", sources: [] },
             model: {
               severity: "medium",
-              confidence: "medium",
               sourceToSinkDetected: false,
               flowStatus: "none",
               needsManualReview: true,
@@ -1470,7 +1757,6 @@ function analyzeJsTsFile(file) {
             trace: allTrace,
             model: {
               severity: allTrace.kind === "confirmed" ? "low" : "informational",
-              confidence: "low",
               sourceToSinkDetected: false,
               flowStatus: allTrace.kind === "confirmed" ? "partial" : "none",
               needsManualReview: true,
@@ -1503,7 +1789,8 @@ function analyzeJsTsFile(file) {
   return { findings: state.findings, parseError: false };
 }
 
-function groupFindings(findings) {
+function groupFindings(findings, options = {}) {
+  const suppressed = Boolean(options?.suppressed);
   const groups = new Map();
 
   for (const finding of findings) {
@@ -1525,10 +1812,19 @@ function groupFindings(findings) {
       confidence_reason: finding.confidenceReason || "",
       needs_manual_review: Boolean(finding.needsManualReview),
       execution_context: finding.executionContext || EXECUTION_CONTEXTS.INTERNAL_LIB,
+      attack_surface: finding.attackSurface || ATTACK_SURFACE.INTERNAL_SERVICE,
       input_source_rank: finding.inputSourceRank || INPUT_RANK.UNKNOWN,
       exploitability: finding.exploitability || "Unlikely",
       confidence_score: Number(finding.confidenceScore || 0),
+      detection_confidence: Number(finding.detectionConfidence || 0),
+      flow_confidence: Number(finding.flowConfidenceValue || 0),
+      exploitability_confidence: Number(finding.exploitabilityConfidence || 0),
+      overall_confidence: Number(finding.overallConfidence || finding.confidenceScore || 0),
       reasoning: finding.reasoning || "",
+      why_this_matters: finding.whyThisMatters || "",
+      realistic_risk_assessment: finding.realisticRiskAssessment || "",
+      developer_action: finding.developerAction || "",
+      suppressed,
     };
 
     if (!groups.has(key)) {
@@ -1538,11 +1834,21 @@ function groupFindings(findings) {
         severity: toTitleCase(finding.severity),
         confidence: toTitleCase(finding.confidence),
         confidence_score: Number(finding.confidenceScore || 0),
+        detection_confidence: Number(finding.detectionConfidence || 0),
+        flow_confidence: Number(finding.flowConfidenceValue || 0),
+        exploitability_confidence: Number(finding.exploitabilityConfidence || 0),
+        overall_confidence: Number(finding.overallConfidence || finding.confidenceScore || 0),
         execution_context: finding.executionContext || EXECUTION_CONTEXTS.INTERNAL_LIB,
         execution_contexts: [finding.executionContext || EXECUTION_CONTEXTS.INTERNAL_LIB],
+        attack_surface: finding.attackSurface || ATTACK_SURFACE.INTERNAL_SERVICE,
+        attack_surfaces: [finding.attackSurface || ATTACK_SURFACE.INTERNAL_SERVICE],
         input_source_rank: finding.inputSourceRank || INPUT_RANK.UNKNOWN,
         exploitability: finding.exploitability || "Unlikely",
         reasoning: finding.reasoning || "",
+        why_this_matters: finding.whyThisMatters || "",
+        realistic_risk_assessment: finding.realisticRiskAssessment || "",
+        developer_action: finding.developerAction || "",
+        suppressed,
         root_cause_pattern: finding.rootCausePattern,
         title: finding.title,
         description: finding.description,
@@ -1551,6 +1857,12 @@ function groupFindings(findings) {
         instances: [instance],
         _confidence_score_sum: Number(finding.confidenceScore || 0),
         _confidence_score_count: 1,
+        _detection_confidence_sum: Number(finding.detectionConfidence || 0),
+        _flow_confidence_sum: Number(finding.flowConfidenceValue || 0),
+        _exploitability_confidence_sum: Number(finding.exploitabilityConfidence || 0),
+        _overall_confidence_sum: Number(
+          finding.overallConfidence || finding.confidenceScore || 0
+        ),
       });
       continue;
     }
@@ -1570,6 +1882,17 @@ function groupFindings(findings) {
       current.exploitability,
       finding.exploitability
     );
+    current.attack_surface = mergeAttackSurface(current.attack_surface, finding.attackSurface);
+    current.attack_surfaces = Array.from(
+      new Set([
+        ...(current.attack_surfaces || []),
+        finding.attackSurface || ATTACK_SURFACE.INTERNAL_SERVICE,
+      ])
+    );
+    current.attack_surface =
+      current.attack_surfaces.length === 1
+        ? current.attack_surfaces[0]
+        : ATTACK_SURFACE.MIXED;
     current.execution_contexts = Array.from(
       new Set([
         ...(current.execution_contexts || []),
@@ -1582,7 +1905,22 @@ function groupFindings(findings) {
         : EXECUTION_CONTEXTS.MIXED;
     current._confidence_score_sum += Number(finding.confidenceScore || 0);
     current._confidence_score_count += 1;
+    current._detection_confidence_sum += Number(finding.detectionConfidence || 0);
+    current._flow_confidence_sum += Number(finding.flowConfidenceValue || 0);
+    current._exploitability_confidence_sum += Number(finding.exploitabilityConfidence || 0);
+    current._overall_confidence_sum += Number(
+      finding.overallConfidence || finding.confidenceScore || 0
+    );
     if (!current.reasoning && finding.reasoning) current.reasoning = finding.reasoning;
+    if (!current.why_this_matters && finding.whyThisMatters) {
+      current.why_this_matters = finding.whyThisMatters;
+    }
+    if (!current.realistic_risk_assessment && finding.realisticRiskAssessment) {
+      current.realistic_risk_assessment = finding.realisticRiskAssessment;
+    }
+    if (!current.developer_action && finding.developerAction) {
+      current.developer_action = finding.developerAction;
+    }
     current.instances.push(instance);
   }
 
@@ -1591,14 +1929,38 @@ function groupFindings(findings) {
       const confidenceScore = group._confidence_score_count
         ? Math.round(group._confidence_score_sum / group._confidence_score_count)
         : 0;
-      const { _confidence_score_sum, _confidence_score_count, ...rest } = group;
+      const detectionConfidence = group._confidence_score_count
+        ? Math.round(group._detection_confidence_sum / group._confidence_score_count)
+        : 0;
+      const flowConfidence = group._confidence_score_count
+        ? Math.round(group._flow_confidence_sum / group._confidence_score_count)
+        : 0;
+      const exploitabilityConfidence = group._confidence_score_count
+        ? Math.round(group._exploitability_confidence_sum / group._confidence_score_count)
+        : 0;
+      const overallConfidence = group._confidence_score_count
+        ? Math.round(group._overall_confidence_sum / group._confidence_score_count)
+        : confidenceScore;
+      const {
+        _confidence_score_sum,
+        _confidence_score_count,
+        _detection_confidence_sum,
+        _flow_confidence_sum,
+        _exploitability_confidence_sum,
+        _overall_confidence_sum,
+        ...rest
+      } = group;
       return {
         ...rest,
         confidence_score: confidenceScore,
+        detection_confidence: detectionConfidence,
+        flow_confidence: flowConfidence,
+        exploitability_confidence: exploitabilityConfidence,
+        overall_confidence: overallConfidence,
         instances: group.instances.sort((a, b) => {
-        if (a.file !== b.file) return a.file.localeCompare(b.file);
-        return a.line_start - b.line_start;
-      }),
+          if (a.file !== b.file) return a.file.localeCompare(b.file);
+          return a.line_start - b.line_start;
+        }),
       };
     })
     .sort((a, b) => {
@@ -1698,6 +2060,7 @@ function toRating(score) {
 
 function buildInsights({
   groupedIssues,
+  suppressedGroupedIssues,
   totalInstances,
   analytics,
   skippedFiles,
@@ -1742,7 +2105,45 @@ function buildInsights({
     );
   }
 
+  const suppressedCount = (suppressedGroupedIssues || []).reduce(
+    (sum, issue) => sum + Number(issue?.instances?.length || 0),
+    0
+  );
+  if (suppressedCount > 0) {
+    insights.push(
+      `${suppressedCount} low-value findings were suppressed by context-aware trust filters (expand suppressed issues to review).`
+    );
+  }
+
   return insights;
+}
+
+function shouldSuppressFinding(finding) {
+  const executionContext = finding.executionContext;
+  const lowValueContext = [
+    EXECUTION_CONTEXTS.CLI_TOOL,
+    EXECUTION_CONTEXTS.BUILD_SCRIPT,
+    EXECUTION_CONTEXTS.TEST_FILE,
+  ].includes(executionContext);
+  const lowRank = finding.inputSourceRank === INPUT_RANK.LOW;
+  const lowExploitability = finding.exploitability === "Unlikely";
+  const noConfirmedFlow = String(finding.flowStatus || "none").toLowerCase() !== "confirmed";
+  return lowValueContext && lowRank && lowExploitability && noConfirmedFlow;
+}
+
+function splitSuppressedFindings(findings) {
+  const active = [];
+  const suppressed = [];
+
+  for (const finding of findings || []) {
+    if (shouldSuppressFinding(finding)) {
+      suppressed.push({ ...finding, suppressed: true });
+    } else {
+      active.push({ ...finding, suppressed: false });
+    }
+  }
+
+  return { active, suppressed };
 }
 
 const LANGUAGE_ANALYZERS = {
@@ -1805,8 +2206,12 @@ export function analyzeDeveloperSecurity({
     return a.lineStart - b.lineStart;
   });
 
-  const groupedIssues = groupFindings(rawFindings);
-  const totalInstances = rawFindings.length;
+  const { active: activeFindings, suppressed: suppressedFindings } =
+    splitSuppressedFindings(rawFindings);
+  const groupedIssues = groupFindings(activeFindings, { suppressed: false });
+  const suppressedGroupedIssues = groupFindings(suppressedFindings, { suppressed: true });
+  const totalInstances = activeFindings.length;
+  const suppressedInstances = suppressedFindings.length;
   const analytics = buildAnalytics({ groupedIssues, totalInstances });
   const totalDeveloperFiles = Number(sourceFiles?.length || 0);
   const skippedFiles = Object.values(safeSkipped).reduce(
@@ -1833,6 +2238,7 @@ export function analyzeDeveloperSecurity({
       options.maxFindingsReturned || DEFAULT_MAX_FINDINGS_RETURNED
     ),
     issues_found: totalInstances,
+    suppressed_issues_found: suppressedInstances,
     security_score: securityScore,
     score: securityScore,
     rating: rating.grade,
@@ -1864,6 +2270,7 @@ export function analyzeDeveloperSecurity({
     },
     totals: {
       findings: totalInstances,
+      suppressedFindings: suppressedInstances,
       filesAnalyzed: analyzedFiles,
       totalCodeFiles: totalDeveloperFiles,
       riskPoints: analytics.riskPoints,
@@ -1876,6 +2283,14 @@ export function analyzeDeveloperSecurity({
       0,
       options.maxFindingsReturned || DEFAULT_MAX_FINDINGS_RETURNED
     ),
+    suppressed_issues: suppressedGroupedIssues.slice(
+      0,
+      options.maxFindingsReturned || DEFAULT_MAX_FINDINGS_RETURNED
+    ),
+    suppressed_summary: {
+      issue_types: suppressedGroupedIssues.length,
+      instances: suppressedInstances,
+    },
     coverage: {
       analyzedFiles,
       skippedFiles,
@@ -1887,6 +2302,7 @@ export function analyzeDeveloperSecurity({
     },
     insights: buildInsights({
       groupedIssues,
+      suppressedGroupedIssues,
       totalInstances,
       analytics,
       skippedFiles,
