@@ -109,10 +109,6 @@ const ATTACK_SURFACE = {
 };
 const LOG_SECRET_NAME_PATTERN =
   /(token|password|secret|key|auth|credential|jwt|session)/i;
-const BASE64_LIKE_TOKEN_PATTERN = /\b[A-Za-z0-9+/_-]{24,}={0,2}\b/;
-const API_KEY_PREFIX_PATTERN =
-  /\b(?:ghp_|github_pat_|sk_live_|sk_test_|xox[baprs]-|AKIA|AIza|ya29\.)[A-Za-z0-9._-]{8,}\b/;
-const JWT_PATTERN = /\b[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/;
 
 const DANGEROUS_METHOD_TO_VULN = (() => {
   const out = new Map();
@@ -928,61 +924,255 @@ function hasBypassOptions(node) {
   return false;
 }
 
-function containsSensitive(node, depth = 0) {
-  if (!node || depth > MAX_DEPTH) return false;
-  if (node.type === "Identifier") return SENSITIVE_NAME.test(node.name);
-  if (node.type === "StringLiteral") return false;
-  if (node.type === "MemberExpression" || node.type === "OptionalMemberExpression") {
-    const chain = getMemberChain(node);
-    if (Array.isArray(chain) && chain.some((part) => SENSITIVE_NAME.test(part))) return true;
-    return containsSensitive(node.object, depth + 1);
+function getPropertyKeyName(node) {
+  if (!node) return "";
+  if (node.type === "Identifier") return node.name;
+  if (node.type === "StringLiteral") return node.value;
+  if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
+    return node.quasis.map((item) => item.value?.cooked || "").join("");
   }
-  if (node.type === "TemplateLiteral") {
-    return (node.expressions || []).some((item) => containsSensitive(item, depth + 1));
-  }
-  if (node.type === "CallExpression" || node.type === "OptionalCallExpression") {
-    return (node.arguments || []).some((item) => containsSensitive(item, depth + 1));
-  }
-  if (node.type === "ObjectExpression") {
-    return (node.properties || []).some((property) => {
-      if (property?.type !== "ObjectProperty") return false;
-      const key =
-        property.key?.type === "Identifier" ? property.key.name : literalString(property.key);
-      if (SENSITIVE_NAME.test(key)) return true;
-      return containsSensitive(property.value, depth + 1);
-    });
-  }
-  if (node.type === "ArrayExpression") {
-    return (node.elements || []).some((item) => containsSensitive(item, depth + 1));
+  return "";
+}
+
+function isPureStringLogArgument(node) {
+  if (!node) return false;
+  if (node.type === "StringLiteral") return true;
+  if (node.type === "TemplateLiteral") return node.expressions.length === 0;
+  return false;
+}
+
+function sensitiveTraceEvidence(trace) {
+  for (const source of trace?.sources || []) {
+    const label = String(source?.label || "").toLowerCase();
+    if (!label) continue;
+    if (LOG_SECRET_NAME_PATTERN.test(label)) return true;
+    if (label.includes("headers.authorization")) return true;
+    if (label.includes("access_token") || label.includes("accesstoken")) return true;
+    if (label.includes("id_token") || label.includes("idtoken")) return true;
+    if (label.includes("refresh_token") || label.includes("refreshtoken")) return true;
   }
   return false;
 }
 
-function matchesSecretStringPattern(text) {
-  const value = String(text || "");
-  if (!value) return false;
-  return (
-    LOG_SECRET_NAME_PATTERN.test(value) ||
-    JWT_PATTERN.test(value) ||
-    API_KEY_PREFIX_PATTERN.test(value) ||
-    BASE64_LIKE_TOKEN_PATTERN.test(value)
-  );
+function sensitiveChainInfo(chain = []) {
+  const parts = (chain || []).map((item) => String(item || "").toLowerCase());
+  if (parts.length === 0) {
+    return { sensitive: false, rank: INPUT_RANK.UNKNOWN, reason: "" };
+  }
+
+  const hasSecretName = parts.some((part) => LOG_SECRET_NAME_PATTERN.test(part));
+  const startsReq = parts[0] === "req" || parts[0] === "request" || parts[0] === "ctx";
+  const isHeadersAuth =
+    startsReq &&
+    parts.includes("headers") &&
+    (parts.includes("authorization") || parts.includes("auth"));
+  const isSessionAccessToken =
+    (parts[0] === "session" || parts[0] === "auth" || parts[0] === "user") &&
+    parts.some((part) =>
+      /(access[_-]?token|refresh[_-]?token|id[_-]?token|jwt|token)/i.test(part)
+    );
+  const isEnvSecret =
+    parts[0] === "process" &&
+    parts[1] === "env" &&
+    parts.slice(2).some((part) => LOG_SECRET_NAME_PATTERN.test(part));
+
+  if (isHeadersAuth) {
+    return {
+      sensitive: true,
+      rank: INPUT_RANK.CRITICAL,
+      reason: "Headers authorization field is logged.",
+    };
+  }
+
+  if (isSessionAccessToken) {
+    return {
+      sensitive: true,
+      rank: INPUT_RANK.MEDIUM,
+      reason: "Session/auth token-like field is logged.",
+    };
+  }
+
+  if (isEnvSecret) {
+    return {
+      sensitive: true,
+      rank: INPUT_RANK.LOW,
+      reason: "Environment secret-like variable is logged.",
+    };
+  }
+
+  if (hasSecretName) {
+    return {
+      sensitive: true,
+      rank: INPUT_RANK.MEDIUM,
+      reason: "Identifier/property matches secret naming pattern.",
+    };
+  }
+
+  return { sensitive: false, rank: INPUT_RANK.UNKNOWN, reason: "" };
 }
 
-function loggingHasSecretStringArgument(args = []) {
-  return args.some((arg) => {
-    if (!arg) return false;
-    if (arg.type === "StringLiteral") return matchesSecretStringPattern(arg.value);
-    if (arg.type === "TemplateLiteral") {
-      if (arg.expressions.length === 0) {
-        return matchesSecretStringPattern(
-          arg.quasis.map((item) => item.value?.cooked || "").join("")
+function combineLogAnalysis(current, incoming) {
+  return {
+    confirmed: Boolean(current.confirmed || incoming.confirmed),
+    trace: mergeTrace(current.trace, incoming.trace),
+    rank:
+      inputRankValue(incoming.rank) > inputRankValue(current.rank)
+        ? incoming.rank
+        : current.rank,
+    clearFlow: Boolean(current.clearFlow || incoming.clearFlow),
+    reasons: [...(current.reasons || []), ...(incoming.reasons || [])],
+  };
+}
+
+function analyzeLoggingArgument(node, scope, state, depth = 0) {
+  const empty = {
+    confirmed: false,
+    trace: { kind: "none", sources: [] },
+    rank: INPUT_RANK.UNKNOWN,
+    clearFlow: false,
+    reasons: [],
+  };
+  if (!node || depth > MAX_DEPTH) return empty;
+  if (isPureStringLogArgument(node)) return empty;
+
+  if (node.type === "TemplateLiteral") {
+    return (node.expressions || []).reduce(
+      (acc, expr) =>
+        combineLogAnalysis(acc, analyzeLoggingArgument(expr, scope, state, depth + 1)),
+      empty
+    );
+  }
+
+  if (node.type === "Identifier") {
+    const trace = traceExpression(node, scope, state, depth + 1);
+    const nameSensitive = LOG_SECRET_NAME_PATTERN.test(node.name);
+    const traceSensitive = sensitiveTraceEvidence(trace);
+    const confirmed = nameSensitive || traceSensitive;
+    const rank = nameSensitive
+      ? rankFromTrace(trace) === INPUT_RANK.UNKNOWN
+        ? INPUT_RANK.MEDIUM
+        : rankFromTrace(trace)
+      : rankFromTrace(trace);
+    const reasons = [];
+    if (nameSensitive) reasons.push(`Sensitive identifier logged: ${node.name}`);
+    if (traceSensitive) reasons.push(`Identifier trace contains sensitive source: ${node.name}`);
+    return {
+      confirmed,
+      trace,
+      rank: confirmed ? (rank === INPUT_RANK.UNKNOWN ? INPUT_RANK.MEDIUM : rank) : rank,
+      clearFlow: confirmed && trace.kind === "confirmed",
+      reasons,
+    };
+  }
+
+  if (node.type === "MemberExpression" || node.type === "OptionalMemberExpression") {
+    const chain = getMemberChain(node) || [];
+    const chainInfo = sensitiveChainInfo(chain);
+    const trace = traceExpression(node, scope, state, depth + 1);
+    const traceSensitive = sensitiveTraceEvidence(trace);
+    const confirmed = chainInfo.sensitive || traceSensitive;
+    const rankFromChain = chainInfo.rank;
+    const rankFromTraceValue = rankFromTrace(trace);
+    const rank =
+      inputRankValue(rankFromTraceValue) > inputRankValue(rankFromChain)
+        ? rankFromTraceValue
+        : rankFromChain;
+    const reasons = [];
+    if (chainInfo.reason) reasons.push(chainInfo.reason);
+    if (traceSensitive) reasons.push("Member expression trace includes sensitive source.");
+    return {
+      confirmed,
+      trace,
+      rank: confirmed ? (rank === INPUT_RANK.UNKNOWN ? INPUT_RANK.MEDIUM : rank) : rank,
+      clearFlow: confirmed && trace.kind === "confirmed",
+      reasons,
+    };
+  }
+
+  if (node.type === "ObjectExpression") {
+    let result = { ...empty };
+    for (const property of node.properties || []) {
+      if (property?.type === "ObjectProperty") {
+        const keyName = getPropertyKeyName(property.key);
+        const keySensitive = LOG_SECRET_NAME_PATTERN.test(keyName);
+        const valueIsStaticString = isPureStringLogArgument(property.value);
+        if (keySensitive && !valueIsStaticString) {
+          result = combineLogAnalysis(result, {
+            confirmed: true,
+            trace: { kind: "partial", sources: [] },
+            rank: INPUT_RANK.MEDIUM,
+            clearFlow: false,
+            reasons: [`Object property key is sensitive: ${keyName}`],
+          });
+        }
+        result = combineLogAnalysis(
+          result,
+          analyzeLoggingArgument(property.value, scope, state, depth + 1)
+        );
+      } else if (property?.type === "SpreadElement") {
+        result = combineLogAnalysis(
+          result,
+          analyzeLoggingArgument(property.argument, scope, state, depth + 1)
         );
       }
-      return arg.expressions.some((expr) => containsSensitive(expr));
     }
-    return false;
-  });
+    return result;
+  }
+
+  if (node.type === "ArrayExpression") {
+    return (node.elements || []).reduce(
+      (acc, entry) =>
+        combineLogAnalysis(acc, analyzeLoggingArgument(entry, scope, state, depth + 1)),
+      empty
+    );
+  }
+
+  if (node.type === "CallExpression" || node.type === "OptionalCallExpression") {
+    return (node.arguments || []).reduce(
+      (acc, entry) =>
+        combineLogAnalysis(acc, analyzeLoggingArgument(entry, scope, state, depth + 1)),
+      empty
+    );
+  }
+
+  if (node.type === "ConditionalExpression") {
+    return combineLogAnalysis(
+      analyzeLoggingArgument(node.consequent, scope, state, depth + 1),
+      analyzeLoggingArgument(node.alternate, scope, state, depth + 1)
+    );
+  }
+
+  if (node.type === "BinaryExpression" || node.type === "LogicalExpression") {
+    return combineLogAnalysis(
+      analyzeLoggingArgument(node.left, scope, state, depth + 1),
+      analyzeLoggingArgument(node.right, scope, state, depth + 1)
+    );
+  }
+
+  return empty;
+}
+
+function analyzeLoggingArguments(args, scope, state) {
+  const nonNullArgs = (args || []).filter(Boolean);
+  const pureStringOnly = nonNullArgs.length > 0 && nonNullArgs.every(isPureStringLogArgument);
+  let combined = {
+    confirmed: false,
+    trace: { kind: "none", sources: [] },
+    rank: INPUT_RANK.UNKNOWN,
+    clearFlow: false,
+    reasons: [],
+  };
+  for (const arg of nonNullArgs) {
+    combined = combineLogAnalysis(combined, analyzeLoggingArgument(arg, scope, state));
+  }
+  return {
+    pureStringOnly,
+    confirmedSensitiveSource: combined.confirmed,
+    trace: combined.trace,
+    sourceRank: combined.rank,
+    clearFlow: combined.clearFlow,
+    reasons: combined.reasons,
+  };
 }
 
 function looksLikeSecret(value) {
@@ -1141,9 +1331,12 @@ function evaluateThreatModel({
   );
   const sourceRank = meta.inputSourceRankOverride || rankFromTrace(trace);
   const initialFlowConfidence = meta.flowConfidenceOverride || flowConfidenceFromTrace(trace);
-  const flowConfidenceScoreRaw = flowConfidenceScoreFromTrace(trace);
-  const flowConfidence =
-    meta.flowConfidenceOverride || flowConfidenceLabel(flowConfidenceScoreRaw);
+  const computedFlowConfidenceScore = flowConfidenceScoreFromTrace(trace);
+  const flowConfidenceScoreRaw =
+    typeof meta.flowConfidenceScoreOverride === "number"
+      ? Math.max(0, Math.min(100, Math.round(meta.flowConfidenceScoreOverride)))
+      : computedFlowConfidenceScore;
+  const flowConfidence = meta.flowConfidenceOverride || flowConfidenceLabel(flowConfidenceScoreRaw);
   const attackSurface = mapAttackSurface(executionContext);
   let severity = baseSeverityFromExploitability({
     sinkConfirmed,
@@ -1239,15 +1432,21 @@ function evaluateThreatModel({
 
   severity = capSeverityForAttackSurface(severity, attackSurface);
 
-  const detectionConfidence = detectionConfidenceFromCall(callInfo);
+  const detectionConfidence =
+    typeof meta.detectionConfidenceOverride === "number"
+      ? Math.max(0, Math.min(100, Math.round(meta.detectionConfidenceOverride)))
+      : detectionConfidenceFromCall(callInfo);
   const flowConfidenceScore = flowConfidenceScoreRaw;
   const flowConfidenceLabelValue = flowConfidence;
-  const exploitabilityConfidence = exploitabilityConfidenceScore({
-    executionContext,
-    attackSurface,
-    sourceRank,
-    exploitability,
-  });
+  const exploitabilityConfidence =
+    typeof meta.exploitabilityConfidenceOverride === "number"
+      ? Math.max(0, Math.min(100, Math.round(meta.exploitabilityConfidenceOverride)))
+      : exploitabilityConfidenceScore({
+          executionContext,
+          attackSurface,
+          sourceRank,
+          exploitability,
+        });
   const overallConfidence = computeOverallConfidence({
     detectionConfidence,
     flowConfidence: flowConfidenceScore,
@@ -1695,31 +1894,51 @@ function analyzeJsTsFile(file) {
         }
 
         if (vulnId === "sensitive_logging") {
-          const sensitiveArg = args.some((arg) => containsSensitive(arg));
-          const secretStringArg = loggingHasSecretStringArgument(args);
-          const sourceRank = rankFromTrace(allTrace);
-          const sourceRiskCondition =
-            sourceRank === INPUT_RANK.CRITICAL || sourceRank === INPUT_RANK.MEDIUM;
-          const shouldFlag = sensitiveArg || secretStringArg || sourceRiskCondition;
-          if (!shouldFlag) continue;
-          if (
-            state.executionContext === EXECUTION_CONTEXTS.CLI_TOOL &&
-            sourceRank === INPUT_RANK.LOW &&
-            !sensitiveArg &&
-            !secretStringArg
-          ) {
-            continue;
-          }
+          const logging = analyzeLoggingArguments(args, path.scope, state);
+          if (logging.pureStringOnly) continue;
+          if (!logging.confirmedSensitiveSource) continue;
+
+          const loggingTrace =
+            logging.trace?.kind && logging.trace.kind !== "none"
+              ? logging.trace
+              : {
+                  kind: "partial",
+                  sources: [
+                    {
+                      label: "Sensitive value directly passed to logging sink",
+                      line: Number(path.node?.loc?.start?.line || 0),
+                      type: "auth_payload",
+                    },
+                  ],
+                };
+          const sourceRank =
+            logging.sourceRank && logging.sourceRank !== INPUT_RANK.UNKNOWN
+              ? logging.sourceRank
+              : INPUT_RANK.MEDIUM;
+          const hasConfirmedTrace = logging.trace?.kind === "confirmed";
+          const hasPartialTrace = logging.trace?.kind === "partial";
+          const flowScoreOverride = hasConfirmedTrace
+            ? 100
+            : hasPartialTrace || logging.clearFlow
+            ? 72
+            : 60;
+          const flowLabelOverride = hasConfirmedTrace ? "HIGH" : "PARTIAL";
+          const reasonDetail = logging.reasons.slice(0, 2).join(" ");
           createCallFinding({
             state,
             path,
             definition: def,
             callInfo,
-            trace: allTrace,
-            reason: "Logging sink receives sensitive fields or auth-related payload.",
+            trace: loggingTrace,
+            reason: reasonDetail
+              ? `Logging sink outputs sensitive data. ${reasonDetail}`
+              : "Logging sink outputs sensitive authentication or secret data.",
             meta: {
-              hasSecretEvidence: sensitiveArg || secretStringArg,
+              hasSecretEvidence: true,
               inputSourceRankOverride: sourceRank,
+              flowConfidenceOverride: flowLabelOverride,
+              detectionConfidenceOverride: 100,
+              flowConfidenceScoreOverride: flowScoreOverride,
             },
           });
           continue;
