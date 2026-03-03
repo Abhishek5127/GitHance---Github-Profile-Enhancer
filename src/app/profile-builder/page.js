@@ -32,6 +32,7 @@ import {
 } from "../lib/sectionCatalog";
 import {
   CONTRIBUTION_GRAPH_ASSET_PATH,
+  CONTRIBUTION_GRAPH_CONFIG_PATH,
   CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
   CONTRIBUTION_GRAPH_WORKFLOW_PATH,
   CONTRIBUTION_GRAPH_SCRIPT_PATH,
@@ -415,6 +416,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       monthlyVariant: CONTRIBUTION_DEFAULT_VARIANT,
       includeMonthly: false,
     };
+    const contributionGraphConfig = {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      graphs: {},
+    };
 
     const upsertContributionFile = (entry) => {
       if (!entry?.path) return;
@@ -476,6 +482,13 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         message: `chore(readme): refresh ${contributionRange} contribution graph asset`,
       });
 
+      contributionGraphConfig.graphs[contributionRange] = {
+        variant: contributionVariant,
+        stickers: contributionStickers,
+        stickerLayers: contributionStickerLayers,
+        stickerHrefs,
+      };
+
       workflowDefaults.username = workflowDefaults.username || contributionUsername;
       if (contributionRange === "monthly") {
         workflowDefaults.includeMonthly = true;
@@ -487,6 +500,12 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     if (contributionBlocks.length) {
       upsertContributionFile({
+        path: CONTRIBUTION_GRAPH_CONFIG_PATH,
+        content: `${JSON.stringify(contributionGraphConfig, null, 2)}\n`,
+        message: "chore(readme): update contribution graph config",
+      });
+
+      upsertContributionFile({
         path: CONTRIBUTION_GRAPH_WORKFLOW_PATH,
         content: buildContributionGraphWorkflow({
           username: workflowDefaults.username,
@@ -494,6 +513,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           monthlyVariant: workflowDefaults.monthlyVariant,
           yearlyAssetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
           monthlyAssetPath: CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
+          configPath: CONTRIBUTION_GRAPH_CONFIG_PATH,
           includeMonthly: workflowDefaults.includeMonthly,
           scriptPath: CONTRIBUTION_GRAPH_SCRIPT_PATH,
         }),
@@ -504,6 +524,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         path: CONTRIBUTION_GRAPH_SCRIPT_PATH,
         content: buildContributionGraphUpdaterScript({
           outputPath: CONTRIBUTION_GRAPH_ASSET_PATH,
+          configPath: CONTRIBUTION_GRAPH_CONFIG_PATH,
         }),
         message: "chore(readme): add contribution graph generator script",
       });

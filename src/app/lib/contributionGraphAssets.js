@@ -1,6 +1,8 @@
 export const CONTRIBUTION_GRAPH_ASSET_PATH = "assets/readme/contribution-graph.svg";
 export const CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH =
   "assets/readme/contribution-graph-monthly.svg";
+export const CONTRIBUTION_GRAPH_CONFIG_PATH =
+  "assets/readme/contribution-graph.config.json";
 export const CONTRIBUTION_GRAPH_WORKFLOW_PATH = ".github/workflows/update-contribution-graph.yml";
 export const CONTRIBUTION_GRAPH_SCRIPT_PATH = ".github/scripts/update-contribution-graph.mjs";
 
@@ -33,6 +35,7 @@ export function buildContributionGraphWorkflow({
   monthlyVariant = "classic",
   yearlyAssetPath = CONTRIBUTION_GRAPH_ASSET_PATH,
   monthlyAssetPath = CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
+  configPath = CONTRIBUTION_GRAPH_CONFIG_PATH,
   includeMonthly = true,
   scriptPath = CONTRIBUTION_GRAPH_SCRIPT_PATH,
 } = {}) {
@@ -45,11 +48,14 @@ export function buildContributionGraphWorkflow({
   const safeMonthlyAssetPath = String(
     monthlyAssetPath || CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH
   ).trim();
+  const safeConfigPath = String(
+    configPath || CONTRIBUTION_GRAPH_CONFIG_PATH
+  ).trim();
   const safeIncludeMonthly = Boolean(includeMonthly);
   const safeScriptPath = String(scriptPath || CONTRIBUTION_GRAPH_SCRIPT_PATH).trim();
   const statusTargetPaths = safeIncludeMonthly
-    ? `${safeYearlyAssetPath} ${safeMonthlyAssetPath}`
-    : safeYearlyAssetPath;
+    ? `${safeYearlyAssetPath} ${safeMonthlyAssetPath} ${safeConfigPath}`
+    : `${safeYearlyAssetPath} ${safeConfigPath}`;
   const gitAddPaths = statusTargetPaths;
   const monthlyStep = safeIncludeMonthly
     ? `
@@ -60,6 +66,7 @@ export function buildContributionGraphWorkflow({
           GRAPH_VARIANT: ${safeMonthlyVariant}
           GRAPH_RANGE: monthly
           GRAPH_OUTPUT_PATH: ${safeMonthlyAssetPath}
+          GRAPH_CONFIG_PATH: ${safeConfigPath}
         run: node ${safeScriptPath}
 `
     : "";
@@ -69,7 +76,7 @@ export function buildContributionGraphWorkflow({
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */12 * * *"
+    - cron: "0 0 * * *"
 
 permissions:
   contents: write
@@ -93,6 +100,7 @@ jobs:
           GRAPH_VARIANT: ${safeYearlyVariant}
           GRAPH_RANGE: yearly
           GRAPH_OUTPUT_PATH: ${safeYearlyAssetPath}
+          GRAPH_CONFIG_PATH: ${safeConfigPath}
         run: node ${safeScriptPath}
 ${monthlyStep}
 
@@ -113,8 +121,10 @@ ${monthlyStep}
 
 export function buildContributionGraphUpdaterScript({
   outputPath = CONTRIBUTION_GRAPH_ASSET_PATH,
+  configPath = CONTRIBUTION_GRAPH_CONFIG_PATH,
 } = {}) {
   const safeOutputPath = String(outputPath || CONTRIBUTION_GRAPH_ASSET_PATH).trim();
+  const safeConfigPath = String(configPath || CONTRIBUTION_GRAPH_CONFIG_PATH).trim();
 
   return `import fs from "node:fs/promises";
 import path from "node:path";
@@ -211,6 +221,135 @@ function normalizeRange(value) {
   return normalized === "monthly" ? "monthly" : "yearly";
 }
 
+function normalizeStickerAssignments(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const normalized = {};
+  ["top-left", "top-right", "bottom-left", "bottom-right"].forEach((slotId) => {
+    const stickerId = String(value?.[slotId] || "").trim();
+    if (!stickerId) return;
+    normalized[slotId] = stickerId;
+  });
+
+  return normalized;
+}
+
+function normalizeStickerLayers(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry, index) => {
+      const stickerId = String(entry?.stickerId || "").trim();
+      if (!stickerId) return null;
+
+      const x = Number(entry?.x);
+      const y = Number(entry?.y);
+      const sizePx = Number(entry?.sizePx);
+      const rotation = Number(entry?.rotation || 0);
+
+      return {
+        id: String(entry?.id || "").trim() || \`layer-\${index}-\${stickerId}\`,
+        stickerId,
+        x: Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0.5,
+        y: Number.isFinite(y) ? Math.max(0, Math.min(1, y)) : 0.5,
+        sizePx: Number.isFinite(sizePx) ? Math.max(24, Math.min(280, Math.floor(sizePx))) : 112,
+        rotation: Number.isFinite(rotation) ? Math.max(-360, Math.min(360, rotation)) : 0,
+      };
+    })
+    .filter(Boolean);
+}
+
+function appendStickerOverlay(svgMarkup, overlayMarkup) {
+  const svg = String(svgMarkup || "");
+  const overlay = String(overlayMarkup || "").trim();
+  if (!svg || !overlay) return svg;
+  if (!svg.includes("</svg>")) return svg + overlay;
+  return svg.replace("</svg>", \`\${overlay}\\n</svg>\`);
+}
+
+function buildSlotStickerOverlay({
+  stickers = {},
+  range = "yearly",
+  width = 500,
+  height = 180,
+  hrefMap = {},
+} = {}) {
+  const normalizedStickers = normalizeStickerAssignments(stickers);
+  const entries = Object.entries(normalizedStickers).filter(([slotId]) =>
+    range === "monthly" ? slotId === "bottom-left" || slotId === "bottom-right" : true
+  );
+  if (!entries.length) return "";
+
+  const safeWidth = Math.max(64, Number(width) || 500);
+  const safeHeight = Math.max(64, Number(height) || 180);
+  const stickerSize =
+    range === "monthly"
+      ? Math.max(96, Math.min(170, safeHeight - 24))
+      : Math.max(56, Math.min(160, Math.floor(safeHeight * 0.32)));
+  const margin = range === "monthly" ? 8 : 10;
+
+  const positions = {
+    "top-left": { x: margin, y: margin },
+    "top-right": { x: safeWidth - margin - stickerSize, y: margin },
+    "bottom-left": { x: margin, y: safeHeight - margin - stickerSize },
+    "bottom-right": {
+      x: safeWidth - margin - stickerSize,
+      y: safeHeight - margin - stickerSize,
+    },
+  };
+
+  const images = entries
+    .map(([slotId, stickerId]) => {
+      const href = String(hrefMap?.[stickerId] || "").trim();
+      if (!href) return "";
+      const coords = positions[slotId];
+      if (!coords) return "";
+      return \`<image href="\${escapeXml(href)}" x="\${coords.x}" y="\${coords.y}" width="\${stickerSize}" height="\${stickerSize}" preserveAspectRatio="xMidYMid meet" />\`;
+    })
+    .filter(Boolean)
+    .join("");
+
+  if (!images) return "";
+  return \`<g aria-label="stickers">\${images}</g>\`;
+}
+
+function buildLayerStickerOverlay({
+  stickerLayers = [],
+  width = 500,
+  height = 180,
+  hrefMap = {},
+} = {}) {
+  const layers = normalizeStickerLayers(stickerLayers);
+  if (!layers.length) return "";
+
+  const safeWidth = Math.max(64, Number(width) || 500);
+  const safeHeight = Math.max(64, Number(height) || 180);
+
+  const images = layers
+    .map((layer) => {
+      const href = String(hrefMap?.[layer.stickerId] || "").trim();
+      if (!href) return "";
+
+      const centerX = layer.x * safeWidth;
+      const centerY = layer.y * safeHeight;
+      const x = centerX - layer.sizePx / 2;
+      const y = centerY - layer.sizePx / 2;
+      const rotate = Number(layer.rotation || 0);
+      const transform = rotate
+        ? \` transform="rotate(\${rotate} \${centerX} \${centerY})"\`
+        : "";
+
+      return \`<image href="\${escapeXml(href)}" x="\${x}" y="\${y}" width="\${layer.sizePx}" height="\${layer.sizePx}" preserveAspectRatio="xMidYMid meet"\${transform} />\`;
+    })
+    .filter(Boolean)
+    .join("");
+
+  if (!images) return "";
+  return \`<g aria-label="sticker-layers">\${images}</g>\`;
+}
+
 function buildTortoiseDecorationImage({
   x = 0,
   y = 0,
@@ -301,7 +440,15 @@ function formatMonthLabel(isoDate) {
   return parsed.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
 }
 
-function renderHeatmapSvg({ username, days, variant, range }) {
+function renderHeatmapSvg({
+  username,
+  days,
+  variant,
+  range,
+  stickers = {},
+  stickerLayers = [],
+  stickerHrefs = {},
+}) {
   const theme = VARIANTS[variant] || VARIANTS.classic;
   const normalizedRange = normalizeRange(range);
   const effectiveRange = normalizedRange;
@@ -422,7 +569,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
     )
     .join("");
 
-  return \`
+  const svgMarkup = \`
 <svg width="\${width}" height="\${height}" viewBox="0 0 \${width} \${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Contribution graph for \${escapeXml(username)}">
   <rect x="8" y="8" width="\${width - 16}" height="\${height - 16}" rx="12" fill="\${cardFill}" stroke="\${theme.border}" />
   <text x="\${paddingX}" y="\${shiftedTitleY}" fill="\${theme.title}" font-size="16" font-family="Inter, Segoe UI, sans-serif" font-weight="700">Contribution Graph</text>
@@ -436,6 +583,25 @@ function renderHeatmapSvg({ username, days, variant, range }) {
   <text x="\${legendStartX + 64 + 5 * (cell + gap)}" y="\${shiftedLegendY}" fill="\${theme.legend}" font-size="10" font-family="Inter, Segoe UI, sans-serif">More</text>
   \${tortoiseDecoration}
 </svg>\`.trim();
+
+  const layerOverlay = buildLayerStickerOverlay({
+    stickerLayers,
+    width,
+    height,
+    hrefMap: stickerHrefs,
+  });
+  if (layerOverlay) {
+    return appendStickerOverlay(svgMarkup, layerOverlay);
+  }
+
+  const slotOverlay = buildSlotStickerOverlay({
+    stickers,
+    range: effectiveRange,
+    width,
+    height,
+    hrefMap: stickerHrefs,
+  });
+  return appendStickerOverlay(svgMarkup, slotOverlay);
 }
 
 async function fetchContributionDays({ token, username }) {
@@ -478,6 +644,33 @@ async function fetchContributionDays({ token, username }) {
     .filter((entry) => entry.date);
 }
 
+async function loadGraphConfigForRange({ configPath, range }) {
+  const normalizedPath = String(configPath || "").trim();
+  if (!normalizedPath) return null;
+
+  try {
+    const absoluteConfigPath = path.resolve(process.cwd(), normalizedPath);
+    const raw = await fs.readFile(absoluteConfigPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const normalizedRange = normalizeRange(range);
+    const fromGraphs = parsed?.graphs?.[normalizedRange];
+    if (fromGraphs && typeof fromGraphs === "object") {
+      return fromGraphs;
+    }
+
+    const legacy = parsed?.[normalizedRange];
+    if (legacy && typeof legacy === "object") {
+      return legacy;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const token = String(process.env.GITHUB_TOKEN || "").trim();
   const username = String(
@@ -491,6 +684,7 @@ async function main() {
   const variant = normalizeVariant(process.env.GRAPH_VARIANT || "classic");
   const range = normalizeRange(process.env.GRAPH_RANGE || "yearly");
   const outputPath = String(process.env.GRAPH_OUTPUT_PATH || "${safeOutputPath}").trim();
+  const configPath = String(process.env.GRAPH_CONFIG_PATH || "${safeConfigPath}").trim();
 
   if (!token) {
     throw new Error("GITHUB_TOKEN is required");
@@ -499,12 +693,27 @@ async function main() {
     throw new Error("GITHUB_USERNAME (or repository owner) is required");
   }
 
+  const graphConfig = await loadGraphConfigForRange({
+    configPath,
+    range,
+  });
+  const resolvedVariant = normalizeVariant(graphConfig?.variant || variant);
+  const stickers = normalizeStickerAssignments(graphConfig?.stickers);
+  const stickerLayers = normalizeStickerLayers(graphConfig?.stickerLayers);
+  const stickerHrefs =
+    graphConfig?.stickerHrefs && typeof graphConfig.stickerHrefs === "object"
+      ? graphConfig.stickerHrefs
+      : {};
+
   const days = await fetchContributionDays({ token, username });
   const svg = renderHeatmapSvg({
     username,
     days,
-    variant,
+    variant: resolvedVariant,
     range,
+    stickers,
+    stickerLayers,
+    stickerHrefs,
   });
 
   const absoluteOutputPath = path.resolve(process.cwd(), outputPath);

@@ -35,6 +35,14 @@ export const STICKER_LIBRARY = [
     sizeClass: "h-16 w-16",
     sizePx: 64,
   },
+  {
+    id: "developer",
+    title: "Developer",
+    description: "Developer mascot sticker.",
+    assetPath: "/assets/stickers/developer.png",
+    sizeClass: "h-16 w-16",
+    sizePx: 64,
+  },
 ];
 
 const STICKER_BY_ID = new Map(STICKER_LIBRARY.map((entry) => [entry.id, entry]));
