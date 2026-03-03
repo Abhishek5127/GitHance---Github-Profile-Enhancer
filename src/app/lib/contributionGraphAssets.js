@@ -414,6 +414,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
 
   const legendStartX = gridX + gridWidth - 4 * (cell + gap) - 104;
   const tortoiseDecoration = "";
+  const cardFill = variant === "tortoise" ? theme.bg : "none";
   const legendCells = theme.levels
     .map(
       (fill, index) =>
@@ -423,7 +424,7 @@ function renderHeatmapSvg({ username, days, variant, range }) {
 
   return \`
 <svg width="\${width}" height="\${height}" viewBox="0 0 \${width} \${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Contribution graph for \${escapeXml(username)}">
-  <rect x="8" y="8" width="\${width - 16}" height="\${height - 16}" rx="12" fill="none" stroke="\${theme.border}" />
+  <rect x="8" y="8" width="\${width - 16}" height="\${height - 16}" rx="12" fill="\${cardFill}" stroke="\${theme.border}" />
   <text x="\${paddingX}" y="\${shiftedTitleY}" fill="\${theme.title}" font-size="16" font-family="Inter, Segoe UI, sans-serif" font-weight="700">Contribution Graph</text>
   <text x="\${paddingX}" y="\${shiftedSubtitleY}" fill="\${theme.subtitle}" font-size="12" font-family="Inter, Segoe UI, sans-serif">@\${escapeXml(username)}</text>
   <text x="\${width - paddingX}" y="\${shiftedSubtitleY}" fill="\${theme.subtitle}" font-size="11" text-anchor="end" font-family="Inter, Segoe UI, sans-serif">\${rangeLabel}</text>

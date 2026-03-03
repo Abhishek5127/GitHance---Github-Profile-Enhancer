@@ -371,12 +371,13 @@ export function renderContributionHeatmapSvg({
       }" width="${cell}" height="${cell}" rx="2" fill="${fill}" />`
     )
     .join("");
+  const cardFill = normalizedVariant === "tortoise" ? theme.bg : "none";
 
   const svgMarkup = `
 <svg width="${effectiveWidth}" height="${effectiveHeight}" viewBox="0 0 ${effectiveWidth} ${effectiveHeight}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Contribution graph for ${safeUsername}">
   <rect x="${compact ? 6 : 8}" y="${compact ? 6 : 8}" width="${
     effectiveWidth - (compact ? 12 : 16)
-  }" height="${effectiveHeight - (compact ? 12 : 16)}" rx="${compact ? 10 : 12}" fill="none" stroke="${theme.border}" />
+  }" height="${effectiveHeight - (compact ? 12 : 16)}" rx="${compact ? 10 : 12}" fill="${cardFill}" stroke="${theme.border}" />
 
   <text x="${outerPaddingX}" y="${shiftedTitleY}" fill="${theme.title}" font-size="${
     compact ? 13 : 16
@@ -406,13 +407,21 @@ export function renderContributionHeatmapSvg({
 </svg>`.trim();
 
   const normalizedStickers = normalizeStickerAssignments(stickers);
+  const renderableStickers =
+    effectiveRange === "monthly"
+      ? Object.fromEntries(
+          Object.entries(normalizedStickers).filter(
+            ([slotId]) => slotId === "bottom-left" || slotId === "bottom-right"
+          )
+        )
+      : normalizedStickers;
   const stickerSizeById = {};
   const monthlyStickerSize = Math.max(
     compact ? 96 : 112,
     Math.min(170, effectiveHeight - (compact ? 18 : 24))
   );
 
-  Object.values(normalizedStickers).forEach((stickerId) => {
+  Object.values(renderableStickers).forEach((stickerId) => {
     if (!stickerId || stickerSizeById[stickerId]) return;
     stickerSizeById[stickerId] =
       effectiveRange === "monthly"
@@ -425,7 +434,7 @@ export function renderContributionHeatmapSvg({
     ...Object.values(stickerSizeById).map((value) => Number(value) || 0)
   );
   const stickerOverlay = buildSvgStickerOverlay({
-    stickers: normalizedStickers,
+    stickers: renderableStickers,
     width: effectiveWidth,
     height: effectiveHeight,
     stickerSize: maxStickerSize,

@@ -240,6 +240,15 @@ export default function ContributionGraph({
     : Math.max(56, Math.round(stickerDisplayMax * 0.52));
   const monthlyBottomNudgeStyle = { transform: "translateY(-14px)" };
   const imagePadding = isPlainWhiteVariant ? 0 : stickerPadding;
+  const availableStickerSlots = useMemo(
+    () =>
+      isMonthlyRange
+        ? STICKER_SLOT_PRESETS.filter(
+            (slot) => slot.id === "bottom-left" || slot.id === "bottom-right"
+          )
+        : STICKER_SLOT_PRESETS,
+    [isMonthlyRange]
+  );
 
   const svgMarkup = useMemo(() => {
     return renderContributionHeatmapSvg({
@@ -347,7 +356,7 @@ export default function ContributionGraph({
         </div>
 
         <div className="pointer-events-none absolute inset-0 z-20">
-          {STICKER_SLOT_PRESETS.map((slot) => {
+          {availableStickerSlots.map((slot) => {
             const stickerId = normalizedStickers?.[slot.id];
             const sticker = getStickerById(stickerId);
             if (!sticker) return null;
@@ -399,7 +408,7 @@ export default function ContributionGraph({
 
         {showStickerDropSlots ? (
           <div className="pointer-events-none absolute inset-0 z-30">
-            {STICKER_SLOT_PRESETS.map((slot) => (
+            {availableStickerSlots.map((slot) => (
               <StickerDropSlot
                 key={`drop-slot-${item.id}-${slot.id}`}
                 itemId={item.id}
