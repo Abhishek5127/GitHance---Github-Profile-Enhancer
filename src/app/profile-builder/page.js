@@ -186,8 +186,77 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     }
   };
 
+  const collectCanvasItemsDeep = (items, predicate) => {
+    const matches = [];
+
+    const visit = (entry) => {
+      if (!entry || typeof entry !== "object") return;
+      if (typeof predicate === "function" && predicate(entry)) {
+        matches.push(entry);
+      }
+
+      if (entry.type !== "section") return;
+      const slots = Array.isArray(entry?.data?.slots) ? entry.data.slots : [];
+      slots.forEach(visit);
+    };
+
+    (Array.isArray(items) ? items : []).forEach(visit);
+    return matches;
+  };
+
+  const mapCanvasItemDeep = (entry, mapper) => {
+    if (!entry || typeof entry !== "object") return entry;
+
+    let nextEntry = typeof mapper === "function" ? mapper(entry) : entry;
+    if (!nextEntry || typeof nextEntry !== "object") {
+      return entry;
+    }
+
+    if (nextEntry.type !== "section") {
+      return nextEntry;
+    }
+
+    const slots = Array.isArray(nextEntry?.data?.slots) ? nextEntry.data.slots : [];
+    let slotChanged = false;
+    const nextSlots = slots.map((slotItem) => {
+      const mappedSlot = mapCanvasItemDeep(slotItem, mapper);
+      if (mappedSlot !== slotItem) {
+        slotChanged = true;
+      }
+      return mappedSlot;
+    });
+
+    if (!slotChanged) {
+      return nextEntry;
+    }
+
+    return {
+      ...nextEntry,
+      data: {
+        ...nextEntry.data,
+        slots: nextSlots,
+      },
+    };
+  };
+
+  const mapCanvasItemsDeep = (items, mapper) => {
+    if (!Array.isArray(items)) return [];
+
+    let changed = false;
+    const mappedItems = items.map((entry) => {
+      const mappedEntry = mapCanvasItemDeep(entry, mapper);
+      if (mappedEntry !== entry) {
+        changed = true;
+      }
+      return mappedEntry;
+    });
+
+    return changed ? mappedItems : items;
+  };
+
   const enrichCommitBlocks = async (items) => {
-    const commitBlocks = items.filter(
+    const commitBlocks = collectCanvasItemsDeep(
+      items,
       (item) => item.type === "commitStat" || item.type === "commits"
     );
     if (!commitBlocks.length) return items;
@@ -208,22 +277,22 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       })
     );
 
-    return items.map((item) => {
-      if (item.type !== "commitStat" && item.type !== "commits") return item;
+    return mapCanvasItemsDeep(items, (entry) => {
+      if (entry.type !== "commitStat" && entry.type !== "commits") return entry;
 
-      const username = String(item?.data?.username || session?.username || "").trim();
-      const installationId = Number(item?.data?.installationId || 0) || null;
+      const username = String(entry?.data?.username || session?.username || "").trim();
+      const installationId = Number(entry?.data?.installationId || 0) || null;
       const identityKey = `${username}:${installationId ?? "auto"}`;
       const snapshot = statsByIdentity.get(identityKey);
-      if (!snapshot) return item;
+      if (!snapshot) return entry;
 
       return {
-        ...item,
+        ...entry,
         data: {
-          ...item.data,
+          ...entry.data,
           username,
           statsSnapshot: snapshot,
-          installationId: Number(snapshot?.installation_id || item?.data?.installationId || 0) || null,
+          installationId: Number(snapshot?.installation_id || entry?.data?.installationId || 0) || null,
         },
       };
     });
@@ -344,7 +413,10 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   };
 
   const enrichContributionBlocks = async (items) => {
-    const contributionBlocks = items.filter((item) => item.type === "contribution");
+    const contributionBlocks = collectCanvasItemsDeep(
+      items,
+      (item) => item.type === "contribution"
+    );
     if (!contributionBlocks.length) return items;
 
     const snapshotsByUser = new Map();
@@ -369,24 +441,24 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       })
     );
 
-    return items.map((item) => {
-      if (item.type !== "contribution") return item;
+    return mapCanvasItemsDeep(items, (entry) => {
+      if (entry.type !== "contribution") return entry;
 
-      const username = String(item?.data?.username || session?.username || "")
+      const username = String(entry?.data?.username || session?.username || "")
         .trim()
         .toLowerCase();
-      const existingSnapshot = item?.data?.contributionSnapshot || null;
+      const existingSnapshot = entry?.data?.contributionSnapshot || null;
       const contributionSnapshot = hasContributionSnapshot(existingSnapshot)
         ? existingSnapshot
         : snapshotsByUser.get(username) || null;
-      const range = normalizeContributionRange(item?.data?.range);
+      const range = normalizeContributionRange(entry?.data?.range);
 
       return {
-        ...item,
+        ...entry,
         data: {
-          ...item.data,
+          ...entry.data,
           username,
-          variant: normalizeContributionVariant(item?.data?.variant),
+          variant: normalizeContributionVariant(entry?.data?.variant),
           range,
           assetPath: resolveContributionAssetPath(range),
           ...(contributionSnapshot ? { contributionSnapshot } : {}),
@@ -408,7 +480,10 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     const latestMarkdown = generateMarkdown(enrichedItems);
     setMarkdown(latestMarkdown);
 
-    const contributionBlocks = enrichedItems.filter((item) => item.type === "contribution");
+    const contributionBlocks = collectCanvasItemsDeep(
+      enrichedItems,
+      (item) => item.type === "contribution"
+    );
     const contributionFileMap = new Map();
     const workflowDefaults = {
       username: String(session?.username || "").trim().toLowerCase(),
