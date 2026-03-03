@@ -137,6 +137,74 @@ function formatMonthLabel(isoDate) {
   });
 }
 
+function buildMonthLabels({
+  range = "yearly",
+  startDate,
+  weeksToRender = YEARLY_WEEKS_TO_RENDER,
+  gridX = 0,
+  weekWidth = 1,
+  gridWidth = 0,
+} = {}) {
+  const monthBoundaries = [];
+  let previousMonthKey = "";
+
+  for (let week = 0; week < weeksToRender; week += 1) {
+    const weekDate = new Date(startDate.getTime() + week * 7 * DAY_MS);
+    const isoWeekDate = toIsoDate(weekDate);
+    const monthKey = isoWeekDate.slice(0, 7);
+
+    if (!previousMonthKey || monthKey !== previousMonthKey) {
+      monthBoundaries.push({
+        monthKey,
+        label: formatMonthLabel(isoWeekDate),
+        x: gridX + week * weekWidth,
+      });
+      previousMonthKey = monthKey;
+    }
+  }
+
+  if (range !== "monthly") {
+    return monthBoundaries.map((entry) => ({
+      x: entry.x,
+      label: entry.label,
+      textAnchor: "start",
+    }));
+  }
+
+  const recentDistinct = [];
+  for (
+    let index = monthBoundaries.length - 1;
+    index >= 0 && recentDistinct.length < 2;
+    index -= 1
+  ) {
+    const entry = monthBoundaries[index];
+    if (!entry?.label) continue;
+    if (recentDistinct.some((candidate) => candidate.monthKey === entry.monthKey)) {
+      continue;
+    }
+    recentDistinct.push(entry);
+  }
+
+  const selectedMonths = recentDistinct.reverse();
+  if (!selectedMonths.length) return [];
+  if (selectedMonths.length === 1) {
+    return [{ x: gridX, label: selectedMonths[0].label, textAnchor: "start" }];
+  }
+
+  return [
+    {
+      x: gridX,
+      label: selectedMonths[0].label,
+      textAnchor: "start",
+    },
+    {
+      x: gridX + gridWidth,
+      label: selectedMonths[1].label,
+      textAnchor: "end",
+    },
+  ];
+}
+
 function resolveTheme(variant) {
   return VARIANT_THEMES[variant] || VARIANT_THEMES.classic;
 }
@@ -300,21 +368,17 @@ export function renderContributionHeatmapSvg({
   const dayLabelX = gridX - (compact ? 34 : 40);
 
   const cells = [];
-  const monthLabels = [];
-  let previousMonth = "";
+  const monthLabels = buildMonthLabels({
+    range: effectiveRange,
+    startDate,
+    weeksToRender,
+    gridX,
+    weekWidth,
+    gridWidth,
+  });
 
   for (let week = 0; week < weeksToRender; week += 1) {
     const weekDate = new Date(startDate.getTime() + week * 7 * DAY_MS);
-    const isoWeekDate = toIsoDate(weekDate);
-    const month = isoWeekDate.slice(5, 7);
-
-    if (!previousMonth || month !== previousMonth) {
-      monthLabels.push({
-        x: gridX + week * weekWidth,
-        label: formatMonthLabel(isoWeekDate),
-      });
-      previousMonth = month;
-    }
 
     for (let day = 0; day < 7; day += 1) {
       const date = new Date(weekDate.getTime() + day * DAY_MS);
@@ -340,7 +404,9 @@ export function renderContributionHeatmapSvg({
       (entry) =>
         `<text x="${entry.x}" y="${shiftedMonthY}" fill="${theme.month}" font-size="${
           compact ? 9 : 10
-        }" font-family="Inter, Segoe UI, sans-serif">${escapeXml(entry.label)}</text>`
+        }" ${
+          entry.textAnchor === "end" ? 'text-anchor="end"' : ""
+        } font-family="Inter, Segoe UI, sans-serif">${escapeXml(entry.label)}</text>`
     )
     .join("");
 

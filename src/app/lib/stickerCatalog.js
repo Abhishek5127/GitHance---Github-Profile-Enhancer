@@ -11,22 +11,7 @@ export const STICKER_LIBRARY = [
     sizeClass: "h-16 w-16",
     sizePx: 64,
   },
-  {
-    id: "spark",
-    title: "Spark",
-    description: "Small bright accent.",
-    assetPath: "/assets/stickers/spark.svg",
-    sizeClass: "h-12 w-12",
-    sizePx: 48,
-  },
-  {
-    id: "rocket",
-    title: "Rocket",
-    description: "Launch style accent.",
-    assetPath: "/assets/stickers/rocket.svg",
-    sizeClass: "h-14 w-14",
-    sizePx: 56,
-  },
+
   {
     id: "kungfu-panda",
     title: "Kungfu Panda",
