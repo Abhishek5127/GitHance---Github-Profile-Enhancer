@@ -34,29 +34,46 @@ function isSnapshotFresh(snapshot, maxAgeMs = 2 * 60 * 60 * 1000) {
   return Date.now() - fetchedAt.getTime() <= maxAgeMs;
 }
 
-function StickerDropSlot({ itemId, slot, visible, sizePx = 56 }) {
+function StickerDropSlot({
+  itemId,
+  slot,
+  visible,
+  sizePx = 56,
+  isLightTheme = false,
+  offsetStyle = null,
+}) {
   const dropId = buildStickerDropId(itemId, slot.id);
   const { setNodeRef, isOver } = useDroppable({ id: dropId });
 
   if (!visible) return null;
 
   const safeSize = Math.max(40, Number(sizePx) || 56);
+  const idleClass = isLightTheme
+    ? "border-slate-400/55 bg-white/70 text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.14)] backdrop-blur-[1.5px]"
+    : "border-cyan-200/45 bg-cyan-300/10 text-cyan-100/80";
+  const activeClass = isLightTheme
+    ? "border-cyan-500/70 bg-cyan-200/75 text-slate-900 shadow-[0_0_26px_rgba(56,189,248,0.35)]"
+    : "border-cyan-200/90 bg-cyan-300/30 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.4)]";
 
   return (
     <div
       ref={setNodeRef}
       className={`pointer-events-auto absolute z-30 flex items-center justify-center border border-dashed text-[10px] font-semibold uppercase tracking-[0.08em] transition ${slot.positionClass} ${
-        isOver
-          ? "border-cyan-200/90 bg-cyan-300/30 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.4)]"
-          : "border-cyan-200/45 bg-cyan-300/10 text-cyan-100/80"
+        isOver ? activeClass : idleClass
       }`}
       style={{
+        ...(offsetStyle || {}),
         width: `${safeSize}px`,
         height: `${safeSize}px`,
         borderRadius: `${Math.max(10, Math.round(safeSize * 0.2))}px`,
       }}
     >
-      {slot.shortLabel}
+      <div
+        className={`pointer-events-none absolute inset-[3px] rounded-[inherit] border ${
+          isLightTheme ? "border-slate-400/35" : "border-cyan-200/20"
+        }`}
+      />
+      <span className="relative">{slot.shortLabel}</span>
     </div>
   );
 }
@@ -194,9 +211,21 @@ export default function ContributionGraph({
   }, [item?.id, range, setItems, shouldRefreshSnapshot, username, variant]);
 
   const isMonthlyRange = range === "monthly";
-  const imageWidth = isMonthlyRange ? 460 : 780;
-  const imageHeight = isMonthlyRange ? 210 : 278;
   const isPlainWhiteVariant = variant === "tortoise";
+  const imageWidth = isPlainWhiteVariant
+    ? isMonthlyRange
+      ? 560
+      : 1120
+    : isMonthlyRange
+      ? 460
+      : 780;
+  const imageHeight = isPlainWhiteVariant
+    ? isMonthlyRange
+      ? 228
+      : 320
+    : isMonthlyRange
+      ? 210
+      : 278;
   const maxStickerDisplayPx = useMemo(() => getMaxStickerBaseSizePx() * 2, []);
   const monthlyStickerDisplayPx = Math.max(
     100,
@@ -209,6 +238,8 @@ export default function ContributionGraph({
   const slotSizePx = isMonthlyRange
     ? Math.max(70, Math.round(stickerDisplayMax * 0.58))
     : Math.max(56, Math.round(stickerDisplayMax * 0.52));
+  const monthlyBottomNudgeStyle = { transform: "translateY(-14px)" };
+  const imagePadding = isPlainWhiteVariant ? 0 : stickerPadding;
 
   const svgMarkup = useMemo(() => {
     return renderContributionHeatmapSvg({
@@ -217,11 +248,19 @@ export default function ContributionGraph({
       variant,
       range,
       title: "Contribution Graph",
-      compact: true,
+      compact: !isPlainWhiteVariant,
       width: imageWidth,
       height: imageHeight,
     });
-  }, [imageHeight, imageWidth, range, resolvedSnapshot?.days, username, variant]);
+  }, [
+    imageHeight,
+    imageWidth,
+    isPlainWhiteVariant,
+    range,
+    resolvedSnapshot?.days,
+    username,
+    variant,
+  ]);
 
   const imageSrc = useMemo(
     () => `data:image/svg+xml;utf8,${encodeURIComponent(svgMarkup)}`,
@@ -254,40 +293,13 @@ export default function ContributionGraph({
 
   return (
     <div
-      className={`w-full min-w-0 rounded-xl border p-3 ${
-        isPlainWhiteVariant
-          ? "border-slate-300/65 bg-[linear-gradient(160deg,rgba(255,255,255,0.98),rgba(243,246,250,0.98))]"
-          : "border-white/10 bg-[#0b111c]"
+      className={`w-auto min-w-0 ${
+        isPlainWhiteVariant ? "" : "rounded-xl border border-white/10 bg-[#0b111c] p-3"
       }`}
     >
       <div className="mb-2 flex items-center justify-between">
-        <h4
-          className={`text-sm font-semibold ${
-            isPlainWhiteVariant ? "text-slate-800" : "text-white"
-          }`}
-        >
-          Contribution Graph
-        </h4>
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${
-              isPlainWhiteVariant
-                ? "border-slate-400/65 text-slate-700"
-                : "border-cyan-300/35 text-cyan-100/85"
-            }`}
-          >
-            {variant}
-          </span>
-          <span
-            className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${
-              isPlainWhiteVariant
-                ? "border-slate-400/60 text-slate-700"
-                : "border-cyan-300/25 text-cyan-100/75"
-            }`}
-          >
-            {range}
-          </span>
-        </div>
+        
+        
       </div>
 
       {fetchState.loading ? (
@@ -300,17 +312,26 @@ export default function ContributionGraph({
       ) : null}
 
       <div
-        className={`relative overflow-hidden rounded-lg border p-1 ${
+        className={`relative overflow-hidden ${
           isPlainWhiteVariant
-            ? "border-slate-300/60 bg-white"
-            : "border-white/10 bg-[#050912]"
+            ? "rounded-lg border border-slate-300/70 bg-[linear-gradient(160deg,rgba(255,255,255,0.98),rgba(243,246,250,0.98))] p-0 shadow-none"
+            : "rounded-lg border border-white/10 bg-[#050912] p-1"
         } ${
-          isMonthlyRange ? "mx-auto w-fit" : "w-full max-w-[920px]"
+          isPlainWhiteVariant
+            ? "mx-auto w-fit max-w-full"
+            : isMonthlyRange
+              ? "mx-auto w-fit"
+            : "w-full max-w-[920px]"
         }`}
       >
         <div
           className="relative z-10"
-          style={{ padding: `${stickerPadding}px` }}
+          style={{
+            paddingTop: `${imagePadding}px`,
+            paddingBottom: `${imagePadding}px`,
+            paddingLeft: `${imagePadding}px`,
+            paddingRight: `${imagePadding}px`,
+          }}
         >
           <Image
             src={imageSrc}
@@ -318,7 +339,9 @@ export default function ContributionGraph({
             width={imageWidth}
             height={imageHeight}
             unoptimized
-            className={`block h-auto rounded-md ${isMonthlyRange ? "w-auto max-w-full" : "w-full"}`}
+            className={`block h-auto ${isPlainWhiteVariant || isMonthlyRange ? "w-auto max-w-full" : "w-full"} ${
+              isPlainWhiteVariant ? "rounded-lg" : "rounded-md"
+            }`}
             key={`contribution-graph-${fetchState.version}-${variant}-${range}`}
           />
         </div>
@@ -331,9 +354,17 @@ export default function ContributionGraph({
             const stickerSizePx = isMonthlyRange
               ? monthlyStickerDisplayPx
               : getStickerBaseSizePx(sticker.id) * 2;
+            const nudgeStyle =
+              isMonthlyRange && slot.id.startsWith("bottom")
+                ? monthlyBottomNudgeStyle
+                : undefined;
 
             return (
-              <div key={`${item.id}-${slot.id}`} className={`absolute ${slot.positionClass}`}>
+              <div
+                key={`${item.id}-${slot.id}`}
+                className={`absolute ${slot.positionClass}`}
+                style={nudgeStyle}
+              >
                 <div className="group/sticker relative pointer-events-auto">
                   <img
                     src={sticker.assetPath}
@@ -350,7 +381,11 @@ export default function ContributionGraph({
                       event.stopPropagation();
                       handleRemoveSticker(slot.id);
                     }}
-                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-0 transition group-hover/sticker:opacity-100"
+                    className={`absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border text-[10px] opacity-0 transition group-hover/sticker:opacity-100 ${
+                      isPlainWhiteVariant
+                        ? "border-slate-500/55 bg-white text-slate-700 shadow-[0_8px_16px_rgba(15,23,42,0.18)]"
+                        : "border-red-500/55 bg-[#0f1115] text-red-200"
+                    }`}
                     title="Remove sticker"
                     aria-label="Remove sticker"
                   >
@@ -371,6 +406,12 @@ export default function ContributionGraph({
                 slot={slot}
                 visible
                 sizePx={slotSizePx}
+                isLightTheme={isPlainWhiteVariant}
+                offsetStyle={
+                  isMonthlyRange && slot.id.startsWith("bottom")
+                    ? monthlyBottomNudgeStyle
+                    : null
+                }
               />
             ))}
           </div>

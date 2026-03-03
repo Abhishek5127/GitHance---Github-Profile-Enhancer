@@ -29,7 +29,7 @@ export const CONTRIBUTION_GRAPH_VARIANTS = [
   {
     id: "tortoise",
     title: "Plain White",
-    description: "Plain white monthly graph with clean minimal styling.",
+    description: "Plain white graph with clean minimal styling.",
   },
 ];
 
@@ -219,8 +219,7 @@ export function renderContributionHeatmapSvg({
 } = {}) {
   const normalizedVariant = normalizeContributionVariant(variant);
   const normalizedRange = normalizeContributionRange(range);
-  const effectiveRange =
-    normalizedVariant === "tortoise" ? "monthly" : normalizedRange;
+  const effectiveRange = normalizedRange;
   const theme = resolveTheme(normalizedVariant);
   const safeUsername = escapeXml(username || "github-user");
   const safeTitle = escapeXml(title || "Contribution Graph");

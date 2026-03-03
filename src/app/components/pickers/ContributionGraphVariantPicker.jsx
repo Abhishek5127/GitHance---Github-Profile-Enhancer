@@ -40,9 +40,7 @@ export default function ContributionGraphVariantPicker({
     initialData?.variant || DEFAULT_VARIANT
   );
   const initialRange = normalizeContributionRange(
-    initialVariant === "tortoise"
-      ? "monthly"
-      : initialData?.range || DEFAULT_RANGE
+    initialData?.range || DEFAULT_RANGE
   );
   const [selectedVariant, setSelectedVariant] = useState(initialVariant);
   const [selectedRange, setSelectedRange] = useState(initialRange);
@@ -68,10 +66,9 @@ export default function ContributionGraphVariantPicker({
 
   const handleSubmit = async () => {
     const normalizedVariant = normalizeContributionVariant(selectedVariant);
-    const forcedRange = normalizedVariant === "tortoise" ? "monthly" : selectedRange;
     await onSave({
       variant: normalizedVariant,
-      range: normalizeContributionRange(forcedRange),
+      range: normalizeContributionRange(selectedRange),
     });
     handleClose();
   };
@@ -104,18 +101,15 @@ export default function ContributionGraphVariantPicker({
             <div className="mt-3 grid grid-cols-2 gap-2">
               {CONTRIBUTION_GRAPH_RANGES.map((rangeOption) => {
                 const active = selectedRange === rangeOption.id;
-                const rangeDisabled =
-                  selectedVariant === "tortoise" && rangeOption.id !== "monthly";
                 return (
                   <button
                     key={rangeOption.id}
-                    disabled={rangeDisabled}
                     onClick={() => setSelectedRange(rangeOption.id)}
                     className={`rounded-xl border p-3 text-left transition ${
                       active
                         ? "border-cyan-300/65 bg-cyan-300/10 text-cyan-100"
                         : "border-white/15 bg-[#0b1220] text-white/75 hover:border-cyan-300/35"
-                    } ${rangeDisabled ? "cursor-not-allowed opacity-45" : ""}`}
+                    }`}
                   >
                     <p className="text-sm font-semibold">{rangeOption.title}</p>
                     <p className="mt-1 text-[11px] text-inherit/85">
@@ -163,9 +157,6 @@ export default function ContributionGraphVariantPicker({
                 key={variant.id}
                 onClick={() => {
                   setSelectedVariant(variant.id);
-                  if (variant.id === "tortoise") {
-                    setSelectedRange("monthly");
-                  }
                 }}
                 className={`w-full rounded-2xl border p-3 text-left transition ${
                   active
@@ -210,9 +201,7 @@ export default function ContributionGraphVariantPicker({
         <p className="mt-1 text-xs text-cyan-100/75">
           Range:{" "}
           <span className="font-semibold">
-            {selectedVariant === "tortoise"
-              ? "Monthly (Required)"
-              : selectedRangeMeta?.title || "Yearly"}
+            {selectedRangeMeta?.title || "Yearly"}
           </span>
         </p>
 

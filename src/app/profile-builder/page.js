@@ -1247,9 +1247,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const handleContributionSelection = async ({ variant, range }) => {
     const normalizedVariant = normalizeContributionVariant(variant);
-    const normalizedRange = normalizeContributionRange(
-      normalizedVariant === "tortoise" ? "monthly" : range
-    );
+    const normalizedRange = normalizeContributionRange(range);
 
     if (contributionPickerContext.itemId) {
       updateCanvasItemById(contributionPickerContext.itemId, (entry) => ({

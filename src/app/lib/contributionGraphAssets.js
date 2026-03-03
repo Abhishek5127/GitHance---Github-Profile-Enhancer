@@ -304,7 +304,7 @@ function formatMonthLabel(isoDate) {
 function renderHeatmapSvg({ username, days, variant, range }) {
   const theme = VARIANTS[variant] || VARIANTS.classic;
   const normalizedRange = normalizeRange(range);
-  const effectiveRange = variant === "tortoise" ? "monthly" : normalizedRange;
+  const effectiveRange = normalizedRange;
   const weeks = effectiveRange === "monthly" ? MONTHLY_WEEKS : YEARLY_WEEKS;
   const rangeLabel = effectiveRange === "monthly" ? "Last 30 Days" : "Last 12 Months";
   const normalizedDays = new Map();
