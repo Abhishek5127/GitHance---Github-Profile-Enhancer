@@ -200,16 +200,21 @@ function ScoreGauge({ score, rating, ratingLabel }) {
 function SummaryCards({ report, meta }) {
   const totals = report?.totals || {};
   const coverage = report?.coverage || {};
+  const summary = report?.summary || {};
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Total Findings</p>
-        <p className="mt-2 text-3xl font-semibold text-white">{totals.findings || 0}</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Issue Types</p>
+        <p className="mt-2 text-3xl font-semibold text-white">
+          {summary.total_issue_types ?? totals.findings ?? 0}
+        </p>
       </div>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Risk Points</p>
-        <p className="mt-2 text-3xl font-semibold text-white">{totals.riskPoints || 0}</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Total Instances</p>
+        <p className="mt-2 text-3xl font-semibold text-white">
+          {summary.total_instances ?? totals.findings ?? 0}
+        </p>
       </div>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Files Analyzed</p>
@@ -227,6 +232,12 @@ function SummaryCards({ report, meta }) {
             Repository is large. Analysis capped at {meta.maxAnalyzedFiles} files.
           </p>
         ) : null}
+      </div>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Security Score</p>
+        <p className="mt-2 text-3xl font-semibold text-white">
+          {summary.security_score ?? report?.security_score ?? report?.score ?? 100}
+        </p>
       </div>
     </div>
   );
@@ -433,83 +444,93 @@ function InsightsPanel({ insights = [] }) {
 }
 
 function FindingCard({ finding }) {
-  const severityClass = SEVERITY_BADGE_CLASSES[finding.severity] || SEVERITY_BADGE_CLASSES.low;
+  const severityValueRaw = String(finding.severity || "low").toLowerCase();
+  const confidenceValueRaw = String(finding.confidence || "low").toLowerCase();
+  const severityClass = SEVERITY_BADGE_CLASSES[severityValueRaw] || SEVERITY_BADGE_CLASSES.low;
   const confidenceClass =
-    CONFIDENCE_BADGE_CLASSES[finding.confidence] || CONFIDENCE_BADGE_CLASSES.low;
+    CONFIDENCE_BADGE_CLASSES[confidenceValueRaw] || CONFIDENCE_BADGE_CLASSES.low;
+  const instances = Array.isArray(finding.instances) ? finding.instances : [];
+  const previewInstances = instances.slice(0, 4);
+  const moreCount = Math.max(0, instances.length - previewInstances.length);
 
   return (
     <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${severityClass}`}>
-          {SEVERITY_LABELS[finding.severity] || finding.severity}
+          {finding.severity || SEVERITY_LABELS[severityValueRaw] || "Low"}
         </span>
         <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${confidenceClass}`}>
-          confidence: {finding.confidence || "low"}
+          confidence: {finding.confidence || "Low"}
         </span>
         {finding.cwe ? (
           <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-xs text-white/70">
             {finding.cwe}
           </span>
         ) : null}
+        <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+          {instances.length} instances
+        </span>
       </div>
 
-      <h4 className="mt-3 text-base font-semibold text-white">{finding.title || finding.message}</h4>
-      <p className="mt-1 text-xs text-white/55">
-        {finding.filePath}:{finding.line}
-      </p>
+      <h4 className="mt-3 text-base font-semibold text-white">{finding.category}</h4>
+      <p className="mt-1 text-xs text-white/55">Root pattern: {finding.root_cause_pattern}</p>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
           <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">What Is The Issue</p>
-          <p className="mt-1.5 text-sm text-white/80">{finding.message}</p>
+          <p className="mt-1.5 text-sm text-white/80">{finding.description}</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Why This Is Risky</p>
-          <p className="mt-1.5 text-sm text-white/80">{finding.explanation || "Potential security risk detected."}</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Potential Impact</p>
+          <p className="mt-1.5 text-sm text-white/80">{finding.impact || "Potential security impact if exploitable."}</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
           <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">How To Fix</p>
-          <p className="mt-1.5 text-sm text-white/80">{finding.remediation || "Review and apply secure coding best practices."}</p>
+          <p className="mt-1.5 text-sm text-white/80">{finding.recommendation || "Apply secure coding best practices."}</p>
         </div>
       </div>
 
-      <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-        <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Potential Impact</p>
-        <p className="mt-1.5 text-sm text-white/80">{finding.impact || "May increase exploitability if reachable by attacker input."}</p>
+      <div className="mt-4 space-y-3">
+        <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Affected Files (Preview)</p>
+        {previewInstances.map((instance, index) => (
+          <div key={`${instance.file}-${instance.line_start}-${index}`} className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <p className="text-xs text-white/80">
+              {instance.file}:{instance.line_start}
+              {instance.line_end && instance.line_end !== instance.line_start
+                ? `-${instance.line_end}`
+                : ""}
+            </p>
+            <code className="mt-2 block max-w-full overflow-auto whitespace-pre-wrap break-all text-xs text-cyan-200/90">
+              {instance.evidence}
+            </code>
+            {instance.flow_hint ? (
+              <p className="mt-2 text-xs text-white/65">Flow hint: {instance.flow_hint}</p>
+            ) : null}
+            <pre className="mt-2 max-w-full overflow-auto whitespace-pre-wrap text-xs text-white/80">
+              {instance.code_block}
+            </pre>
+          </div>
+        ))}
+        {moreCount > 0 ? (
+          <p className="text-xs text-white/55">+ {moreCount} more instances in this issue type.</p>
+        ) : null}
       </div>
-
-      {finding.evidence ? (
-        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Evidence Match</p>
-          <code className="mt-1.5 block max-w-full overflow-auto whitespace-pre-wrap break-all text-xs text-cyan-200/85">
-            {finding.evidence}
-          </code>
-        </div>
-      ) : null}
-
-      {finding.snippet ? (
-        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-white/45">Code Preview</p>
-          <pre className="mt-1.5 max-w-full overflow-auto whitespace-pre-wrap break-all text-xs text-white/75">
-            {finding.snippet}
-          </pre>
-        </div>
-      ) : null}
     </article>
   );
 }
 
-function FindingsPreview({ findings = [] }) {
+function FindingsPreview({ groupedIssues = [] }) {
   const [visibleCount, setVisibleCount] = useState(8);
   const sortedFindings = useMemo(
     () =>
-      [...findings].sort((a, b) => {
-        const rankDiff = severityValue(b.severity) - severityValue(a.severity);
+      [...groupedIssues].sort((a, b) => {
+        const rankDiff =
+          severityValue(String(b.severity || "").toLowerCase()) -
+          severityValue(String(a.severity || "").toLowerCase());
         if (rankDiff !== 0) return rankDiff;
-        if (a.filePath !== b.filePath) return a.filePath.localeCompare(b.filePath);
-        return (a.line || 0) - (b.line || 0);
+        return (b.instances?.length || 0) - (a.instances?.length || 0);
       }),
-    [findings]
+    [groupedIssues]
   );
 
   const visibleFindings = sortedFindings.slice(0, visibleCount);
@@ -520,10 +541,10 @@ function FindingsPreview({ findings = [] }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">Detailed Finding Preview</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">Exact issue breakdown and remediation</h3>
+          <h3 className="mt-1 text-xl font-semibold text-white">Grouped issue types with affected instances</h3>
         </div>
         <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs text-white/70">
-          {sortedFindings.length} findings
+          {sortedFindings.length} issue types
         </span>
       </div>
 
@@ -535,7 +556,7 @@ function FindingsPreview({ findings = [] }) {
         <div className="space-y-3">
           {visibleFindings.map((finding, index) => (
             <FindingCard
-              key={`${finding.filePath}-${finding.line}-${finding.ruleId}-${index}`}
+              key={`${finding.cwe}-${finding.category}-${finding.root_cause_pattern}-${index}`}
               finding={finding}
             />
           ))}
@@ -640,7 +661,7 @@ export default function SecurityOverview({
 
       <InsightsPanel insights={report?.insights || []} />
 
-      <FindingsPreview findings={report?.findings || []} />
+      <FindingsPreview groupedIssues={report?.grouped_issues || report?.findings || []} />
     </section>
   );
 }

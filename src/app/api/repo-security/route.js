@@ -25,7 +25,6 @@ function toRelativePath(pathValue) {
 }
 
 async function runWithConcurrency(items, concurrency, worker) {
-  const results = new Array(items.length);
   let nextIndex = 0;
   const safeConcurrency = Math.max(1, Math.min(concurrency, items.length || 1));
 
@@ -34,12 +33,11 @@ async function runWithConcurrency(items, concurrency, worker) {
       const current = nextIndex;
       nextIndex += 1;
       if (current >= items.length) break;
-      results[current] = await worker(items[current], current);
+      await worker(items[current], current);
     }
   });
 
   await Promise.all(workers);
-  return results;
 }
 
 async function fetchRepoInfoAndTree({ username, reponame, headers, maxTreeItems }) {
@@ -197,31 +195,26 @@ export async function POST(req) {
     }));
 
     const fetchSkipped = initializeFetchSkippedSummary();
-    const fetched = await runWithConcurrency(
-      developerFiles,
-      fetchConcurrency,
-      async (file) =>
-        fetchFileContent({
-          username,
-          reponame,
-          branch,
-          headers,
-          file,
-          maxFileSizeBytes,
-        })
-    );
-
     const sourceFiles = [];
-    for (const item of fetched) {
-      if (item?.status === "ok") {
-        sourceFiles.push(item);
-        continue;
+    await runWithConcurrency(developerFiles, fetchConcurrency, async (file) => {
+      const fetched = await fetchFileContent({
+        username,
+        reponame,
+        branch,
+        headers,
+        file,
+        maxFileSizeBytes,
+      });
+
+      if (fetched?.status === "ok") {
+        sourceFiles.push(fetched);
+        return;
       }
 
-      if (item?.status && fetchSkipped[item.status] !== undefined) {
-        fetchSkipped[item.status] += 1;
+      if (fetched?.status && fetchSkipped[fetched.status] !== undefined) {
+        fetchSkipped[fetched.status] += 1;
       }
-    }
+    });
 
     const report = analyzeDeveloperSecurity({
       sourceFiles,

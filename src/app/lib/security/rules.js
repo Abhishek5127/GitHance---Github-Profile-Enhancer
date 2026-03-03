@@ -340,7 +340,10 @@ export const SECURITY_RULES = [
         regex:
           /\b(?:readFile|readFileSync|writeFile|writeFileSync|open|openSync|createReadStream|createWriteStream|File\.)\s*\([^)]*(?:req\.|request\.|params|query|body|input)/gi,
       },
-      { regex: /\.\.[\\/]/g },
+      {
+        regex:
+          /\b(?:path\.(?:join|resolve|normalize)|Path\.Combine)\s*\([^)]*(?:req\.|request\.|params|query|body|input)/gi,
+      },
     ],
   },
   {
