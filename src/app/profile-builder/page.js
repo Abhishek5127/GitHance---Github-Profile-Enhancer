@@ -38,7 +38,6 @@ import {
   CONTRIBUTION_GRAPH_SCRIPT_PATH,
   buildContributionGraphWorkflow,
   buildContributionGraphUpdaterScript,
-  resolveContributionAssetPath,
 } from "../lib/contributionGraphAssets";
 import {
   canItemAcceptStickers,
@@ -254,6 +253,79 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     return changed ? mappedItems : items;
   };
 
+  const normalizeContributionAssetPathValue = (value) =>
+    String(value || "")
+      .trim()
+      .replaceAll("\\", "/")
+      .replace(/^\.\//, "")
+      .replace(/^\/+/, "");
+
+  const sanitizeAssetSeed = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+
+  const buildContributionAssetPath = (itemId, range, attempt = 0) => {
+    const normalizedRange = normalizeContributionRange(range);
+    const safeId = sanitizeAssetSeed(itemId) || "graph";
+    const base = `assets/readme/contribution-graph-${normalizedRange}-${safeId}`;
+    const suffix = attempt > 0 ? `-${attempt + 1}` : "";
+    return `${base}${suffix}.svg`;
+  };
+
+  const ensureUniqueContributionAssetPaths = (items) => {
+    const usedPaths = new Set();
+
+    return mapCanvasItemsDeep(items, (entry) => {
+      if (entry.type !== "contribution") return entry;
+
+      const normalizedRange = normalizeContributionRange(
+        entry?.data?.range || CONTRIBUTION_DEFAULT_RANGE
+      );
+      const normalizedVariant = normalizeContributionVariant(
+        entry?.data?.variant || CONTRIBUTION_DEFAULT_VARIANT
+      );
+      const currentPath = normalizeContributionAssetPathValue(entry?.data?.assetPath);
+      const isLegacyDefaultPath =
+        currentPath === CONTRIBUTION_GRAPH_ASSET_PATH ||
+        currentPath === CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH;
+
+      let nextPath =
+        !currentPath || isLegacyDefaultPath
+          ? buildContributionAssetPath(entry.id, normalizedRange, 0)
+          : currentPath;
+      let attempt = 0;
+
+      while (usedPaths.has(nextPath.toLowerCase())) {
+        attempt += 1;
+        nextPath = buildContributionAssetPath(entry.id, normalizedRange, attempt);
+      }
+
+      usedPaths.add(nextPath.toLowerCase());
+
+      if (
+        nextPath === currentPath &&
+        normalizedRange === normalizeContributionRange(entry?.data?.range) &&
+        normalizedVariant === normalizeContributionVariant(entry?.data?.variant)
+      ) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        data: {
+          ...entry.data,
+          variant: normalizedVariant,
+          range: normalizedRange,
+          assetPath: nextPath,
+        },
+      };
+    });
+  };
+
   const enrichCommitBlocks = async (items) => {
     const commitBlocks = collectCanvasItemsDeep(
       items,
@@ -452,6 +524,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         ? existingSnapshot
         : snapshotsByUser.get(username) || null;
       const range = normalizeContributionRange(entry?.data?.range);
+      const existingAssetPath = normalizeContributionAssetPathValue(entry?.data?.assetPath);
+      const assetPath =
+        existingAssetPath || buildContributionAssetPath(entry.id, range, 0);
 
       return {
         ...entry,
@@ -460,7 +535,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           username,
           variant: normalizeContributionVariant(entry?.data?.variant),
           range,
-          assetPath: resolveContributionAssetPath(range),
+          assetPath,
           ...(contributionSnapshot ? { contributionSnapshot } : {}),
         },
       };
@@ -474,7 +549,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     }
 
     const commitEnrichedItems = await enrichCommitBlocks(canvasItems);
-    const enrichedItems = await enrichContributionBlocks(commitEnrichedItems);
+    const contributionEnrichedItems = await enrichContributionBlocks(commitEnrichedItems);
+    const enrichedItems = ensureUniqueContributionAssetPaths(contributionEnrichedItems);
     setCanvasItems(enrichedItems);
 
     const latestMarkdown = generateMarkdown(enrichedItems);
@@ -516,7 +592,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       );
       const contributionAssetPath =
         String(contributionBlock?.data?.assetPath || "").trim() ||
-        resolveContributionAssetPath(contributionRange);
+        buildContributionAssetPath(contributionBlock?.id, contributionRange, 0);
       const contributionSnapshot = contributionBlock?.data?.contributionSnapshot || null;
       const contributionStickers = normalizeStickerAssignments(
         contributionBlock?.data?.stickers
@@ -989,7 +1065,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           username: session?.username || "your-github-username",
           variant: CONTRIBUTION_DEFAULT_VARIANT,
           range: CONTRIBUTION_DEFAULT_RANGE,
-          assetPath: resolveContributionAssetPath(CONTRIBUTION_DEFAULT_RANGE),
         },
       };
 
@@ -1004,6 +1079,17 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         type: resolvedType,
         data: defaults[templateId] || {},
       };
+
+      if (resolvedType === "contribution") {
+        const normalizedRange = normalizeContributionRange(
+          newItem?.data?.range || CONTRIBUTION_DEFAULT_RANGE
+        );
+        newItem.data = {
+          ...newItem.data,
+          range: normalizedRange,
+          assetPath: buildContributionAssetPath(newItem.id, normalizedRange, 0),
+        };
+      }
 
       if (over.id === "canvas") {
         setCanvasItems((prev) => [...prev, newItem]);
@@ -1147,15 +1233,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     const normalizedVariant = normalizeContributionVariant(variant);
     const normalizedRange = normalizeContributionRange(range);
     const snapshot = await bootstrapContributionSnapshot(username);
+    const newItemId = `canvas-contribution-${Date.now()}`;
 
     const newItem = {
-      id: `canvas-contribution-${Date.now()}`,
+      id: newItemId,
       type: "contribution",
       data: {
         username,
         variant: normalizedVariant,
         range: normalizedRange,
-        assetPath: resolveContributionAssetPath(normalizedRange),
+        assetPath: buildContributionAssetPath(newItemId, normalizedRange, 0),
         ...(snapshot ? { contributionSnapshot: snapshot } : {}),
       },
     };
@@ -1477,7 +1564,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             .toLowerCase(),
           variant: normalizedVariant,
           range: normalizedRange,
-          assetPath: resolveContributionAssetPath(normalizedRange),
+          assetPath: buildContributionAssetPath(entry.id, normalizedRange, 0),
         },
       }));
     } else {
