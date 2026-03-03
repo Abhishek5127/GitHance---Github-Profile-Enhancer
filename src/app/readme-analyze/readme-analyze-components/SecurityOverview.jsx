@@ -232,6 +232,99 @@ function SummaryCards({ report, meta }) {
   );
 }
 
+function ScopeAndClassification({ report }) {
+  const classification = report?.repository_classification || {};
+  const developerRisk = report?.developer_risk || {};
+  const dependencyRisk = report?.dependency_risk || {};
+  const primaryLanguages = Array.isArray(classification.primary_languages)
+    ? classification.primary_languages
+    : [];
+  const buildTools = Array.isArray(classification.build_tools) ? classification.build_tools : [];
+  const packageManagers = Array.isArray(classification.package_managers)
+    ? classification.package_managers
+    : [];
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Risk Scope</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-3">
+            <p className="text-xs uppercase tracking-[0.12em] text-cyan-100/80">Developer Risk</p>
+            <p className="mt-2 text-lg font-semibold text-white">
+              {developerRisk.issues_found ?? report.issues_found ?? 0} issues
+            </p>
+            <p className="text-sm text-white/70">
+              score: {developerRisk.security_score ?? report.security_score ?? 100}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <p className="text-xs uppercase tracking-[0.12em] text-white/55">Dependency Risk</p>
+            <p className="mt-2 text-lg font-semibold text-white/90">
+              {dependencyRisk.status === "excluded" ? "Excluded" : "N/A"}
+            </p>
+            <p className="text-sm text-white/60">
+              {dependencyRisk.note || "Dependency code is not analyzed in this module."}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Repository Classification</p>
+        <div className="mt-3 space-y-3 text-sm">
+          <div>
+            <p className="text-xs uppercase tracking-[0.12em] text-white/45">Primary Languages</p>
+            <p className="mt-1 text-white/80">
+              {primaryLanguages.length > 0 ? primaryLanguages.join(", ") : "Unknown"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.12em] text-white/45">Build Tools</p>
+            <p className="mt-1 text-white/80">{buildTools.length > 0 ? buildTools.join(", ") : "Not detected"}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.12em] text-white/45">Package Managers</p>
+            <p className="mt-1 text-white/80">
+              {packageManagers.length > 0 ? packageManagers.join(", ") : "Not detected"}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExclusionSummary({ summary = {} }) {
+  const entries = Object.entries(summary)
+    .filter(([, value]) => Number(value || 0) > 0)
+    .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0));
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/50">Excluded / Skipped Files</p>
+      <p className="mt-2 text-sm text-white/65">
+        Dependency, vendored, generated, binary, and oversized files are removed before developer risk scoring.
+      </p>
+      <div className="mt-3 space-y-2">
+        {entries.length === 0 ? (
+          <p className="text-sm text-white/60">No files were skipped by exclusion filters.</p>
+        ) : (
+          entries.map(([reason, count]) => (
+            <div
+              key={reason}
+              className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm"
+            >
+              <span className="text-white/75">{reason.replaceAll("_", " ")}</span>
+              <span className="text-white">{count}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CoverageBar({ report }) {
   const coverage = report?.coverage || {};
   const analyzedFiles = Number(coverage.analyzedFiles || 0);
@@ -511,6 +604,8 @@ export default function SecurityOverview({
       </div>
 
       <SummaryCards report={report} meta={meta} />
+      <ScopeAndClassification report={report} />
+      <ExclusionSummary summary={report?.exclusion_summary || {}} />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <ScoreGauge
