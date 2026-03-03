@@ -500,6 +500,24 @@ function FindingCard({ finding }) {
                 ? `-${instance.line_end}`
                 : ""}
             </p>
+            <div className="mt-2 grid gap-1 text-[11px] text-white/65 sm:grid-cols-2">
+              <p className="truncate">
+                API: {instance.fully_qualified_function || "unresolved"}
+              </p>
+              <p>Module: {instance.resolved_module_source || "unresolved"}</p>
+              <p>Import verified: {instance.import_verified ? "yes" : "no"}</p>
+              <p>
+                Source-to-sink:{" "}
+                {instance.source_to_sink_detected
+                  ? "confirmed"
+                  : instance.flow_status || "not confirmed"}
+              </p>
+            </div>
+            {instance.confidence_reason ? (
+              <p className="mt-2 text-xs text-amber-200/80">
+                Confidence note: {instance.confidence_reason}
+              </p>
+            ) : null}
             <code className="mt-2 block max-w-full overflow-auto whitespace-pre-wrap break-all text-xs text-cyan-200/90">
               {instance.evidence}
             </code>

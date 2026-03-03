@@ -125,7 +125,7 @@ export default function ReadmeClient({ reponame }) {
                 {[
                   "Identifying developer-owned source files",
                   "Excluding dependencies and generated artifacts",
-                  "Running rule-based vulnerability analysis",
+                  "Running AST-based semantic vulnerability analysis",
                   "Grouping issues and computing security score",
                 ].map((step, index) => (
                   <div key={step} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
