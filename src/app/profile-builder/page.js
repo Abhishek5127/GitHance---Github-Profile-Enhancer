@@ -266,9 +266,38 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     try {
       const response = await fetch(stickerPath, { cache: "force-cache" });
       if (!response.ok) return "";
+      const contentType = String(response.headers.get("content-type") || "")
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+      const lowerPath = stickerPath.toLowerCase();
+      const isSvg = contentType === "image/svg+xml" || lowerPath.endsWith(".svg");
 
-      const raw = await response.text();
-      return `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`;
+      if (isSvg) {
+        const raw = await response.text();
+        return `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`;
+      }
+
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      const chunkSize = 0x8000;
+      let binary = "";
+
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+      }
+
+      const inferredType = lowerPath.endsWith(".png")
+        ? "image/png"
+        : lowerPath.endsWith(".jpg") || lowerPath.endsWith(".jpeg")
+          ? "image/jpeg"
+          : lowerPath.endsWith(".webp")
+            ? "image/webp"
+            : "application/octet-stream";
+      const mimeType = contentType || inferredType;
+      const base64 = btoa(binary);
+
+      return `data:${mimeType};base64,${base64}`;
     } catch {
       return "";
     }
