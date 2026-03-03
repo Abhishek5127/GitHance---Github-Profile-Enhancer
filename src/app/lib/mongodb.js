@@ -40,10 +40,17 @@ export async function getMongoClient() {
       minPoolSize: 1,
     });
   }
+  app.get("/test-nosql", async (req, res) => {
+  const user = await User.findOne(JSON.parse(req.query.filter));
+});
 
   cachedClient = await cachedClientPromise;
   return cachedClient;
 }
+app.get("/test-sql", async (req, res) => {
+  const query = "SELECT * FROM users WHERE email = '" + req.query.email + "'";
+  await db.query(query);
+});
 
 export async function getMongoDb() {
   const client = await getMongoClient();

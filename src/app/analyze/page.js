@@ -180,7 +180,3 @@ const Page = () => {
 };
 
 export default Page;
-
-app.get("/test", (req, res) => {
-  console.log(req.headers.authorization);
-});
