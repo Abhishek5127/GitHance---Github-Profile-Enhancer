@@ -26,6 +26,14 @@ export const STICKER_LIBRARY = [
     sizeClass: "h-14 w-14",
     sizePx: 56,
   },
+  {
+    id: "kungfu-panda",
+    title: "Kungfu Panda",
+    description: "Playful panda sticker.",
+    assetPath: "/assets/stickers/kungfuPanda.png",
+    sizeClass: "h-16 w-16",
+    sizePx: 64,
+  },
 ];
 
 const STICKER_BY_ID = new Map(STICKER_LIBRARY.map((entry) => [entry.id, entry]));
