@@ -1,6 +1,7 @@
 import {
   getStickerBaseSizePx,
   getStickerById,
+  normalizeStickerLayers,
   normalizeStickerAssignments,
 } from "@/app/lib/stickerCatalog";
 
@@ -91,6 +92,42 @@ export function buildSvgStickerOverlay({
 
   if (!images) return "";
   return `<g aria-label="stickers">${images}</g>`;
+}
+
+export function buildSvgStickerLayerOverlay({
+  stickerLayers = [],
+  width = 500,
+  height = 180,
+  hrefMap = {},
+} = {}) {
+  const normalizedLayers = normalizeStickerLayers(stickerLayers);
+  if (!normalizedLayers.length) return "";
+
+  const safeWidth = Math.max(64, Number(width) || 500);
+  const safeHeight = Math.max(64, Number(height) || 180);
+
+  const images = normalizedLayers
+    .map((layer) => {
+      const href = resolveStickerHref(layer.stickerId, hrefMap);
+      if (!href) return "";
+
+      const sizePx = Math.max(16, Number(layer.sizePx) || getStickerBaseSizePx(layer.stickerId));
+      const centerX = Math.max(0, Math.min(1, Number(layer.x) || 0.5)) * safeWidth;
+      const centerY = Math.max(0, Math.min(1, Number(layer.y) || 0.5)) * safeHeight;
+      const x = centerX - sizePx / 2;
+      const y = centerY - sizePx / 2;
+      const rotation = Number(layer.rotation || 0);
+      const rotationTransform = rotation
+        ? ` transform="rotate(${rotation} ${centerX} ${centerY})"`
+        : "";
+
+      return `<image href="${escapeXml(href)}" x="${x}" y="${y}" width="${sizePx}" height="${sizePx}" preserveAspectRatio="xMidYMid meet"${rotationTransform} />`;
+    })
+    .filter(Boolean)
+    .join("");
+
+  if (!images) return "";
+  return `<g aria-label="sticker-layers">${images}</g>`;
 }
 
 export function appendStickerOverlayToSvg(svgMarkup, overlayMarkup) {

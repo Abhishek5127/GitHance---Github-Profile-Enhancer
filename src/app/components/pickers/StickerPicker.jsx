@@ -70,7 +70,7 @@ export default function StickerPicker({
         </div>
 
         <p className="mb-4 rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-3 text-xs text-cyan-100/85">
-          Drag stickers into highlighted slots on any block or on the canvas corners.
+          Drag stickers onto highlighted blocks. Contribution Graph supports free placement and resize.
         </p>
 
         <div className="space-y-3">

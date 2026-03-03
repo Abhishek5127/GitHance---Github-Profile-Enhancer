@@ -1,9 +1,11 @@
 import {
   appendStickerOverlayToSvg,
+  buildSvgStickerLayerOverlay,
   buildSvgStickerOverlay,
 } from "@/app/lib/renderers/stickerSvg";
 import {
   getStickerBaseSizePx,
+  normalizeStickerLayers,
   normalizeStickerAssignments,
 } from "@/app/lib/stickerCatalog";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -211,6 +213,7 @@ export function renderContributionHeatmapSvg({
   variant = "classic",
   range = "yearly",
   stickers = {},
+  stickerLayers = [],
   stickerHrefs = {},
   title = "Contribution Graph",
   width = 0,
@@ -407,6 +410,7 @@ export function renderContributionHeatmapSvg({
 </svg>`.trim();
 
   const normalizedStickers = normalizeStickerAssignments(stickers);
+  const normalizedLayers = normalizeStickerLayers(stickerLayers);
   const renderableStickers =
     effectiveRange === "monthly"
       ? Object.fromEntries(
@@ -429,11 +433,22 @@ export function renderContributionHeatmapSvg({
         : getStickerBaseSizePx(stickerId) * 2;
   });
 
+  const layeredStickerOverlay = buildSvgStickerLayerOverlay({
+    stickerLayers: normalizedLayers,
+    width: effectiveWidth,
+    height: effectiveHeight,
+    hrefMap: stickerHrefs,
+  });
+
+  if (layeredStickerOverlay) {
+    return appendStickerOverlayToSvg(svgMarkup, layeredStickerOverlay);
+  }
+
   const maxStickerSize = Math.max(
     compact ? 44 : 56,
     ...Object.values(stickerSizeById).map((value) => Number(value) || 0)
   );
-  const stickerOverlay = buildSvgStickerOverlay({
+  const slotStickerOverlay = buildSvgStickerOverlay({
     stickers: renderableStickers,
     width: effectiveWidth,
     height: effectiveHeight,
@@ -443,5 +458,5 @@ export function renderContributionHeatmapSvg({
     hrefMap: stickerHrefs,
   });
 
-  return appendStickerOverlayToSvg(svgMarkup, stickerOverlay);
+  return appendStickerOverlayToSvg(svgMarkup, slotStickerOverlay);
 }

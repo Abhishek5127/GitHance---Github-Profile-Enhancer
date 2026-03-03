@@ -1,5 +1,6 @@
 export const STICKER_DRAG_PREFIX = "sticker-template";
 export const STICKER_SLOT_DROP_PREFIX = "sticker-slot";
+export const STICKER_SURFACE_DROP_PREFIX = "sticker-surface";
 
 export const STICKER_LIBRARY = [
   {
@@ -140,6 +141,20 @@ export function parseStickerDropId(value) {
   };
 }
 
+export function buildStickerSurfaceDropId(targetId) {
+  return `${STICKER_SURFACE_DROP_PREFIX}:${String(targetId || "").trim()}`;
+}
+
+export function parseStickerSurfaceDropId(value) {
+  const raw = String(value || "").trim();
+  if (!raw.startsWith(`${STICKER_SURFACE_DROP_PREFIX}:`)) return null;
+
+  const targetId = raw.slice(STICKER_SURFACE_DROP_PREFIX.length + 1).trim();
+  if (!targetId) return null;
+
+  return { targetId };
+}
+
 export function normalizeStickerAssignments(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -155,4 +170,47 @@ export function normalizeStickerAssignments(value) {
   });
 
   return normalized;
+}
+
+function normalizeUnit(value, fallback = 0.5) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric <= 0) return 0;
+  if (numeric >= 1) return 1;
+  return numeric;
+}
+
+export function normalizeStickerLayers(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => {
+      const stickerId = String(entry?.stickerId || "").trim();
+      const sticker = getStickerById(stickerId);
+      if (!sticker) return null;
+
+      const id =
+        String(entry?.id || "").trim() ||
+        `layer-${sticker.id}-${String(entry?.x ?? "0.5")}-${String(entry?.y ?? "0.5")}`;
+      const sizePxRaw = Number(entry?.sizePx);
+      const baseSize = getStickerBaseSizePx(sticker.id) * 2;
+      const sizePx = Number.isFinite(sizePxRaw)
+        ? Math.max(24, Math.min(260, Math.floor(sizePxRaw)))
+        : baseSize;
+
+      const rotationRaw = Number(entry?.rotation || 0);
+      const rotation = Number.isFinite(rotationRaw)
+        ? Math.max(-360, Math.min(360, rotationRaw))
+        : 0;
+
+      return {
+        id,
+        stickerId: sticker.id,
+        x: normalizeUnit(entry?.x, 0.5),
+        y: normalizeUnit(entry?.y, 0.5),
+        sizePx,
+        rotation,
+      };
+    })
+    .filter(Boolean);
 }

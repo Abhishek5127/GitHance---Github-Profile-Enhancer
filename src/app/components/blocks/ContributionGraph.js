@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useDroppable } from "@dnd-kit/core";
 import Image from "next/image";
@@ -11,11 +11,12 @@ import {
 } from "@/app/lib/renderers/contributionHeatmapSvg";
 import {
   STICKER_SLOT_PRESETS,
-  buildStickerDropId,
+  buildStickerSurfaceDropId,
   getMaxStickerBaseSizePx,
   getStickerBaseSizePx,
   getStickerById,
   normalizeStickerAssignments,
+  normalizeStickerLayers,
 } from "@/app/lib/stickerCatalog";
 
 function hasSnapshotData(snapshot) {
@@ -34,48 +35,12 @@ function isSnapshotFresh(snapshot, maxAgeMs = 2 * 60 * 60 * 1000) {
   return Date.now() - fetchedAt.getTime() <= maxAgeMs;
 }
 
-function StickerDropSlot({
-  itemId,
-  slot,
-  visible,
-  sizePx = 56,
-  isLightTheme = false,
-  offsetStyle = null,
-}) {
-  const dropId = buildStickerDropId(itemId, slot.id);
-  const { setNodeRef, isOver } = useDroppable({ id: dropId });
-
-  if (!visible) return null;
-
-  const safeSize = Math.max(40, Number(sizePx) || 56);
-  const idleClass = isLightTheme
-    ? "border-slate-400/55 bg-white/70 text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.14)] backdrop-blur-[1.5px]"
-    : "border-cyan-200/45 bg-cyan-300/10 text-cyan-100/80";
-  const activeClass = isLightTheme
-    ? "border-cyan-500/70 bg-cyan-200/75 text-slate-900 shadow-[0_0_26px_rgba(56,189,248,0.35)]"
-    : "border-cyan-200/90 bg-cyan-300/30 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.4)]";
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`pointer-events-auto absolute z-30 flex items-center justify-center border border-dashed text-[10px] font-semibold uppercase tracking-[0.08em] transition ${slot.positionClass} ${
-        isOver ? activeClass : idleClass
-      }`}
-      style={{
-        ...(offsetStyle || {}),
-        width: `${safeSize}px`,
-        height: `${safeSize}px`,
-        borderRadius: `${Math.max(10, Math.round(safeSize * 0.2))}px`,
-      }}
-    >
-      <div
-        className={`pointer-events-none absolute inset-[3px] rounded-[inherit] border ${
-          isLightTheme ? "border-slate-400/35" : "border-cyan-200/20"
-        }`}
-      />
-      <span className="relative">{slot.shortLabel}</span>
-    </div>
-  );
+function clamp01(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  if (numeric <= 0) return 0;
+  if (numeric >= 1) return 1;
+  return numeric;
 }
 
 export default function ContributionGraph({
@@ -105,6 +70,22 @@ export default function ContributionGraph({
     () => normalizeStickerAssignments(stickerAssignments),
     [stickerAssignments]
   );
+  const stickerLayers = useMemo(
+    () => normalizeStickerLayers(item?.data?.stickerLayers),
+    [item?.data?.stickerLayers]
+  );
+  const hasStickerLayers = stickerLayers.length > 0;
+  const [selectedLayerId, setSelectedLayerId] = useState("");
+  const imageFrameRef = useRef(null);
+  const interactionRef = useRef(null);
+  const surfaceDropId = useMemo(
+    () => buildStickerSurfaceDropId(item?.id),
+    [item?.id]
+  );
+  const {
+    setNodeRef: setSurfaceDropRef,
+    isOver: isSurfaceDropOver,
+  } = useDroppable({ id: surfaceDropId });
 
   useEffect(() => {
     if (hasSnapshotData(persistedSnapshot)) {
@@ -235,9 +216,6 @@ export default function ContributionGraph({
   const stickerPadding = isMonthlyRange
     ? Math.max(24, Math.round(stickerDisplayMax * 0.5))
     : Math.max(20, Math.round(stickerDisplayMax * 0.44));
-  const slotSizePx = isMonthlyRange
-    ? Math.max(70, Math.round(stickerDisplayMax * 0.58))
-    : Math.max(56, Math.round(stickerDisplayMax * 0.52));
   const monthlyBottomNudgeStyle = { transform: "translateY(-14px)" };
   const imagePadding = isPlainWhiteVariant ? 0 : stickerPadding;
   const availableStickerSlots = useMemo(
@@ -249,6 +227,7 @@ export default function ContributionGraph({
         : STICKER_SLOT_PRESETS,
     [isMonthlyRange]
   );
+  const showLegacySlotStickers = !hasStickerLayers;
 
   const svgMarkup = useMemo(() => {
     return renderContributionHeatmapSvg({
@@ -275,6 +254,103 @@ export default function ContributionGraph({
     () => `data:image/svg+xml;utf8,${encodeURIComponent(svgMarkup)}`,
     [svgMarkup]
   );
+
+  useEffect(() => {
+    if (!selectedLayerId) return;
+    if (stickerLayers.some((layer) => layer.id === selectedLayerId)) return;
+    setSelectedLayerId("");
+  }, [selectedLayerId, stickerLayers]);
+
+  function updateStickerLayers(updater) {
+    if (typeof setItems !== "function" || !item?.id || typeof updater !== "function") return;
+
+    setItems((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== item.id) return entry;
+
+        const currentLayers = normalizeStickerLayers(entry?.data?.stickerLayers);
+        const nextLayers = updater(currentLayers);
+        if (!Array.isArray(nextLayers)) return entry;
+
+        return {
+          ...entry,
+          data: {
+            ...entry.data,
+            stickerLayers: nextLayers,
+          },
+        };
+      })
+    );
+  }
+
+  function updateSingleLayer(layerId, patch) {
+    if (!layerId || typeof patch !== "function") return;
+    updateStickerLayers((layers) =>
+      layers.map((layer) => {
+        if (layer.id !== layerId) return layer;
+        return {
+          ...layer,
+          ...patch(layer),
+        };
+      })
+    );
+  }
+
+  function handleGlobalPointerMove(event) {
+    const interaction = interactionRef.current;
+    if (!interaction || !imageFrameRef.current) return;
+
+    const frameRect = imageFrameRef.current.getBoundingClientRect();
+    if (!frameRect.width || !frameRect.height) return;
+
+    if (interaction.mode === "move") {
+      const x = clamp01((event.clientX - frameRect.left) / frameRect.width);
+      const y = clamp01((event.clientY - frameRect.top) / frameRect.height);
+      updateSingleLayer(interaction.layerId, () => ({ x, y }));
+      return;
+    }
+
+    if (interaction.mode === "resize") {
+      const centerX = frameRect.left + interaction.startLayer.x * frameRect.width;
+      const centerY = frameRect.top + interaction.startLayer.y * frameRect.height;
+      const distance = Math.hypot(event.clientX - centerX, event.clientY - centerY);
+      const diameter = Math.max(24, Math.min(280, Math.floor(distance * 2)));
+      updateSingleLayer(interaction.layerId, () => ({ sizePx: diameter }));
+    }
+  }
+
+  function handleGlobalPointerUp() {
+    interactionRef.current = null;
+    window.removeEventListener("pointermove", handleGlobalPointerMove);
+    window.removeEventListener("pointerup", handleGlobalPointerUp);
+  }
+
+  function startLayerInteraction(event, layer, mode = "move") {
+    if (!layer?.id) return;
+    event.stopPropagation();
+    event.preventDefault();
+
+    setSelectedLayerId(layer.id);
+    interactionRef.current = {
+      mode,
+      layerId: layer.id,
+      startLayer: layer,
+    };
+
+    window.addEventListener("pointermove", handleGlobalPointerMove);
+    window.addEventListener("pointerup", handleGlobalPointerUp);
+  }
+
+  const setFrameRefs = (node) => {
+    imageFrameRef.current = node;
+    setSurfaceDropRef(node);
+  };
+
+  const removeStickerLayer = (layerId) => {
+    if (!layerId) return;
+    updateStickerLayers((layers) => layers.filter((layer) => layer.id !== layerId));
+    setSelectedLayerId((prev) => (prev === layerId ? "" : prev));
+  };
 
   const handleRemoveSticker = (slotId) => {
     if (!slotId || typeof setItems !== "function") return;
@@ -321,9 +397,11 @@ export default function ContributionGraph({
       ) : null}
 
       <div
+        ref={setFrameRefs}
+        onPointerDown={() => setSelectedLayerId("")}
         className={`relative overflow-hidden ${
           isPlainWhiteVariant
-            ? "rounded-lg border border-slate-300/70 bg-[linear-gradient(160deg,rgba(255,255,255,0.98),rgba(243,246,250,0.98))] p-0 shadow-none"
+            ? "rounded-none border-transparent bg-transparent p-0 shadow-none"
             : "rounded-lg border border-white/10 bg-[#050912] p-1"
         } ${
           isPlainWhiteVariant
@@ -349,80 +427,139 @@ export default function ContributionGraph({
             height={imageHeight}
             unoptimized
             className={`block h-auto ${isPlainWhiteVariant || isMonthlyRange ? "w-auto max-w-full" : "w-full"} ${
-              isPlainWhiteVariant ? "rounded-lg" : "rounded-md"
+              isPlainWhiteVariant ? "rounded-none" : "rounded-md"
             }`}
             key={`contribution-graph-${fetchState.version}-${variant}-${range}`}
           />
         </div>
 
         <div className="pointer-events-none absolute inset-0 z-20">
-          {availableStickerSlots.map((slot) => {
-            const stickerId = normalizedStickers?.[slot.id];
-            const sticker = getStickerById(stickerId);
-            if (!sticker) return null;
-            const stickerSizePx = isMonthlyRange
-              ? monthlyStickerDisplayPx
-              : getStickerBaseSizePx(sticker.id) * 2;
-            const nudgeStyle =
-              isMonthlyRange && slot.id.startsWith("bottom")
-                ? monthlyBottomNudgeStyle
-                : undefined;
+          {hasStickerLayers
+            ? stickerLayers.map((layer) => {
+                const sticker = getStickerById(layer.stickerId);
+                if (!sticker) return null;
+                const isSelected = selectedLayerId === layer.id;
 
-            return (
-              <div
-                key={`${item.id}-${slot.id}`}
-                className={`absolute ${slot.positionClass}`}
-                style={nudgeStyle}
-              >
-                <div className="group/sticker relative pointer-events-auto">
-                  <img
-                    src={sticker.assetPath}
-                    alt={sticker.title}
-                    className="object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
+                return (
+                  <div
+                    key={`${item.id}-${layer.id}`}
+                    className="absolute pointer-events-auto"
                     style={{
-                      width: `${stickerSizePx}px`,
-                      height: `${stickerSizePx}px`,
+                      left: `${layer.x * 100}%`,
+                      top: `${layer.y * 100}%`,
+                      width: `${layer.sizePx}px`,
+                      height: `${layer.sizePx}px`,
+                      transform: `translate(-50%, -50%) rotate(${layer.rotation}deg)`,
                     }}
-                  />
-                  <button
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleRemoveSticker(slot.id);
-                    }}
-                    className={`absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border text-[10px] opacity-0 transition group-hover/sticker:opacity-100 ${
-                      isPlainWhiteVariant
-                        ? "border-slate-500/55 bg-white text-slate-700 shadow-[0_8px_16px_rgba(15,23,42,0.18)]"
-                        : "border-red-500/55 bg-[#0f1115] text-red-200"
-                    }`}
-                    title="Remove sticker"
-                    aria-label="Remove sticker"
                   >
-                    x
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                    <button
+                      type="button"
+                      onPointerDown={(event) => startLayerInteraction(event, layer, "move")}
+                      className={`relative h-full w-full cursor-grab rounded-lg border bg-transparent active:cursor-grabbing ${
+                        isSelected
+                          ? "border-cyan-300/85 shadow-[0_0_0_2px_rgba(34,211,238,0.35)]"
+                          : "border-transparent"
+                      }`}
+                      title={sticker.title}
+                    >
+                      <img
+                        src={sticker.assetPath}
+                        alt={sticker.title}
+                        className="h-full w-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
+                      />
+                    </button>
+
+                    {isSelected ? (
+                      <>
+                        <button
+                          type="button"
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                            removeStickerLayer(layer.id);
+                          }}
+                          className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/60 bg-[#0f1115] text-[10px] text-red-200 shadow-[0_8px_16px_rgba(0,0,0,0.35)]"
+                          aria-label="Remove sticker"
+                          title="Remove sticker"
+                        >
+                          x
+                        </button>
+                        <button
+                          type="button"
+                          onPointerDown={(event) => startLayerInteraction(event, layer, "resize")}
+                          className="absolute -bottom-1.5 -right-1.5 h-4 w-4 cursor-se-resize rounded-sm border border-cyan-300/70 bg-cyan-300/35 shadow-[0_6px_14px_rgba(34,211,238,0.3)]"
+                          aria-label="Resize sticker"
+                          title="Resize sticker"
+                        />
+                      </>
+                    ) : null}
+                  </div>
+                );
+              })
+            : showLegacySlotStickers
+              ? availableStickerSlots.map((slot) => {
+                  const stickerId = normalizedStickers?.[slot.id];
+                  const sticker = getStickerById(stickerId);
+                  if (!sticker) return null;
+                  const stickerSizePx = isMonthlyRange
+                    ? monthlyStickerDisplayPx
+                    : getStickerBaseSizePx(sticker.id) * 2;
+                  const nudgeStyle =
+                    isMonthlyRange && slot.id.startsWith("bottom")
+                      ? monthlyBottomNudgeStyle
+                      : undefined;
+
+                  return (
+                    <div
+                      key={`${item.id}-${slot.id}`}
+                      className={`absolute ${slot.positionClass}`}
+                      style={nudgeStyle}
+                    >
+                      <div className="group/sticker relative pointer-events-auto">
+                        <img
+                          src={sticker.assetPath}
+                          alt={sticker.title}
+                          className="object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
+                          style={{
+                            width: `${stickerSizePx}px`,
+                            height: `${stickerSizePx}px`,
+                          }}
+                        />
+                        <button
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleRemoveSticker(slot.id);
+                          }}
+                          className={`absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border text-[10px] opacity-0 transition group-hover/sticker:opacity-100 ${
+                            isPlainWhiteVariant
+                              ? "border-slate-500/55 bg-white text-slate-700 shadow-[0_8px_16px_rgba(15,23,42,0.18)]"
+                              : "border-red-500/55 bg-[#0f1115] text-red-200"
+                          }`}
+                          title="Remove sticker"
+                          aria-label="Remove sticker"
+                        >
+                          x
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              : null}
         </div>
 
         {showStickerDropSlots ? (
-          <div className="pointer-events-none absolute inset-0 z-30">
-            {availableStickerSlots.map((slot) => (
-              <StickerDropSlot
-                key={`drop-slot-${item.id}-${slot.id}`}
-                itemId={item.id}
-                slot={slot}
-                visible
-                sizePx={slotSizePx}
-                isLightTheme={isPlainWhiteVariant}
-                offsetStyle={
-                  isMonthlyRange && slot.id.startsWith("bottom")
-                    ? monthlyBottomNudgeStyle
-                    : null
-                }
-              />
-            ))}
+          <div className="pointer-events-none absolute inset-0 z-30 p-1">
+            <div
+              className={`flex h-full w-full items-center justify-center rounded-lg border-2 border-dashed text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                isSurfaceDropOver
+                  ? "border-cyan-300/90 bg-cyan-300/20 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.35)]"
+                  : isPlainWhiteVariant
+                    ? "border-slate-400/55 bg-slate-200/30 text-slate-700"
+                    : "border-cyan-200/45 bg-cyan-300/8 text-cyan-100/85"
+              }`}
+            >
+              Drop Sticker Anywhere
+            </div>
           </div>
         ) : null}
       </div>

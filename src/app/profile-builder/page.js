@@ -43,7 +43,9 @@ import {
   canItemAcceptStickers,
   getStickerById,
   normalizeStickerAssignments,
+  normalizeStickerLayers,
   parseStickerDropId,
+  parseStickerSurfaceDropId,
 } from "../lib/stickerCatalog";
 import {
   normalizeContributionRange,
@@ -64,6 +66,13 @@ const collisionDetectionStrategy = (args) => {
     );
     if (stickerSlotCollisions.length) {
       return stickerSlotCollisions;
+    }
+
+    const stickerSurfaceCollisions = pointerCollisions.filter((collision) =>
+      String(collision?.id || "").startsWith("sticker-surface:")
+    );
+    if (stickerSurfaceCollisions.length) {
+      return stickerSurfaceCollisions;
     }
 
     const sectionSlotCollisions = pointerCollisions.filter((collision) =>
@@ -318,6 +327,21 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     return Object.fromEntries(hrefEntries.filter(([, href]) => Boolean(href)));
   };
 
+  const buildStickerHrefMapForLayers = async (layers) => {
+    const normalizedLayers = normalizeStickerLayers(layers);
+    const stickerIds = [...new Set(normalizedLayers.map((layer) => layer.stickerId).filter(Boolean))];
+    if (!stickerIds.length) return {};
+
+    const hrefEntries = await Promise.all(
+      stickerIds.map(async (stickerId) => {
+        const href = await loadStickerDataUri(stickerId);
+        return [stickerId, href];
+      })
+    );
+
+    return Object.fromEntries(hrefEntries.filter(([, href]) => Boolean(href)));
+  };
+
   const enrichContributionBlocks = async (items) => {
     const contributionBlocks = items.filter((item) => item.type === "contribution");
     if (!contributionBlocks.length) return items;
@@ -416,12 +440,20 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       const contributionStickers = normalizeStickerAssignments(
         contributionBlock?.data?.stickers
       );
+      const contributionStickerLayers = normalizeStickerLayers(
+        contributionBlock?.data?.stickerLayers
+      );
 
       if (!contributionUsername) continue;
 
-      const stickerHrefs = await buildStickerHrefMapForAssignments(
-        contributionStickers
-      );
+      const [slotStickerHrefs, layerStickerHrefs] = await Promise.all([
+        buildStickerHrefMapForAssignments(contributionStickers),
+        buildStickerHrefMapForLayers(contributionStickerLayers),
+      ]);
+      const stickerHrefs = {
+        ...slotStickerHrefs,
+        ...layerStickerHrefs,
+      };
 
       const contributionSvg = renderContributionHeatmapSvg({
         username: contributionUsername,
@@ -431,6 +463,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         variant: contributionVariant,
         range: contributionRange,
         stickers: contributionStickers,
+        stickerLayers: contributionStickerLayers,
         stickerHrefs,
         title: "Contribution Graph",
         width: contributionRange === "monthly" ? 560 : 1120,
@@ -714,6 +747,37 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     );
   };
 
+  const upsertStickerLayerPlacement = ({ targetId, stickerId, x = 0.5, y = 0.5 }) => {
+    const resolvedSticker = getStickerById(stickerId);
+    if (!resolvedSticker || !targetId) return;
+
+    setCanvasItems((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== targetId) return entry;
+        if (!canItemAcceptStickers(entry.type)) return entry;
+        if (entry.type !== "contribution") return entry;
+
+        const currentLayers = normalizeStickerLayers(entry?.data?.stickerLayers);
+        const nextLayer = {
+          id: `sticker-layer-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+          stickerId: resolvedSticker.id,
+          x: Math.max(0, Math.min(1, Number(x) || 0.5)),
+          y: Math.max(0, Math.min(1, Number(y) || 0.5)),
+          sizePx: Number(resolvedSticker?.sizePx || 56) * 2,
+          rotation: 0,
+        };
+
+        return {
+          ...entry,
+          data: {
+            ...entry.data,
+            stickerLayers: [...currentLayers, nextLayer],
+          },
+        };
+      })
+    );
+  };
+
   const onDragStart = ({ active }) => {
     const source = active?.data?.current?.source;
     if (source !== "sticker-template") {
@@ -736,12 +800,41 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     if (dragSource === "sticker-template") {
       const stickerDropTarget = parseStickerDropId(over.id);
+      const stickerSurfaceTarget = parseStickerSurfaceDropId(over.id);
       const stickerId = String(active?.data?.current?.stickerId || "").trim();
       if (stickerDropTarget && stickerId) {
         upsertStickerPlacement({
           targetId: stickerDropTarget.targetId,
           slotId: stickerDropTarget.slotId,
           stickerId,
+        });
+        return;
+      }
+
+      if (stickerSurfaceTarget && stickerId) {
+        const translatedRect = active?.rect?.current?.translated;
+        const initialRect = active?.rect?.current?.initial;
+        const dropRect = over?.rect;
+
+        const centerX =
+          Number(translatedRect?.left) + Number(translatedRect?.width) / 2 ||
+          Number(initialRect?.left) + Number(initialRect?.width) / 2;
+        const centerY =
+          Number(translatedRect?.top) + Number(translatedRect?.height) / 2 ||
+          Number(initialRect?.top) + Number(initialRect?.height) / 2;
+
+        const normalizedX = Number(dropRect?.width)
+          ? (centerX - Number(dropRect?.left || 0)) / Number(dropRect.width)
+          : 0.5;
+        const normalizedY = Number(dropRect?.height)
+          ? (centerY - Number(dropRect?.top || 0)) / Number(dropRect.height)
+          : 0.5;
+
+        upsertStickerLayerPlacement({
+          targetId: stickerSurfaceTarget.targetId,
+          stickerId,
+          x: Math.max(0, Math.min(1, normalizedX)),
+          y: Math.max(0, Math.min(1, normalizedY)),
         });
       }
       return;
