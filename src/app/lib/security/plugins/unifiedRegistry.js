@@ -1,5 +1,19 @@
 import { JS_TS_SINK_CATALOG } from "@/app/lib/security/rules";
 
+export const JS_TS_SOURCE_REGISTRY = [
+  "req.body",
+  "req.query",
+  "req.params",
+  "req.headers",
+  "req.cookies",
+  "request.body",
+  "request.query",
+  "request.params",
+  "process.env",
+  "window.location",
+  "document.location",
+];
+
 export const PYTHON_SOURCE_REGISTRY = [
   "request.args",
   "request.form",
@@ -10,6 +24,15 @@ export const PYTHON_SOURCE_REGISTRY = [
   "request.POST",
   "request.body",
   "input",
+];
+
+export const JAVA_SOURCE_REGISTRY = [
+  "@RequestParam",
+  "@PathVariable",
+  "@RequestBody",
+  "HttpServletRequest.getParameter",
+  "request.getParameter",
+  "request.getHeader",
 ];
 
 export const PYTHON_SINK_REGISTRY = {
@@ -51,6 +74,18 @@ export const JAVA_SINK_REGISTRY = {
   unsafe_deserialization: ["ObjectInputStream.readObject"],
 };
 
+export const JS_TS_SINK_REGISTRY = {
+  command_execution: [
+    "child_process.exec",
+    "child_process.execSync",
+    "child_process.spawn",
+    "child_process.spawnSync",
+  ],
+  dynamic_code_execution: ["eval", "Function"],
+  filesystem: ["fs.readFile", "fs.writeFile", "fs.open"],
+  sql_execution: ["db.query", "connection.query"],
+};
+
 function flattenJsCatalog() {
   const output = {};
   for (const [category, sinks] of Object.entries(JS_TS_SINK_CATALOG || {})) {
@@ -82,4 +117,12 @@ export const UNIFIED_SINK_REGISTRY = {
 export function getSinkRegistryForLanguage(language) {
   const key = String(language || "").trim().toLowerCase();
   return UNIFIED_SINK_REGISTRY[key] || {};
+}
+
+export function getSourceRegistryForLanguage(language) {
+  const key = String(language || "").trim().toLowerCase();
+  if (key === "javascript" || key === "typescript") return JS_TS_SOURCE_REGISTRY;
+  if (key === "python") return PYTHON_SOURCE_REGISTRY;
+  if (key === "java") return JAVA_SOURCE_REGISTRY;
+  return [];
 }

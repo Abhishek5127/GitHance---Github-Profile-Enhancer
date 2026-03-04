@@ -10,6 +10,13 @@ const FUTURE_PLUGIN_BLUEPRINTS = {
     sources: ["r.URL.Query()", "r.FormValue()", "json.Decoder.Decode"],
     sinks: ["exec.Command", "db.Query", "os.Open"],
   },
+  rust: {
+    key: "rust",
+    parsingStrategy: "rust_analyzer",
+    frameworkDetection: ["actix-web", "axum", "warp"],
+    sources: ["HttpRequest::query_string", "Json<T>", "Path<T>"],
+    sinks: ["std::process::Command::new", "diesel::sql_query", "std::fs::read_to_string"],
+  },
   php: {
     key: "php",
     parsingStrategy: "php_parser",
@@ -25,6 +32,15 @@ const FUTURE_PLUGIN_BLUEPRINTS = {
     sinks: ["Process.Start", "SqlCommand.ExecuteReader"],
   },
 };
+
+export function createLanguagePluginCatalog(javascriptAnalyzerPlugin) {
+  return {
+    javascript: javascriptAnalyzerPlugin,
+    typescript: javascriptAnalyzerPlugin,
+    python: pythonAnalyzerPlugin,
+    java: javaAnalyzerPlugin,
+  };
+}
 
 export function createLanguageRegistry(javascriptAnalyzerPlugin) {
   return {

@@ -2,6 +2,7 @@ import { parse } from "@babel/parser";
 import traverseModule from "@babel/traverse";
 import {
   DEFAULT_MAX_FINDINGS_RETURNED,
+  getExtension,
   isLikelyTextContent,
 } from "@/app/lib/security/config";
 import {
@@ -15,10 +16,15 @@ import {
 } from "@/app/lib/security/rules";
 import { isLikelyThirdPartyCode } from "@/app/lib/security/thirdPartySignatures";
 import {
+  createLanguagePluginCatalog,
   createLanguageRegistry,
   getAnalyzerForFile,
   getFuturePluginBlueprints,
 } from "@/app/lib/security/plugins/languageRegistry";
+import {
+  getSinkRegistryForLanguage,
+  getSourceRegistryForLanguage,
+} from "@/app/lib/security/plugins/unifiedRegistry";
 
 const traverse = traverseModule.default || traverseModule;
 
@@ -144,6 +150,13 @@ const DANGEROUS_METHOD_TO_VULN = (() => {
   }
   return out;
 })();
+
+function flattenLanguageSinks(languageKey) {
+  return Object.values(getSinkRegistryForLanguage(languageKey) || {})
+    .flat()
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean);
+}
 
 function toTitleCase(value) {
   return String(value || "")
@@ -490,6 +503,13 @@ function isWebSocketChain(chain) {
   return joined.includes("message") || joined.endsWith(".data");
 }
 
+function isBrowserLocationChain(chain) {
+  if (!Array.isArray(chain) || chain.length < 2) return false;
+  const root = String(chain[0] || "").toLowerCase();
+  const second = String(chain[1] || "").toLowerCase();
+  return (root === "window" || root === "document") && second === "location";
+}
+
 function sourceMetaFromChain(chain) {
   if (isRequestChain(chain)) {
     const requestField = String(chain[1] || "").toLowerCase();
@@ -505,7 +525,10 @@ function sourceMetaFromChain(chain) {
     return { kind: "confirmed", type: "cli_argument", rank: INPUT_RANK.MEDIUM };
   }
   if (isEnvChain(chain)) {
-    return { kind: "partial", type: "environment", rank: INPUT_RANK.LOW };
+    return { kind: "confirmed", type: "user_input", rank: INPUT_RANK.CRITICAL };
+  }
+  if (isBrowserLocationChain(chain)) {
+    return { kind: "confirmed", type: "user_input", rank: INPUT_RANK.CRITICAL };
   }
   return null;
 }
@@ -2679,21 +2702,865 @@ function splitSuppressedFindings(findings) {
   return { active, suppressed };
 }
 
+function emptyAnalyzerMetrics() {
+  return {
+    httpRoutesAnalyzed: 0,
+    sinksReviewed: 0,
+    secretPatternsChecked: 0,
+  };
+}
+
+function normalizeAnalyzerResult(result) {
+  const safe = result || {};
+  return {
+    findings: Array.isArray(safe.findings) ? safe.findings : [],
+    parseError: Boolean(safe.parseError),
+    metrics: {
+      httpRoutesAnalyzed: Number(safe.metrics?.httpRoutesAnalyzed || 0),
+      sinksReviewed: Number(safe.metrics?.sinksReviewed || 0),
+      secretPatternsChecked: Number(safe.metrics?.secretPatternsChecked || 0),
+    },
+    metadata: safe.metadata || {},
+  };
+}
+
+function findingIdentityKey(finding) {
+  return [
+    finding?.ruleId || "",
+    finding?.rootCausePattern || "",
+    finding?.filePath || "",
+    Number(finding?.lineStart || 0),
+    Number(finding?.lineEnd || 0),
+    finding?.matchedExpression || "",
+  ].join("|");
+}
+
+function dedupeFindingList(findings) {
+  const map = new Map();
+  for (const finding of findings || []) {
+    const key = findingIdentityKey(finding);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, finding);
+      continue;
+    }
+    const incomingSeverity = severityRank(String(finding?.severity || "").toLowerCase());
+    const existingSeverity = severityRank(String(existing?.severity || "").toLowerCase());
+    if (incomingSeverity > existingSeverity) {
+      map.set(key, finding);
+      continue;
+    }
+    if (
+      incomingSeverity === existingSeverity &&
+      Number(finding?.overallConfidence || finding?.confidenceScore || 0) >
+        Number(existing?.overallConfidence || existing?.confidenceScore || 0)
+    ) {
+      map.set(key, finding);
+    }
+  }
+  return Array.from(map.values());
+}
+
+function mergeAnalyzerPhaseResults(results) {
+  const normalized = (results || []).map((result) => normalizeAnalyzerResult(result));
+  const findings = dedupeFindingList(normalized.flatMap((item) => item.findings || []));
+  const parseError = normalized.some((item) => item.parseError);
+  const metrics = normalized.reduce(
+    (acc, item) => ({
+      httpRoutesAnalyzed: acc.httpRoutesAnalyzed + Number(item.metrics?.httpRoutesAnalyzed || 0),
+      sinksReviewed: acc.sinksReviewed + Number(item.metrics?.sinksReviewed || 0),
+      secretPatternsChecked:
+        acc.secretPatternsChecked + Number(item.metrics?.secretPatternsChecked || 0),
+    }),
+    emptyAnalyzerMetrics()
+  );
+
+  return {
+    findings,
+    parseError,
+    metrics,
+    metadata: {
+      detection_layers: normalized.length > 1 ? "hybrid_pattern_flow_config" : "single_pass",
+      phase_count: normalized.length,
+    },
+  };
+}
+
+function toLineNumberFromIndex(content, index) {
+  const text = String(content || "");
+  const bounded = Math.max(0, Math.min(Number(index || 0), text.length));
+  return text.slice(0, bounded).split(/\r?\n/).length;
+}
+
+function extractCallArgsText(line) {
+  const text = String(line || "");
+  const start = text.indexOf("(");
+  const end = text.lastIndexOf(")");
+  if (start === -1 || end === -1 || end <= start) return "";
+  return text.slice(start + 1, end);
+}
+
+function inferExecutionContextForSupplemental(filePath, content) {
+  const normalizedPath = getPathLower(filePath);
+  const fileName = normalizedPath.split("/").pop() || "";
+  if (
+    hasPathSegment(normalizedPath, "__tests__") ||
+    hasPathSegment(normalizedPath, "test") ||
+    /\.(spec|test)\.(js|jsx|ts|tsx|mjs|cjs|py|java)$/.test(fileName)
+  ) {
+    return EXECUTION_CONTEXTS.TEST_FILE;
+  }
+  if (
+    hasPathSegment(normalizedPath, "config") ||
+    /\.(properties|ya?ml|xml|toml|ini|cfg|conf)$/.test(fileName)
+  ) {
+    return EXECUTION_CONTEXTS.CONFIG_FILE;
+  }
+  if (
+    hasPathSegment(normalizedPath, "api") ||
+    hasPathSegment(normalizedPath, "routes") ||
+    hasPathSegment(normalizedPath, "controllers") ||
+    /\b(app|router|fastify)\.(get|post|put|delete|patch|use)\s*\(/.test(content) ||
+    /@(RestController|Controller|RequestMapping|GetMapping|PostMapping|PutMapping|DeleteMapping)\b/.test(
+      content
+    ) ||
+    /^\s*@app\.(route|get|post|put|delete|patch|options|head)\s*\(/m.test(content)
+  ) {
+    return EXECUTION_CONTEXTS.WEB_SERVER;
+  }
+  if (hasPathSegment(normalizedPath, "bin") || hasPathSegment(normalizedPath, "scripts")) {
+    return EXECUTION_CONTEXTS.CLI_TOOL;
+  }
+  if (hasPathSegment(normalizedPath, "build")) {
+    return EXECUTION_CONTEXTS.BUILD_SCRIPT;
+  }
+  if (
+    hasPathSegment(normalizedPath, "services") ||
+    hasPathSegment(normalizedPath, "service") ||
+    hasPathSegment(normalizedPath, "workers")
+  ) {
+    return EXECUTION_CONTEXTS.BACKEND_SERVICE;
+  }
+  return EXECUTION_CONTEXTS.INTERNAL_LIB;
+}
+
+function resolveRuleDefinition(id, fallback) {
+  if (VULNERABILITY_DEFINITIONS[id]) return VULNERABILITY_DEFINITIONS[id];
+  return {
+    id,
+    category: fallback.category || "Configuration",
+    concept: fallback.concept || id,
+    cwe: fallback.cwe || "CWE-NA",
+    title: fallback.title || id,
+    description: fallback.description || "",
+    impact: fallback.impact || "",
+    recommendation: fallback.recommendation || "",
+    rootCausePattern: fallback.rootCausePattern || id,
+  };
+}
+
+function createSupplementalFinding({
+  file,
+  lines,
+  lineStart,
+  lineEnd,
+  definition,
+  severity,
+  executionContext,
+  evidenceParts,
+  matchedExpression,
+  fullyQualifiedFunction,
+  resolvedModuleSource,
+  importVerified = false,
+  sourceToSinkDetected = false,
+  flowStatus = "none",
+  inputSourceRank = INPUT_RANK.UNKNOWN,
+  exploitability = "Possible",
+  detectionConfidence = 88,
+  flowConfidenceValue = 35,
+  exploitabilityConfidence = 65,
+  reasoning = "",
+}) {
+  const safeLineStart = Math.max(1, Number(lineStart || 1));
+  const safeLineEnd = Math.max(safeLineStart, Number(lineEnd || safeLineStart));
+  const attackSurface = mapAttackSurface(executionContext);
+  const flowLabel = flowConfidenceLabel(flowConfidenceValue);
+  const overallConfidence = computeOverallConfidence({
+    detectionConfidence,
+    flowConfidence: flowConfidenceValue,
+    exploitabilityConfidence,
+    flowConfidenceLabelValue: flowLabel,
+    exploitability,
+  });
+
+  return {
+    filePath: file.path,
+    language: file.language,
+    lineStart: safeLineStart,
+    lineEnd: safeLineEnd,
+    ruleId: definition.id,
+    rootCausePattern: definition.rootCausePattern,
+    category: toTitleCase(definition.concept || definition.category),
+    cwe: definition.cwe || "CWE-NA",
+    severity,
+    confidence: toConfidenceLabel(overallConfidence),
+    title: definition.title,
+    description: definition.description,
+    impact: definition.impact,
+    recommendation: definition.recommendation,
+    evidence: (evidenceParts || []).join(" | "),
+    matchedExpression: String(matchedExpression || "").slice(0, 220),
+    flowHint:
+      sourceToSinkDetected && flowStatus !== "none"
+        ? "Supplemental rule indicates possible source-to-sink risk."
+        : "Supplemental rule matched configuration/pattern signal.",
+    codeBlock: buildCodeBlock(lines, safeLineStart, safeLineEnd),
+    codeBlockHtml: buildCodeBlockHtml(lines, safeLineStart, safeLineEnd),
+    fullyQualifiedFunction: fullyQualifiedFunction || "supplemental.rule",
+    resolvedModuleSource: resolvedModuleSource || "supplemental",
+    importVerified: Boolean(importVerified),
+    sourceToSinkDetected: Boolean(sourceToSinkDetected),
+    flowStatus,
+    confidenceReason: `Confidence ${overallConfidence}/100 from supplemental pattern/config rule.`,
+    needsManualReview: overallConfidence < 60,
+    executionContext,
+    attackSurface,
+    inputSourceRank,
+    exploitability,
+    confidenceScore: overallConfidence,
+    detectionConfidence,
+    flowConfidenceValue,
+    exploitabilityConfidence,
+    overallConfidence,
+    reasoning:
+      reasoning ||
+      `Supplemental rule triggered in ${executionContext} with ${attackSurface} exposure.`,
+    whyThisMatters:
+      definition.impact ||
+      "Insecure configuration or pattern can increase exploitability when deployed.",
+    realisticRiskAssessment:
+      attackSurface === ATTACK_SURFACE.PUBLIC_HTTP
+        ? "Public HTTP exposure increases practical risk if this pattern is reachable."
+        : "This issue is primarily configuration/pattern based with non-public attack surface.",
+    developerAction:
+      definition.recommendation ||
+      "Apply secure configuration and hardening controls for this issue type.",
+    suppressed: false,
+  };
+}
+
+function runJsTsPatternRules(file) {
+  const ext = getExtension(file.path);
+  if (!new Set(["js", "jsx", "ts", "tsx", "mjs", "cjs"]).has(ext)) {
+    return { findings: [], parseError: false, metrics: emptyAnalyzerMetrics() };
+  }
+
+  const content = String(file.content || "");
+  const lines = content.split(/\r?\n/);
+  const executionContext = inferExecutionContextForSupplemental(file.path, content);
+  const attackSurface = mapAttackSurface(executionContext);
+  const findings = [];
+  const metrics = emptyAnalyzerMetrics();
+
+  const sqlDefinition = resolveRuleDefinition("sql_injection", {
+    category: "Injection",
+    concept: "SQL injection",
+    cwe: "CWE-89",
+    title: "Dynamic SQL query call in unresolved DB object",
+    description: "Dynamic SQL text is passed to db.query/connection.query call.",
+    impact: "May allow attacker-controlled SQL execution.",
+    recommendation: "Use parameterized queries and avoid string concatenation in SQL.",
+    rootCausePattern: "sql-query-construction-tainted-input",
+  });
+
+  const weakCryptoDefinition = resolveRuleDefinition("weak_crypto", {
+    category: "Cryptography",
+    concept: "Insecure cryptography",
+    cwe: "CWE-327",
+    title: "Weak hash algorithm in JS crypto usage",
+    description: "Weak hash algorithm literal is used in crypto.createHash.",
+    impact: "Weak hashes are susceptible to collisions.",
+    recommendation: "Use SHA-256 or stronger hashing algorithms.",
+    rootCausePattern: "weak-hash-algorithm-in-crypto-sink",
+  });
+
+  lines.forEach((rawLine, index) => {
+    const line = String(rawLine || "");
+    const lineNumber = index + 1;
+
+    if (/\b(?:db|connection)\.query\s*\(/.test(line)) {
+      metrics.sinksReviewed += 1;
+      const argText = extractCallArgsText(line);
+      const isDynamic =
+        argText.includes("+") ||
+        argText.includes("${") ||
+        (/`/.test(argText) && !/^`[^$`]*`$/.test(argText));
+      if (!isDynamic) return;
+
+      const hasCriticalInput =
+        /\b(req|request)\.(body|query|params|headers|cookies)\b/.test(argText) ||
+        /\bprocess\.env\b/.test(argText) ||
+        /\bwindow\.location\b/.test(argText) ||
+        /\bdocument\.location\b/.test(argText);
+
+      findings.push(
+        createSupplementalFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition: sqlDefinition,
+          severity: hasCriticalInput ? "high" : "medium",
+          executionContext,
+          evidenceParts: [
+            `Matched call: ${line.trim()}`,
+            "Resolved API: unresolved db.query/connection.query",
+            "Pattern rule: dynamic SQL argument detected at query sink.",
+          ],
+          matchedExpression: "db.query",
+          fullyQualifiedFunction: "unresolved.db.query",
+          resolvedModuleSource: "unresolved",
+          importVerified: false,
+          sourceToSinkDetected: hasCriticalInput,
+          flowStatus: hasCriticalInput ? "partial" : "none",
+          inputSourceRank: hasCriticalInput ? INPUT_RANK.CRITICAL : INPUT_RANK.UNKNOWN,
+          exploitability:
+            attackSurface === ATTACK_SURFACE.PUBLIC_HTTP
+              ? hasCriticalInput
+                ? "Likely"
+                : "Possible"
+              : "Possible",
+          detectionConfidence: 82,
+          flowConfidenceValue: hasCriticalInput ? 64 : 30,
+          exploitabilityConfidence:
+            attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 78 : 58,
+          reasoning:
+            "Pattern layer detected dynamic SQL composition at unresolved database query call.",
+        })
+      );
+      return;
+    }
+
+    if (/\bcrypto\.createHash\s*\(\s*["'](?:md5|sha1)["']\s*\)/i.test(line)) {
+      metrics.sinksReviewed += 1;
+      findings.push(
+        createSupplementalFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition: weakCryptoDefinition,
+          severity: "medium",
+          executionContext,
+          evidenceParts: [
+            `Matched call: ${line.trim()}`,
+            "Resolved API: crypto.createHash",
+            "Pattern rule: weak hash algorithm literal (MD5/SHA1).",
+          ],
+          matchedExpression: /sha1/i.test(line)
+            ? 'crypto.createHash("sha1")'
+            : 'crypto.createHash("md5")',
+          fullyQualifiedFunction: "crypto.createHash",
+          resolvedModuleSource: "javascript.local",
+          importVerified: false,
+          sourceToSinkDetected: false,
+          flowStatus: "none",
+          inputSourceRank: INPUT_RANK.UNKNOWN,
+          exploitability: "Possible",
+          detectionConfidence: 88,
+          flowConfidenceValue: 25,
+          exploitabilityConfidence: 60,
+          reasoning:
+            "Weak hash algorithm usage is detectable without full data-flow analysis.",
+        })
+      );
+    }
+  });
+
+  return { findings, parseError: false, metrics };
+}
+
+function runJsTsConfigRules(file) {
+  const ext = getExtension(file.path);
+  if (!new Set(["js", "jsx", "ts", "tsx", "mjs", "cjs"]).has(ext)) {
+    return { findings: [], parseError: false, metrics: emptyAnalyzerMetrics() };
+  }
+
+  const content = String(file.content || "");
+  const lines = content.split(/\r?\n/);
+  const executionContext = inferExecutionContextForSupplemental(file.path, content);
+  const findings = [];
+  const metrics = emptyAnalyzerMetrics();
+
+  const corsDefinition = resolveRuleDefinition("insecure_cors_configuration", {
+    category: "Configuration",
+    concept: "Insecure CORS configuration",
+    cwe: "CWE-489",
+    title: "CORS appears configured with wildcard or implicit any-origin policy",
+    description:
+      "CORS middleware is enabled with permissive origin settings that may expose APIs broadly.",
+    impact:
+      "Overly permissive CORS can allow untrusted origins to issue browser-based authenticated requests.",
+    recommendation:
+      "Restrict CORS origins to explicit trusted domains and disable wildcard origins in production.",
+    rootCausePattern: "cors-wildcard-or-open-origin-policy",
+  });
+
+  const directOpenCorsRegex = /\b(?:app|router|server)\.use\s*\(\s*cors\s*\(\s*\)\s*\)/g;
+  const wildcardCorsRegex =
+    /\b(?:app|router|server)\.use\s*\(\s*cors\s*\(\s*\{[\s\S]{0,300}?origin\s*:\s*["']\*["'][\s\S]{0,300}?\}\s*\)\s*\)/g;
+
+  for (const regex of [directOpenCorsRegex, wildcardCorsRegex]) {
+    let match = regex.exec(content);
+    while (match) {
+      metrics.sinksReviewed += 1;
+      const lineStart = toLineNumberFromIndex(content, match.index);
+      const matched = String(match[0] || "").replace(/\s+/g, " ").trim();
+      findings.push(
+        createSupplementalFinding({
+          file,
+          lines,
+          lineStart,
+          lineEnd: lineStart,
+          definition: corsDefinition,
+          severity: executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? "medium" : "low",
+          executionContext,
+          evidenceParts: [
+            `Matched configuration: ${matched}`,
+            "Config rule: permissive CORS middleware usage.",
+            "Why matched: wildcard or default any-origin policy detected.",
+          ],
+          matchedExpression: "cors()",
+          fullyQualifiedFunction: "express.app.use(cors)",
+          resolvedModuleSource: "config.javascript",
+          importVerified: false,
+          sourceToSinkDetected: false,
+          flowStatus: "none",
+          inputSourceRank: INPUT_RANK.UNKNOWN,
+          exploitability:
+            executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? "Possible" : "Unlikely",
+          detectionConfidence: 86,
+          flowConfidenceValue: 20,
+          exploitabilityConfidence:
+            executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? 68 : 46,
+          reasoning:
+            "Configuration layer detected permissive CORS setup that broadens browser attack surface.",
+        })
+      );
+      match = regex.exec(content);
+    }
+  }
+
+  return { findings, parseError: false, metrics };
+}
+
+function runJavaPatternRules(file) {
+  if (getExtension(file.path) !== "java") {
+    return { findings: [], parseError: false, metrics: emptyAnalyzerMetrics() };
+  }
+
+  const content = String(file.content || "");
+  const lines = content.split(/\r?\n/);
+  const executionContext = inferExecutionContextForSupplemental(file.path, content);
+  const findings = [];
+  const metrics = emptyAnalyzerMetrics();
+
+  const weakCryptoDefinition = resolveRuleDefinition("weak_crypto", {
+    category: "Cryptography",
+    concept: "Insecure cryptography",
+    cwe: "CWE-327",
+    title: "Weak hashing algorithm used in Java MessageDigest",
+    description: "MD5 or SHA1 hash algorithm literal detected in MessageDigest.getInstance.",
+    impact: "Weak hashing can permit collisions and integrity bypass.",
+    recommendation: "Use SHA-256/SHA-512 or stronger algorithms for cryptographic integrity.",
+    rootCausePattern: "weak-hash-algorithm-in-crypto-sink",
+  });
+
+  const insecureTempDefinition = resolveRuleDefinition("insecure_temp_file", {
+    category: "File Handling",
+    concept: "Insecure temporary file",
+    cwe: "CWE-377",
+    title: "Predictable temporary file naming in Java",
+    description: "File.createTempFile uses potentially predictable naming values.",
+    impact: "Predictable temp naming can increase race-condition and file overwrite risk.",
+    recommendation:
+      "Use securely random temporary file prefixes and strict directory controls.",
+    rootCausePattern: "java-create-temp-file-predictable-name",
+  });
+
+  const archiveDefinition = resolveRuleDefinition("archive_zip_slip", {
+    category: "File Handling",
+    concept: "Archive extraction path traversal (Zip Slip)",
+    cwe: "CWE-22",
+    title: "Archive entry path used in file creation without validation",
+    description:
+      "ZipInputStream entry name appears used in file construction without canonical validation.",
+    impact: "Archive extraction may write files outside intended directory.",
+    recommendation:
+      "Normalize and validate extracted entry paths before creating output files.",
+    rootCausePattern: "archive-extract-without-path-validation",
+  });
+
+  lines.forEach((rawLine, index) => {
+    const line = String(rawLine || "");
+    const lineNumber = index + 1;
+
+    if (/\bMessageDigest\.getInstance\s*\(\s*"(?:MD5|SHA1)"\s*\)/i.test(line)) {
+      metrics.sinksReviewed += 1;
+      findings.push(
+        createSupplementalFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition: weakCryptoDefinition,
+          severity: "medium",
+          executionContext,
+          evidenceParts: [
+            `Matched call: ${line.trim()}`,
+            "Resolved API: java.security.MessageDigest.getInstance",
+            "Pattern rule: weak hash algorithm literal (MD5/SHA1).",
+          ],
+          matchedExpression: line.includes("SHA1")
+            ? 'MessageDigest.getInstance("SHA1")'
+            : 'MessageDigest.getInstance("MD5")',
+          fullyQualifiedFunction: "java.security.MessageDigest.getInstance",
+          resolvedModuleSource: "java.local",
+          importVerified: false,
+          sourceToSinkDetected: false,
+          flowStatus: "none",
+          inputSourceRank: INPUT_RANK.UNKNOWN,
+          exploitability: "Possible",
+          detectionConfidence: 90,
+          flowConfidenceValue: 20,
+          exploitabilityConfidence: 58,
+          reasoning:
+            "Pattern layer detected weak Java hash algorithm usage without requiring taint-flow.",
+        })
+      );
+    }
+
+    if (/\bFile\.createTempFile\s*\(/.test(line)) {
+      metrics.sinksReviewed += 1;
+      const args = extractCallArgsText(line);
+      const predictablePrefix =
+        /"[^"]{1,6}"\s*,/.test(args) ||
+        /"(tmp|temp|file|test)"/i.test(args);
+      findings.push(
+        createSupplementalFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition: insecureTempDefinition,
+          severity: predictablePrefix ? "high" : "medium",
+          executionContext,
+          evidenceParts: [
+            `Matched call: ${line.trim()}`,
+            "Resolved API: java.io.File.createTempFile",
+            predictablePrefix
+              ? "Pattern rule: predictable temp-file prefix detected."
+              : "Pattern rule: temp-file creation should be reviewed for naming predictability.",
+          ],
+          matchedExpression: "File.createTempFile",
+          fullyQualifiedFunction: "java.io.File.createTempFile",
+          resolvedModuleSource: "java.local",
+          importVerified: false,
+          sourceToSinkDetected: false,
+          flowStatus: "none",
+          inputSourceRank: INPUT_RANK.UNKNOWN,
+          exploitability: "Possible",
+          detectionConfidence: 84,
+          flowConfidenceValue: 20,
+          exploitabilityConfidence: 56,
+          reasoning:
+            "Pattern layer detected temporary file creation with potentially predictable naming.",
+        })
+      );
+    }
+
+    const zipSlipSignal =
+      /\bnew\s+File\s*\(\s*[^,]+,\s*[^)]*entry\.getName\s*\(\s*\)\s*\)/.test(line) ||
+      /\bzipEntry\.getName\s*\(\s*\)/.test(line);
+    if (zipSlipSignal) {
+      const contextWindow = lines
+        .slice(Math.max(0, index - 4), Math.min(lines.length, index + 5))
+        .join("\n");
+      const hasValidation =
+        /\bnormalize|canonical|startsWith|getCanonicalPath|Path\.normalize|resolve\b/i.test(
+          contextWindow
+        );
+      if (!hasValidation) {
+        metrics.sinksReviewed += 1;
+        findings.push(
+          createSupplementalFinding({
+            file,
+            lines,
+            lineStart: lineNumber,
+            lineEnd: lineNumber,
+            definition: archiveDefinition,
+            severity: "high",
+            executionContext,
+            evidenceParts: [
+              `Matched pattern: ${line.trim()}`,
+              "Resolved API: archive entry name used in filesystem path construction.",
+              "Pattern rule: no nearby canonical path validation found for archive entry.",
+            ],
+            matchedExpression: "ZipInputStream.entry.getName -> File(...)",
+            fullyQualifiedFunction: "java.util.zip.ZipInputStream.getNextEntry",
+            resolvedModuleSource: "java.local",
+            importVerified: false,
+            sourceToSinkDetected: false,
+            flowStatus: "none",
+            inputSourceRank: INPUT_RANK.UNKNOWN,
+            exploitability:
+              executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? "Likely" : "Possible",
+            detectionConfidence: 82,
+            flowConfidenceValue: 22,
+            exploitabilityConfidence:
+              executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? 74 : 58,
+            reasoning:
+              "Pattern layer detected potential Zip Slip path construction without validation controls.",
+          })
+        );
+      }
+    }
+  });
+
+  return { findings, parseError: false, metrics };
+}
+
+function runStandaloneConfigRules(file) {
+  const content = String(file.content || "");
+  const lines = content.split(/\r?\n/);
+  const normalizedPath = getPathLower(file.path);
+  const findings = [];
+  const metrics = emptyAnalyzerMetrics();
+
+  const isSpringConfigCandidate =
+    /(application.*\.(properties|ya?ml)|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties)$/i.test(
+      normalizedPath
+    ) || /\bspring\b/i.test(content);
+
+  if (!isSpringConfigCandidate) {
+    return { findings, parseError: false, metrics };
+  }
+
+  const definition = resolveRuleDefinition("debug_mode_exposure", {
+    category: "Configuration",
+    concept: "Debug mode exposure",
+    cwe: "CWE-489",
+    title: "Potential debug tooling enabled for Spring runtime",
+    description:
+      "Spring devtools or debug restart/livereload configuration appears enabled.",
+    impact:
+      "Debug tooling in production can expose internals, reduce hardening, and increase exploitability.",
+    recommendation:
+      "Disable Spring devtools and debug runtime flags in production profiles.",
+    rootCausePattern: "spring-devtools-debug-enabled",
+  });
+
+  const devtoolsPattern =
+    /(spring\.devtools\.(restart|livereload)\.enabled\s*[:=]\s*true|spring-boot-devtools)/i;
+  const match = devtoolsPattern.exec(content);
+  if (!match) {
+    return { findings, parseError: false, metrics };
+  }
+
+  metrics.sinksReviewed += 1;
+  const lineStart = toLineNumberFromIndex(content, match.index);
+  const executionContext = EXECUTION_CONTEXTS.CONFIG_FILE;
+  const prodHint =
+    /prod|production/.test(normalizedPath) ||
+    /spring\.profiles\.active\s*[:=]\s*prod/i.test(content);
+  const severity = prodHint ? "medium" : "low";
+
+  findings.push(
+    createSupplementalFinding({
+      file,
+      lines,
+      lineStart,
+      lineEnd: lineStart,
+      definition,
+      severity,
+      executionContext,
+      evidenceParts: [
+        `Matched configuration: ${String(match[0] || "").trim()}`,
+        "Config rule: Spring debug/devtools signal detected.",
+        prodHint
+          ? "Production profile indicator detected with debug/devtools setting."
+          : "Debug/devtools setting detected; verify production profile exclusions.",
+      ],
+      matchedExpression: String(match[0] || "").trim(),
+      fullyQualifiedFunction: "spring.config.debug",
+      resolvedModuleSource: "config.spring",
+      importVerified: false,
+      sourceToSinkDetected: false,
+      flowStatus: "none",
+      inputSourceRank: INPUT_RANK.UNKNOWN,
+      exploitability: prodHint ? "Possible" : "Unlikely",
+      detectionConfidence: 84,
+      flowConfidenceValue: 20,
+      exploitabilityConfidence: prodHint ? 62 : 44,
+      reasoning:
+        "Configuration layer identified Spring debug/devtools signals that should be excluded from production runtime.",
+    })
+  );
+
+  return { findings, parseError: false, metrics };
+}
+
+function runHybridScanForFile(analyzer, file) {
+  const phaseResults = [];
+  const hasPatternLayer = typeof analyzer?.runPatternRules === "function";
+  const hasFlowLayer = typeof analyzer?.runFlowAnalysis === "function";
+  const hasConfigLayer = typeof analyzer?.runConfigRules === "function";
+
+  if (hasPatternLayer) phaseResults.push(analyzer.runPatternRules(file));
+  if (hasFlowLayer) {
+    phaseResults.push(analyzer.runFlowAnalysis(file));
+  } else if (typeof analyzer?.analyze === "function") {
+    phaseResults.push(analyzer.analyze(file));
+  }
+  if (hasConfigLayer) phaseResults.push(analyzer.runConfigRules(file));
+
+  if (phaseResults.length === 0) {
+    return normalizeAnalyzerResult({ findings: [], parseError: false, metrics: emptyAnalyzerMetrics() });
+  }
+
+  return mergeAnalyzerPhaseResults(phaseResults);
+}
+
+const JAVASCRIPT_TYPESCRIPT_SOURCES = [
+  "req.body",
+  "req.query",
+  "req.params",
+  "req.headers",
+  "req.cookies",
+  "request.body",
+  "request.query",
+  "request.params",
+  "process.env",
+  "window.location",
+  "document.location",
+];
+
 const javascriptAnalyzerPlugin = {
   key: "javascript",
   name: "JavaScript/TypeScript Analyzer",
-  parsingStrategy: "semantic_ast",
+  parsingStrategy: "hybrid_pattern_flow_config",
+  detectionLayers: ["pattern_rules", "flow_analysis", "config_rules"],
   frameworkDetection: ["Express", "Fastify", "Koa", "Next.js"],
-  sources: ["req.query", "req.body", "req.params", "process.argv"],
+  sources: JAVASCRIPT_TYPESCRIPT_SOURCES,
   sinks: Object.values(JS_TS_SINK_CATALOG)
     .flat()
     .map((sink) => sink.global || `${sink.module || sink.globalObject}.${(sink.members || [])[0] || ""}`)
     .filter(Boolean),
+  patternRules: [
+    "sql_injection_unresolved_db_query",
+    "weak_crypto_literal",
+  ],
+  configRules: ["insecure_cors_wildcard_or_open_policy"],
+  runPatternRules: runJsTsPatternRules,
+  runFlowAnalysis: analyzeJsTsFile,
+  runConfigRules: runJsTsConfigRules,
   analyze: analyzeJsTsFile,
 };
 
 const LANGUAGE_REGISTRY = createLanguageRegistry(javascriptAnalyzerPlugin);
+const LANGUAGE_PLUGIN_CATALOG = createLanguagePluginCatalog(javascriptAnalyzerPlugin);
 const FUTURE_LANGUAGE_PLUGIN_BLUEPRINTS = getFuturePluginBlueprints();
+
+function attachHybridLayersToLanguagePlugins() {
+  javascriptAnalyzerPlugin.sources = Array.from(
+    new Set([
+      ...(javascriptAnalyzerPlugin.sources || []),
+      ...getSourceRegistryForLanguage("javascript"),
+    ])
+  );
+  javascriptAnalyzerPlugin.sinks = Array.from(
+    new Set([
+      ...(javascriptAnalyzerPlugin.sinks || []),
+      ...flattenLanguageSinks("javascript"),
+    ])
+  );
+
+  const javaPlugin = LANGUAGE_REGISTRY.java;
+  if (javaPlugin) {
+    javaPlugin.parsingStrategy = javaPlugin.parsingStrategy || "token_lite";
+    javaPlugin.detectionLayers = ["pattern_rules", "flow_analysis", "config_rules"];
+    javaPlugin.patternRules = [
+      ...(javaPlugin.patternRules || []),
+      "weak_crypto_message_digest",
+      "insecure_temp_file_createTempFile",
+      "archive_zip_slip_pattern",
+    ];
+    javaPlugin.configRules = [...(javaPlugin.configRules || []), "spring_devtools_debug_mode"];
+    javaPlugin.sources = Array.from(
+      new Set([...(javaPlugin.sources || []), ...getSourceRegistryForLanguage("java")])
+    );
+    javaPlugin.sinks = Array.from(
+      new Set([...(javaPlugin.sinks || []), ...flattenLanguageSinks("java")])
+    );
+    if (typeof javaPlugin.runPatternRules !== "function") {
+      javaPlugin.runPatternRules = runJavaPatternRules;
+    }
+    if (typeof javaPlugin.runFlowAnalysis !== "function") {
+      javaPlugin.runFlowAnalysis = (file) => javaPlugin.analyze(file);
+    }
+    if (typeof javaPlugin.runConfigRules !== "function") {
+      javaPlugin.runConfigRules = () => ({
+        findings: [],
+        parseError: false,
+        metrics: emptyAnalyzerMetrics(),
+      });
+    }
+  }
+
+  const pythonPlugin = LANGUAGE_REGISTRY.py;
+  if (pythonPlugin) {
+    pythonPlugin.detectionLayers = pythonPlugin.detectionLayers || [
+      "pattern_rules",
+      "flow_analysis",
+      "config_rules",
+    ];
+    pythonPlugin.patternRules = pythonPlugin.patternRules || [
+      "weak_crypto",
+      "insecure_randomness",
+      "hardcoded_secret",
+      "archive_extraction_zip_slip",
+      "insecure_temporary_file",
+      "sql_injection_pattern",
+      "format_string_injection",
+    ];
+    pythonPlugin.configRules = pythonPlugin.configRules || ["flask_debug_mode"];
+    pythonPlugin.sources = Array.from(
+      new Set([...(pythonPlugin.sources || []), ...getSourceRegistryForLanguage("python")])
+    );
+    pythonPlugin.sinks = Array.from(
+      new Set([...(pythonPlugin.sinks || []), ...flattenLanguageSinks("python")])
+    );
+    if (typeof pythonPlugin.runPatternRules !== "function") {
+      pythonPlugin.runPatternRules = () => ({
+        findings: [],
+        parseError: false,
+        metrics: emptyAnalyzerMetrics(),
+      });
+    }
+    if (typeof pythonPlugin.runFlowAnalysis !== "function") {
+      pythonPlugin.runFlowAnalysis = (file) => pythonPlugin.analyze(file);
+    }
+    if (typeof pythonPlugin.runConfigRules !== "function") {
+      pythonPlugin.runConfigRules = () => ({
+        findings: [],
+        parseError: false,
+        metrics: emptyAnalyzerMetrics(),
+      });
+    }
+  }
+}
+
+attachHybridLayersToLanguagePlugins();
 
 export function analyzeDeveloperSecurity({
   sourceFiles,
@@ -2731,6 +3598,18 @@ export function analyzeDeveloperSecurity({
       continue;
     }
 
+    const standaloneConfigResult = normalizeAnalyzerResult(runStandaloneConfigRules(file));
+    aggregateMetrics.httpRoutesAnalyzed += Number(
+      standaloneConfigResult.metrics?.httpRoutesAnalyzed || 0
+    );
+    aggregateMetrics.sinksReviewed += Number(standaloneConfigResult.metrics?.sinksReviewed || 0);
+    aggregateMetrics.secretPatternsChecked += Number(
+      standaloneConfigResult.metrics?.secretPatternsChecked || 0
+    );
+    if (standaloneConfigResult.findings.length > 0) {
+      rawFindings.push(...standaloneConfigResult.findings);
+    }
+
     const normalizedLanguage = normalizeLanguage(file.language);
     const { ext, analyzer } = getAnalyzerForFile(LANGUAGE_REGISTRY, file.path);
     if (!analyzer) {
@@ -2745,10 +3624,13 @@ export function analyzeDeveloperSecurity({
     }
     const pluginKey = normalizedLanguage || analyzer.key || ext || "unknown";
     supportedLanguageFiles.set(pluginKey, (supportedLanguageFiles.get(pluginKey) || 0) + 1);
-    const { findings, parseError, metrics } = analyzer.analyze(file);
-    if (parseError) {
+    const { findings, parseError, metrics } = runHybridScanForFile(analyzer, file);
+    if (parseError && findings.length === 0) {
       safeSkipped.parser_error += 1;
       continue;
+    }
+    if (parseError) {
+      safeSkipped.parser_error += 1;
     }
     aggregateMetrics.httpRoutesAnalyzed += Number(metrics?.httpRoutesAnalyzed || 0);
     aggregateMetrics.sinksReviewed += Number(metrics?.sinksReviewed || 0);
@@ -2756,7 +3638,9 @@ export function analyzeDeveloperSecurity({
     if (findings.length > 0) rawFindings.push(...findings);
   }
 
-  rawFindings.sort((a, b) => {
+  const dedupedRawFindings = dedupeFindingList(rawFindings);
+
+  dedupedRawFindings.sort((a, b) => {
     const severityDiff = severityRank(b.severity) - severityRank(a.severity);
     if (severityDiff !== 0) return severityDiff;
     if (a.filePath !== b.filePath) return a.filePath.localeCompare(b.filePath);
@@ -2764,7 +3648,7 @@ export function analyzeDeveloperSecurity({
   });
 
   const { active: activeFindings, suppressed: suppressedFindings } =
-    splitSuppressedFindings(rawFindings);
+    splitSuppressedFindings(dedupedRawFindings);
   const groupedIssues = groupFindings(activeFindings, { suppressed: false });
   const suppressedGroupedIssues = groupFindings(suppressedFindings, { suppressed: true });
   const totalInstances = activeFindings.length;
@@ -2824,7 +3708,7 @@ export function analyzeDeveloperSecurity({
     rating: rating.grade,
     ratingLabel: rating.label,
     risk_scope: "developer_code_only",
-    analysis_mode: "language_plugin_registry",
+    analysis_mode: "hybrid_multilanguage_sast",
     developer_risk: {
       issues_found: totalInstances,
       security_score: securityScore,
@@ -2846,6 +3730,21 @@ export function analyzeDeveloperSecurity({
       plugin_registry_extensions: Object.keys(LANGUAGE_REGISTRY).sort((a, b) =>
         a.localeCompare(b)
       ),
+      language_plugins: Object.fromEntries(
+        Object.entries(LANGUAGE_PLUGIN_CATALOG).map(([languageKey, plugin]) => [
+          languageKey,
+          {
+            key: plugin.key,
+            name: plugin.name,
+            parsing_strategy: plugin.parsingStrategy,
+            detection_layers: plugin.detectionLayers || ["analyze"],
+            sources: plugin.sources || getSourceRegistryForLanguage(languageKey),
+            sinks: plugin.sinks || [],
+            pattern_rules: plugin.patternRules || [],
+            config_rules: plugin.configRules || [],
+          },
+        ])
+      ),
       active_plugins: Array.from(
         new Map(
           Object.values(LANGUAGE_REGISTRY).map((plugin) => [
@@ -2854,9 +3753,14 @@ export function analyzeDeveloperSecurity({
               key: plugin.key,
               name: plugin.name,
               parsing_strategy: plugin.parsingStrategy,
+              detection_layers: plugin.detectionLayers || ["analyze"],
               framework_detection: plugin.frameworkDetection || [],
-              sources: plugin.sources || [],
+              sources:
+                plugin.sources || getSourceRegistryForLanguage(plugin.key || plugin.name),
               sinks: plugin.sinks || [],
+              sink_registry: getSinkRegistryForLanguage(plugin.key || plugin.name),
+              pattern_rules: plugin.patternRules || [],
+              config_rules: plugin.configRules || [],
             },
           ])
         ).values()
