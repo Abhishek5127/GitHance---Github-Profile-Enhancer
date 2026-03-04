@@ -158,6 +158,28 @@ const DANGEROUS_SINK_RULE_IDS = new Set([
   "unsafe_deserialization",
   "template_injection",
 ]);
+const SUPPORTED_EXPOSURE_EXTENSIONS = new Set([
+  "js",
+  "jsx",
+  "ts",
+  "tsx",
+  "mjs",
+  "cjs",
+  "py",
+  "java",
+]);
+const EXPOSURE_SAFE_LOCATION_SEGMENTS = [
+  "/tests/",
+  "/test/",
+  "/benchmark/",
+  "/security/",
+  "/analyzer/",
+  "/rules/",
+];
+const SENSITIVE_IDENTIFIER_PATTERN =
+  /\b(password|passwd|token|secret|apikey|api_key|jwt|authorization|auth|session)\b/i;
+const EXTERNAL_INPUT_MARKER_PATTERN =
+  /\b(req|request)\.(body|query|params|headers|cookies|args|form|get|post)|@requestbody|httpservletrequest|\brequest\.(args|form|get|post)\b/i;
 const LOG_SECRET_NAME_PATTERN =
   /(token|password|secret|key|auth|credential|jwt|session)/i;
 const NODE_FS_MODULE = "node:fs";
@@ -3727,6 +3749,301 @@ function runStandaloneConfigRules(file) {
   return { findings, parseError: false, metrics };
 }
 
+function isExposureSafeLocation(filePath) {
+  const normalized = getPathLower(filePath || "");
+  return EXPOSURE_SAFE_LOCATION_SEGMENTS.some((segment) => normalized.includes(segment));
+}
+
+function buildExposureExistingKey(finding) {
+  return `${String(finding?.filePath || "")}|${Number(finding?.lineStart || 0)}|${String(
+    finding?.ruleId || ""
+  )}`;
+}
+
+function hasExposureDuplicate(existingSet, filePath, lineStart, ruleId) {
+  return existingSet.has(`${String(filePath || "")}|${Number(lineStart || 0)}|${String(ruleId || "")}`);
+}
+
+function resolveExposureDefinitions() {
+  return {
+    sensitiveLogging: resolveRuleDefinition("exposure_sensitive_logging", {
+      category: "Security Hygiene",
+      concept: "Security Hygiene",
+      cwe: "CWE-532",
+      title: "Sensitive or user-controlled data written to logs",
+      description:
+        "Application logging call appears to include request data or secret-like fields.",
+      impact:
+        "Sensitive values in logs can be harvested from log pipelines, consoles, or support bundles.",
+      recommendation:
+        "Avoid logging full request payloads and secrets. Mask sensitive fields before logging.",
+      rootCausePattern: "sensitive-data-logged-hygiene-rule",
+    }),
+    debugArtifact: resolveRuleDefinition("exposure_debug_artifact", {
+      category: "Debug Artifact",
+      concept: "Debug artifact in application code",
+      cwe: "CWE-489",
+      title: "Debug artifact left in production application path",
+      description:
+        "Debug output or breakpoint artifact appears in non-test application code.",
+      impact:
+        "Debug artifacts can leak internals, clutter logs, and unintentionally expose runtime behavior.",
+      recommendation:
+        "Remove debug statements from production code or guard them behind non-production checks.",
+      rootCausePattern: "debug-artifact-in-production-path",
+    }),
+    hardcodedSecretHygiene: resolveRuleDefinition("exposure_hardcoded_secret_hygiene", {
+      category: "Security Hygiene",
+      concept: "Security Hygiene",
+      cwe: "CWE-798",
+      title: "Obvious secret-like literal hardcoded in source",
+      description:
+        "A secret-like identifier is assigned a direct literal value in source code.",
+      impact:
+        "Embedded secrets can leak via repository access, stack traces, and build artifacts.",
+      recommendation:
+        "Move secrets to secure secret management and rotate exposed values.",
+      rootCausePattern: "hardcoded-secret-hygiene-layer",
+    }),
+    verboseDebugSetting: resolveRuleDefinition("exposure_verbose_debug_settings", {
+      category: "Security Hygiene",
+      concept: "Security Hygiene",
+      cwe: "CWE-489",
+      title: "Verbose debug/development logging setting detected",
+      description:
+        "Debug-level logging or development debug setting appears enabled in application code.",
+      impact:
+        "Verbose debug logging can increase sensitive data exposure and provide attacker reconnaissance details.",
+      recommendation:
+        "Disable debug settings in production deployments and enforce environment-based safeguards.",
+      rootCausePattern: "development-debug-setting-enabled",
+    }),
+  };
+}
+
+function runExposureRuleEngine({ file, baselineFindings = [] }) {
+  const ext = getExtension(file.path);
+  if (!SUPPORTED_EXPOSURE_EXTENSIONS.has(ext)) {
+    return { findings: [], parseError: false, metrics: emptyAnalyzerMetrics() };
+  }
+  if (isExposureSafeLocation(file.path)) {
+    return { findings: [], parseError: false, metrics: emptyAnalyzerMetrics() };
+  }
+
+  const content = String(file.content || "");
+  const lines = content.split(/\r?\n/);
+  const executionContext = inferExecutionContextForSupplemental(file.path, content);
+  const attackSurface = mapAttackSurface(executionContext);
+  const metrics = emptyAnalyzerMetrics();
+  const findings = [];
+  const definitions = resolveExposureDefinitions();
+  const existingKeys = new Set((baselineFindings || []).map((finding) => buildExposureExistingKey(finding)));
+
+  const addExposureFinding = (payload) => {
+    const lineStart = Number(payload?.lineStart || 1);
+    const ruleId = String(payload?.definition?.id || "");
+    if (hasExposureDuplicate(existingKeys, file.path, lineStart, ruleId)) return;
+    const finding = createSupplementalFinding({
+      file,
+      lines,
+      lineStart,
+      lineEnd: Number(payload?.lineEnd || lineStart),
+      definition: payload.definition,
+      severity: payload.severity,
+      executionContext,
+      evidenceParts: payload.evidenceParts || [],
+      matchedExpression: payload.matchedExpression,
+      fullyQualifiedFunction: payload.fullyQualifiedFunction,
+      resolvedModuleSource: payload.resolvedModuleSource,
+      importVerified: Boolean(payload.importVerified),
+      sourceToSinkDetected: Boolean(payload.sourceToSinkDetected),
+      flowStatus: payload.flowStatus || "none",
+      inputSourceRank: payload.inputSourceRank || INPUT_RANK.UNKNOWN,
+      exploitability: payload.exploitability || "Unlikely",
+      detectionConfidence: Number(payload.detectionConfidence || 82),
+      flowConfidenceValue: Number(payload.flowConfidenceValue || 20),
+      exploitabilityConfidence: Number(payload.exploitabilityConfidence || 46),
+      reasoning: payload.reasoning || "",
+    });
+    findings.push(finding);
+    existingKeys.add(buildExposureExistingKey(finding));
+  };
+
+  const jsLike = new Set(["js", "jsx", "ts", "tsx", "mjs", "cjs"]);
+  const isJs = jsLike.has(ext);
+  const isPy = ext === "py";
+  const isJava = ext === "java";
+
+  lines.forEach((rawLine, index) => {
+    const line = String(rawLine || "");
+    const trimmed = line.trim();
+    const lineNumber = index + 1;
+
+    if (!trimmed) return;
+
+    const isJsLogSink = /\b(?:console\.(log|info|debug|error)|logger\.(log|info|debug))\s*\(/.test(
+      line
+    );
+    const isPyLogSink = /\b(?:print|logging\.(info|debug|warning))\s*\(/.test(line);
+    const isJavaLogSink =
+      /\b(?:System\.(out|err)\.println|logger\.(info|debug))\s*\(/.test(line);
+
+    const isLoggingSink = (isJs && isJsLogSink) || (isPy && isPyLogSink) || (isJava && isJavaLogSink);
+
+    if (isLoggingSink) {
+      metrics.sinksReviewed += 1;
+      const argText = extractCallArgsText(line);
+      const isSensitivePayload =
+        EXTERNAL_INPUT_MARKER_PATTERN.test(argText) || SENSITIVE_IDENTIFIER_PATTERN.test(argText);
+      if (isSensitivePayload) {
+        addExposureFinding({
+          definition: definitions.sensitiveLogging,
+          lineStart: lineNumber,
+          severity: "low",
+          evidenceParts: [
+            `Matched sink: ${trimmed}`,
+            "Exposure rule: sensitive or user-controlled data appears in log arguments.",
+            "CWE-532: Information Exposure Through Log Files.",
+          ],
+          matchedExpression: trimmed,
+          fullyQualifiedFunction: isJs
+            ? "javascript.logging.sink"
+            : isPy
+            ? "python.logging.sink"
+            : "java.logging.sink",
+          resolvedModuleSource: isJs ? "javascript.local" : isPy ? "python.local" : "java.local",
+          importVerified: false,
+          sourceToSinkDetected: true,
+          flowStatus: "partial",
+          inputSourceRank: INPUT_RANK.CRITICAL,
+          exploitability: attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? "Possible" : "Unlikely",
+          detectionConfidence: 85,
+          flowConfidenceValue: 50,
+          exploitabilityConfidence:
+            attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 62 : 42,
+          reasoning:
+            "Sensitive or user-controlled data is directly written to logs by a language-specific logging sink.",
+        });
+      }
+    }
+
+    const jsDebugArtifact = isJs && (/\bconsole\.(log|debug)\s*\(/.test(line) || /\bdebugger\s*;/.test(line));
+    const pyDebugArtifact = isPy && (/\bprint\s*\(/.test(line) || /\bpdb\.set_trace\s*\(/.test(line));
+    const javaDebugArtifact = isJava && (/\bSystem\.out\.println\s*\(/.test(line) || /\bprintStackTrace\s*\(/.test(line));
+
+    if (jsDebugArtifact || pyDebugArtifact || javaDebugArtifact) {
+      metrics.sinksReviewed += 1;
+      addExposureFinding({
+        definition: definitions.debugArtifact,
+        lineStart: lineNumber,
+        severity: "low",
+        evidenceParts: [
+          `Matched debug artifact: ${trimmed}`,
+          "Exposure rule: debug statement or breakpoint found in non-test application code.",
+        ],
+        matchedExpression: trimmed,
+        fullyQualifiedFunction: isJs ? "javascript.debug.artifact" : isPy ? "python.debug.artifact" : "java.debug.artifact",
+        resolvedModuleSource: "debug.artifact",
+        importVerified: false,
+        sourceToSinkDetected: false,
+        flowStatus: "none",
+        inputSourceRank: INPUT_RANK.LOW,
+        exploitability: "Unlikely",
+        detectionConfidence: 84,
+        flowConfidenceValue: 20,
+        exploitabilityConfidence: 40,
+        reasoning:
+          "Debug artifacts should be removed or gated outside production paths.",
+      });
+    }
+
+    const hasHardcodedSecretPattern =
+      /\b(?:PASSWORD|SECRET|API_KEY|TOKEN|PRIVATE_KEY|JWT_SECRET)\b\s*[:=]\s*["'][^"'\r\n]{4,}["']/.test(
+        line
+      ) ||
+      /\b(?:password|secret|api[_-]?key|token|private[_-]?key|jwt[_-]?secret)\b\s*[:=]\s*["'][^"'\r\n]{4,}["']/.test(
+        line
+      );
+
+    if (hasHardcodedSecretPattern) {
+      metrics.secretPatternsChecked += 1;
+      addExposureFinding({
+        definition: definitions.hardcodedSecretHygiene,
+        lineStart: lineNumber,
+        severity: "medium",
+        evidenceParts: [
+          `Matched hardcoded secret pattern: ${trimmed}`,
+          "Exposure rule: obvious secret-like literal assignment detected.",
+          "CWE-798: Use of Hard-coded Credentials.",
+        ],
+        matchedExpression: trimmed,
+        fullyQualifiedFunction: "source.constant_assignment",
+        resolvedModuleSource: "source.local",
+        importVerified: false,
+        sourceToSinkDetected: false,
+        flowStatus: "none",
+        inputSourceRank: INPUT_RANK.LOW,
+        exploitability: "Possible",
+        detectionConfidence: 90,
+        flowConfidenceValue: 20,
+        exploitabilityConfidence: 58,
+        reasoning:
+          "Hardcoded secret-like values should be treated as hygiene exposure risks and moved to secret storage.",
+      });
+    }
+
+    const hasVerboseDebugSetting =
+      (isJs &&
+        (/process\.env\.(NODE_ENV|ENV)\s*!==?\s*["']production["']/.test(line) ||
+          /\bDEBUG\s*[:=]\s*true\b/i.test(line) ||
+          /\blogger\.(level|setLevel)\s*\(\s*["']debug["']\s*\)/i.test(line))) ||
+      (isPy &&
+        (/\blogging\.basicConfig\s*\([^)]*level\s*=\s*logging\.DEBUG/i.test(line) ||
+          /\bDEBUG\s*=\s*True\b/.test(line))) ||
+      (isJava &&
+        (/\blogger\.setLevel\s*\(\s*Level\.DEBUG\s*\)/.test(line) ||
+          /\bspring\.devtools\.(restart|livereload)\.enabled\s*[:=]\s*true\b/i.test(line)));
+
+    if (hasVerboseDebugSetting) {
+      metrics.sinksReviewed += 1;
+      addExposureFinding({
+        definition: definitions.verboseDebugSetting,
+        lineStart: lineNumber,
+        severity: "low",
+        evidenceParts: [
+          `Matched debug setting: ${trimmed}`,
+          "Exposure rule: development/debug logging setting appears enabled.",
+        ],
+        matchedExpression: trimmed,
+        fullyQualifiedFunction: "runtime.debug.setting",
+        resolvedModuleSource: "config.local",
+        importVerified: false,
+        sourceToSinkDetected: false,
+        flowStatus: "none",
+        inputSourceRank: INPUT_RANK.LOW,
+        exploitability: attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? "Possible" : "Unlikely",
+        detectionConfidence: 82,
+        flowConfidenceValue: 20,
+        exploitabilityConfidence:
+          attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 56 : 42,
+        reasoning:
+          "Development debug settings should be disabled in production deployments.",
+      });
+    }
+  });
+
+  return {
+    findings,
+    parseError: false,
+    metrics,
+    metadata: {
+      detection_layer: "EXPOSURE_RULE_ENGINE",
+      category: "Security Hygiene",
+      supported_languages: ["javascript", "typescript", "python", "java"],
+    },
+  };
+}
+
 function runHybridScanForFile(analyzer, file) {
   const phaseResults = [];
   const hasPatternLayer = typeof analyzer?.runPatternRules === "function";
@@ -3914,6 +4231,7 @@ export function analyzeDeveloperSecurity({
       safeSkipped.third_party_signature += 1;
       continue;
     }
+    const fileBaselineFindings = [];
 
     const standaloneConfigResult = normalizeAnalyzerResult(runStandaloneConfigRules(file));
     aggregateMetrics.httpRoutesAnalyzed += Number(
@@ -3925,6 +4243,7 @@ export function analyzeDeveloperSecurity({
     );
     if (standaloneConfigResult.findings.length > 0) {
       rawFindings.push(...standaloneConfigResult.findings);
+      fileBaselineFindings.push(...standaloneConfigResult.findings);
     }
 
     const normalizedLanguage = normalizeLanguage(file.language);
@@ -3952,7 +4271,24 @@ export function analyzeDeveloperSecurity({
     aggregateMetrics.httpRoutesAnalyzed += Number(metrics?.httpRoutesAnalyzed || 0);
     aggregateMetrics.sinksReviewed += Number(metrics?.sinksReviewed || 0);
     aggregateMetrics.secretPatternsChecked += Number(metrics?.secretPatternsChecked || 0);
-    if (findings.length > 0) rawFindings.push(...findings);
+    if (findings.length > 0) {
+      rawFindings.push(...findings);
+      fileBaselineFindings.push(...findings);
+    }
+
+    const exposureResult = normalizeAnalyzerResult(
+      runExposureRuleEngine({ file, baselineFindings: fileBaselineFindings })
+    );
+    aggregateMetrics.httpRoutesAnalyzed += Number(
+      exposureResult.metrics?.httpRoutesAnalyzed || 0
+    );
+    aggregateMetrics.sinksReviewed += Number(exposureResult.metrics?.sinksReviewed || 0);
+    aggregateMetrics.secretPatternsChecked += Number(
+      exposureResult.metrics?.secretPatternsChecked || 0
+    );
+    if (exposureResult.findings.length > 0) {
+      rawFindings.push(...exposureResult.findings);
+    }
   }
 
   const dedupedRawFindings = dedupeFindingList(rawFindings);
@@ -4027,6 +4363,19 @@ export function analyzeDeveloperSecurity({
     ratingLabel: rating.label,
     risk_scope: "developer_code_only",
     analysis_mode: "hybrid_multilanguage_sast",
+    analysis_pipeline: [
+      "FLOW_ENGINE",
+      "PATTERN_ENGINE",
+      "CONFIG_RULES",
+      "EXPOSURE_RULE_ENGINE",
+      "post_process_findings",
+    ],
+    exposure_rule_engine: {
+      enabled: true,
+      category: "Security Hygiene",
+      excluded_paths: EXPOSURE_SAFE_LOCATION_SEGMENTS,
+      supported_languages: ["javascript", "typescript", "python", "java"],
+    },
     post_processing: {
       stage: "post_process_findings",
       trust_levels: INPUT_TRUST_LEVEL,
