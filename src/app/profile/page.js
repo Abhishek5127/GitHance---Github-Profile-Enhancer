@@ -1,73 +1,52 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import UserDataBlock from "./profile-components/UserDataBlock";
-import UserReposBlock from "./profile-components/userReposBlock";
-
+import ProfileAnalyticsDashboard from "./profile-components/ProfileAnalyticsDashboard";
 
 export default function Profile() {
-  const [userData, setUserData] = useState(null);
-  const [userRepos, setUserRepos] = useState([]);
-  const [loadingUser, setLoadingUser] = useState(false);
-  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { data: session, status } = useSession();
 
   useEffect(() => {
     if (status !== "authenticated") return;
-    const getUserData = async () => {
-      const username = session?.username;
-      if (!username) return;
 
+    let cancelled = false;
+    const loadDashboard = async () => {
       try {
-        setLoadingUser(true);
+        setLoading(true);
         setError(null);
-        const res = await fetch("/api/github", {
+
+        const response = await fetch("/api/github/dashboard", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username }),
+          body: JSON.stringify({ username: session?.username || "" }),
         });
 
-        if (!res.ok) throw new Error("Failed to fetch user data");
-        const data = await res.json();
-        setUserData(data.profile);
-      } catch (err) {
-        setError("Unable to load profile data.");
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || "Failed to load profile analytics");
+        }
+
+        if (cancelled) return;
+        setDashboard(payload);
+      } catch (fetchError) {
+        if (cancelled) return;
+        setError(fetchError?.message || "Unable to load profile analytics.");
       } finally {
-        setLoadingUser(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    getUserData();
-  }, [status]);
+    loadDashboard();
 
-  useEffect(() => {
-    if (status !== "authenticated") return;
-    const getRepoData = async () => {
-      const username = session?.username;
-      if (!username) return;
-
-      try {
-        setLoadingRepos(true);
-        setError(null);
-        const res = await fetch("/api/repositories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, token: session?.accessToken }),
-        });
-
-        if (!res.ok) throw new Error("Failed to fetch repositories");
-        const data = await res.json();
-        setUserRepos(data.repos || []);
-      } catch (err) {
-        setError("Unable to load repositories.");
-      } finally {
-        setLoadingRepos(false);
-      }
+    return () => {
+      cancelled = true;
     };
-
-    getRepoData();
-  }, [status, session?.accessToken, session?.username]);
+  }, [session?.username, status]);
 
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">
@@ -79,10 +58,10 @@ export default function Profile() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
             <p className="text-xs uppercase tracking-[0.3em] text-white/40">Profile</p>
             <h1 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">
-              Your GitHub dashboard
+              GitHub profile intelligence
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-white/60">
-              Keep your profile, repos, and README workflow aligned with GitHance.
+              Analyze your repositories, contribution patterns, language usage, and collaboration trends in one dashboard.
             </p>
           </div>
         </div>
@@ -108,10 +87,24 @@ export default function Profile() {
         )}
 
         {session && (
-          <div className="mt-6 grid gap-6">
-            <UserDataBlock userData={userData} loading={loadingUser} />
-            <UserReposBlock userRepos={userRepos} loading={loadingRepos} />
-          </div>
+          <>
+            {loading && (
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+                Building your analytics dashboard...
+              </div>
+            )}
+
+            {!loading && dashboard && (
+              <div className="mt-6 grid gap-6">
+                {dashboard?.dataWarnings?.contributionsUnavailable && (
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                    Contributions data is temporarily unavailable. Some metrics may be partial.
+                  </div>
+                )}
+                <ProfileAnalyticsDashboard data={dashboard} />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
