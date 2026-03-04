@@ -31,6 +31,16 @@ function ageLabel(days) {
   return `${years}y ${months}m`;
 }
 
+function toIsoDay(value) {
+  const parsed = new Date(value || "");
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
+  )
+    .toISOString()
+    .slice(0, 10);
+}
+
 function Metric({ label, value, hint = "" }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-[#0f1115] px-4 py-3">
