@@ -1,45 +1,26 @@
 import { VULNERABILITY_DEFINITIONS } from "@/app/lib/security/rules";
+import {
+  PYTHON_SINK_REGISTRY,
+  PYTHON_SOURCE_REGISTRY,
+  getSinkRegistryForLanguage,
+} from "@/app/lib/security/plugins/unifiedRegistry";
+
+function flattenSinkRegistryPatterns(registry) {
+  return Object.values(registry || {})
+    .flat()
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean);
+}
 
 const PYTHON_SOURCE_PATTERNS = [
-  "request.args",
-  "request.form",
-  "request.json",
-  "request.values",
-  "request.data",
-  "request.GET",
-  "request.POST",
-  "request.body",
-  "input(",
+  ...new Set(
+    [...PYTHON_SOURCE_REGISTRY, "request.values"].map((source) =>
+      source === "input" ? "input(" : source
+    )
+  ),
 ];
-
-const PYTHON_SINK_PATTERNS = [
-  "os.system(",
-  "os.popen(",
-  "subprocess.call(",
-  "subprocess.run(",
-  "subprocess.Popen(",
-  "cursor.execute(",
-  "conn.execute(",
-  "open(",
-  "Path(",
-  "os.open(",
-  "os.path.join(",
-  "eval(",
-  "exec(",
-  "pickle.loads(",
-  "yaml.load(",
-  "random.random(",
-  "random.randint(",
-  "hashlib.md5(",
-  "hashlib.sha1(",
-  "render_template_string(",
-  "zipfile.ZipFile.extractall(",
-  "zipfile.ZipFile.extract(",
-  "tarfile.extractall(",
-  "tarfile.extract(",
-  "app.run(debug=True)",
-  "format_string_%_operator",
-];
+const PYTHON_SINK_PATTERNS = flattenSinkRegistryPatterns(PYTHON_SINK_REGISTRY);
+const PYTHON_FLOW_SINK_REGISTRY = getSinkRegistryForLanguage("python");
 
 const PYTHON_ROUTE_PATTERN =
   /^\s*@app\.(route|get|post|put|delete|patch|options|head)\s*\(/;
@@ -48,7 +29,7 @@ const PYTHON_FRAMEWORK_HINT_PATTERN =
 const PYTHON_HTTP_INPUT_PATTERN =
   /\brequest\.(args|form|json|values|data|GET|POST|body)\b|\binput\s*\(/;
 const ASSIGNMENT_PATTERN = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/;
-const SECRET_VAR_PATTERN = /(password|secret|api[_-]?key|token)/i;
+const SECRET_VAR_PATTERN = /(password|secret|api[_-]?key|private[_-]?key|token)/i;
 const SECRET_PLACEHOLDER_PATTERN = /^(changeme|example|sample|dummy|test|password|secret|token)$/i;
 const SECURITY_RANDOM_CONTEXT_PATTERN = /(token|otp|session|auth|nonce|identifier|id)/i;
 const FORMAT_STRING_SOURCE_PATTERN = /\brequest\.(args|form|json|data|GET|POST)\b/;
@@ -337,6 +318,23 @@ function resolveFlaskDebugExposureDefinition() {
   };
 }
 
+function resolveInsecureTempFileDefinition() {
+  return {
+    id: "insecure_temp_file",
+    category: "File Handling",
+    concept: "Insecure temporary file creation",
+    cwe: "CWE-377",
+    title: "Insecure temporary file API usage",
+    description:
+      "tempfile.mktemp() is used, which can introduce race conditions for temporary file creation.",
+    impact:
+      "Attackers may pre-create or replace the temporary path before use, causing data exposure or overwrite.",
+    recommendation:
+      "Replace tempfile.mktemp() with tempfile.NamedTemporaryFile() or tempfile.mkstemp().",
+    rootCausePattern: "python-tempfile-mktemp-usage",
+  };
+}
+
 function inferArchiveHandles(lines) {
   const zipHandles = new Set();
   const tarHandles = new Set();
@@ -527,6 +525,27 @@ function expressionIsDynamicSql(expression) {
   return expr.includes("+") || /\bf["'].*\{.+\}.*["']/.test(expr);
 }
 
+function isSinkCallFromRegistry(line, category) {
+  const sinks = PYTHON_FLOW_SINK_REGISTRY?.[category] || [];
+  return sinks.some((sink) => {
+    const token = String(sink || "").trim();
+    if (!token) return false;
+    if (token === "open" || token === "Path") {
+      return new RegExp(`\\b${token}\\s*\\(`).test(line);
+    }
+    if (token.includes(".")) {
+      return line.includes(`${token}(`);
+    }
+    return new RegExp(`\\b${token}\\s*\\(`).test(line);
+  });
+}
+
+function getExploitabilityFromAttackSurface(attackSurface, hasFlow) {
+  if (attackSurface === ATTACK_SURFACE.PUBLIC_HTTP && hasFlow) return "Likely";
+  if (attackSurface === ATTACK_SURFACE.PUBLIC_HTTP) return "Possible";
+  return hasFlow ? "Possible" : "Unlikely";
+}
+
 function expressionHasUserFlow(expression, tainted, assignments) {
   const expr = String(expression || "");
   if (isUserInputExpression(expr)) return true;
@@ -548,7 +567,7 @@ function extractCallArguments(line) {
   return text.slice(start + 1, end);
 }
 
-function analyzePythonFile(file) {
+function runFlowEngine(file) {
   const content = String(file.content || "");
   const lines = content.split(/\r?\n/);
   const executionContext = classifyExecutionContext(file.path, content);
@@ -1071,10 +1090,456 @@ function analyzePythonFile(file) {
   };
 }
 
+const SEVERITY_RANK = {
+  critical: 5,
+  high: 4,
+  medium: 3,
+  low: 2,
+  informational: 1,
+};
+
+function findingMergeKey(finding) {
+  return [
+    finding?.ruleId,
+    finding?.filePath,
+    finding?.lineStart,
+    finding?.lineEnd,
+    finding?.matchedExpression,
+  ].join("|");
+}
+
+function rankSeverity(value) {
+  return SEVERITY_RANK[String(value || "").toLowerCase()] || 0;
+}
+
+function shouldReplaceFinding(existing, incoming) {
+  const incomingRank = rankSeverity(incoming?.severity);
+  const existingRank = rankSeverity(existing?.severity);
+  if (incomingRank > existingRank) return true;
+  if (incomingRank < existingRank) return false;
+
+  const incomingFlowStatus = String(incoming?.flowStatus || "none").toLowerCase();
+  const existingFlowStatus = String(existing?.flowStatus || "none").toLowerCase();
+  if (incomingFlowStatus === "confirmed" && existingFlowStatus !== "confirmed") {
+    return true;
+  }
+  if (
+    incoming?.sourceToSinkDetected &&
+    !existing?.sourceToSinkDetected
+  ) {
+    return true;
+  }
+
+  return Number(incoming?.confidenceScore || 0) > Number(existing?.confidenceScore || 0);
+}
+
+function dedupeFindings(findings) {
+  const map = new Map();
+  for (const finding of findings || []) {
+    const key = findingMergeKey(finding);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, finding);
+      continue;
+    }
+    map.set(key, shouldReplaceFinding(existing, finding) ? finding : existing);
+  }
+  return Array.from(map.values());
+}
+
+function mergeMetrics(flowMetrics, patternMetrics) {
+  return {
+    httpRoutesAnalyzed: Math.max(
+      Number(flowMetrics?.httpRoutesAnalyzed || 0),
+      Number(patternMetrics?.httpRoutesAnalyzed || 0)
+    ),
+    sinksReviewed: Math.max(
+      Number(flowMetrics?.sinksReviewed || 0),
+      Number(patternMetrics?.sinksReviewed || 0)
+    ),
+    secretPatternsChecked: Math.max(
+      Number(flowMetrics?.secretPatternsChecked || 0),
+      Number(patternMetrics?.secretPatternsChecked || 0)
+    ),
+  };
+}
+
+function runPatternRules(file) {
+  const content = String(file.content || "");
+  const lines = content.split(/\r?\n/);
+  const executionContext = classifyExecutionContext(file.path, content);
+  const attackSurface = mapAttackSurface(executionContext);
+  const findings = [];
+  const dedupe = new Set();
+  const archiveHandles = inferArchiveHandles(lines);
+  const flaskContext =
+    /(^|\s)(from\s+flask\s+import|import\s+flask)\b/m.test(content) ||
+    /@app\./.test(content);
+
+  const metrics = {
+    httpRoutesAnalyzed: 0,
+    sinksReviewed: 0,
+    secretPatternsChecked: 0,
+  };
+
+  const dynamicSqlVariables = new Set();
+  for (const rawLine of lines) {
+    const line = stripInlineComment(rawLine);
+    const assignment = line.match(ASSIGNMENT_PATTERN);
+    if (!assignment?.[1] || !assignment?.[2]) continue;
+    if (expressionIsDynamicSql(assignment[2])) {
+      dynamicSqlVariables.add(String(assignment[1]).trim());
+    }
+  }
+
+  const addFinding = (finding) => {
+    const key = findingMergeKey(finding);
+    if (dedupe.has(key)) return;
+    dedupe.add(key);
+    findings.push(finding);
+  };
+
+  lines.forEach((rawLine, index) => {
+    const lineNumber = index + 1;
+    const line = stripInlineComment(rawLine);
+    const lower = line.toLowerCase();
+    const argumentText = extractCallArguments(line);
+
+    if (lower.includes("request.") || lower.includes("input(")) {
+      metrics.secretPatternsChecked += 1;
+    }
+
+    if (/\btempfile\.mktemp\s*\(/.test(line)) {
+      metrics.sinksReviewed += 1;
+      const definition = resolveInsecureTempFileDefinition();
+      addFinding(
+        createPythonFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition,
+          severity: "high",
+          executionContext,
+          sourceToSinkDetected: false,
+          flowStatus: "none",
+          evidenceParts: [
+            `Matched call: ${line.trim()}`,
+            "Resolved API: tempfile.mktemp",
+            "Pattern rule: insecure temporary file creation primitive.",
+          ],
+          matchedExpression: "tempfile.mktemp",
+          reasoning:
+            "tempfile.mktemp() is vulnerable to race conditions and should not be used for secure temporary files.",
+          inputSourceRank: INPUT_RANK.UNKNOWN,
+          exploitability: getExploitabilityFromAttackSurface(attackSurface, false),
+          flowConfidence: 20,
+          exploitabilityConfidence:
+            attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 66 : 52,
+          confidenceReason:
+            "Pattern-based CWE-377 detection: direct tempfile.mktemp usage.",
+        })
+      );
+    }
+
+    const archiveExtraction = detectArchiveExtractionCall(line, archiveHandles);
+    if (archiveExtraction) {
+      metrics.sinksReviewed += 1;
+      const hasValidation = hasArchivePathValidationHint(lines, index);
+      if (!hasValidation) {
+        const definition = resolveArchiveExtractionDefinition();
+        addFinding(
+          createPythonFinding({
+            file,
+            lines,
+            lineStart: lineNumber,
+            lineEnd: lineNumber,
+            definition,
+            severity: "high",
+            executionContext,
+            sourceToSinkDetected: false,
+            flowStatus: "none",
+            evidenceParts: [
+              `Matched call: ${line.trim()}`,
+              `Resolved API: ${archiveExtraction.archiveType}.${archiveExtraction.method}`,
+              "Pattern rule: archive extraction without validation.",
+            ],
+            matchedExpression:
+              archiveExtraction.archiveType === "zip"
+                ? `zipfile.ZipFile.${archiveExtraction.method}`
+                : `tarfile.${archiveExtraction.method}`,
+            reasoning:
+              "Archive extraction without canonical path validation can enable Zip Slip path traversal.",
+            inputSourceRank: INPUT_RANK.UNKNOWN,
+            exploitability: getExploitabilityFromAttackSurface(attackSurface, false),
+            flowConfidence: 22,
+            exploitabilityConfidence:
+              attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 78 : 62,
+            confidenceReason:
+              "Pattern-based CWE-22 detection: extraction sink found without nearby validation controls.",
+          })
+        );
+      }
+    }
+
+    const percentFormat = extractPercentFormatExpression(line);
+    if (percentFormat && FORMAT_STRING_SOURCE_PATTERN.test(percentFormat.left)) {
+      metrics.sinksReviewed += 1;
+      const definition = resolveFormatStringInjectionDefinition();
+      addFinding(
+        createPythonFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition,
+          severity: "medium",
+          executionContext,
+          sourceToSinkDetected: true,
+          flowStatus: "confirmed",
+          evidenceParts: [
+            `Matched expression: ${line.trim()}`,
+            `Format source: ${percentFormat.left}`,
+            "Pattern rule: user-controlled input used as format template with % operator.",
+          ],
+          matchedExpression: "python.percent_format_operator",
+          reasoning:
+            "User input appears on the left side of % formatting, creating format-string injection risk.",
+          inputSourceRank: INPUT_RANK.CRITICAL,
+          exploitability: getExploitabilityFromAttackSurface(attackSurface, true),
+          flowConfidence: 70,
+          exploitabilityConfidence:
+            attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 80 : 64,
+          confidenceReason:
+            "Pattern-based CWE-134 detection: request-derived format string used with % operator.",
+        })
+      );
+    }
+
+    if (flaskContext && isFlaskDebugModePattern(line)) {
+      metrics.sinksReviewed += 1;
+      const definition = resolveFlaskDebugExposureDefinition();
+      addFinding(
+        createPythonFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition,
+          severity:
+            executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? "medium" : "low",
+          executionContext,
+          sourceToSinkDetected: false,
+          flowStatus: "none",
+          evidenceParts: [
+            `Matched configuration: ${line.trim()}`,
+            "Pattern rule: Flask debug mode enabled.",
+          ],
+          matchedExpression: "flask.app.run(debug=True)",
+          reasoning:
+            "Debug mode can expose sensitive runtime diagnostics when enabled outside development.",
+          inputSourceRank: INPUT_RANK.UNKNOWN,
+          exploitability:
+            executionContext === EXECUTION_CONTEXTS.WEB_SERVER
+              ? "Possible"
+              : "Unlikely",
+          flowConfidence: 20,
+          exploitabilityConfidence:
+            executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? 64 : 48,
+          confidenceReason:
+            "Pattern-based CWE-489 detection: explicit debug=True runtime configuration.",
+        })
+      );
+    }
+
+    if (isSinkCallFromRegistry(line, "weak_crypto")) {
+      metrics.sinksReviewed += 1;
+      const definition = resolveWeakCryptoDefinition();
+      addFinding(
+        createPythonFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition,
+          severity: "medium",
+          executionContext,
+          sourceToSinkDetected: false,
+          flowStatus: "none",
+          evidenceParts: [
+            `Matched call: ${line.trim()}`,
+            "Pattern rule: weak cryptographic hash API usage.",
+          ],
+          matchedExpression: /\bhashlib\.sha1/.test(line)
+            ? "hashlib.sha1"
+            : "hashlib.md5",
+          reasoning:
+            "Weak hash algorithms such as MD5/SHA1 are unsuitable for security-sensitive cryptographic usage.",
+          inputSourceRank: INPUT_RANK.UNKNOWN,
+          exploitability: "Possible",
+          flowConfidence: 30,
+          exploitabilityConfidence: 58,
+        })
+      );
+    }
+
+    if (isSinkCallFromRegistry(line, "insecure_randomness")) {
+      metrics.sinksReviewed += 1;
+      const windowText = lines
+        .slice(Math.max(0, index - 2), Math.min(lines.length, index + 3))
+        .join(" ");
+      if (SECURITY_RANDOM_CONTEXT_PATTERN.test(windowText)) {
+        const definition = resolveDefinition("insecure_randomness");
+        addFinding(
+          createPythonFinding({
+            file,
+            lines,
+            lineStart: lineNumber,
+            lineEnd: lineNumber,
+            definition,
+            severity: "medium",
+            executionContext,
+            sourceToSinkDetected: false,
+            flowStatus: "none",
+            evidenceParts: [
+              `Matched call: ${line.trim()}`,
+              "Pattern rule: predictable RNG in security-sensitive context.",
+            ],
+            matchedExpression: /\brandom\.randint/.test(line)
+              ? "random.randint"
+              : "random.random",
+            reasoning:
+              "Predictable random generators are used near authentication/token context.",
+            inputSourceRank: INPUT_RANK.UNKNOWN,
+            exploitability: getExploitabilityFromAttackSurface(attackSurface, false),
+            flowConfidence: 32,
+            exploitabilityConfidence:
+              attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 62 : 50,
+          })
+        );
+      }
+    }
+
+    if (/\b(?:cursor|conn)\.execute\s*\(|\bexecute_query\s*\(/.test(line)) {
+      metrics.sinksReviewed += 1;
+      const isDynamicSql =
+        expressionIsDynamicSql(argumentText) ||
+        Array.from(dynamicSqlVariables).some((name) =>
+          expressionUsesVariable(argumentText, name)
+        );
+      if (isDynamicSql) {
+        const definition = resolveDefinition("sql_injection");
+        addFinding(
+          createPythonFinding({
+            file,
+            lines,
+            lineStart: lineNumber,
+            lineEnd: lineNumber,
+            definition,
+            severity: "high",
+            executionContext,
+            sourceToSinkDetected: false,
+            flowStatus: "partial",
+            evidenceParts: [
+              `Matched call: ${line.trim()}`,
+              "Pattern rule: dynamic SQL string reaches execute sink.",
+            ],
+            matchedExpression: "python.db.execute",
+            reasoning:
+              "Dynamic SQL construction at execution sink is vulnerable if untrusted input is introduced.",
+            inputSourceRank: INPUT_RANK.UNKNOWN,
+            exploitability: getExploitabilityFromAttackSurface(attackSurface, false),
+            flowConfidence: 52,
+            exploitabilityConfidence:
+              attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 70 : 56,
+            confidenceReason:
+              "Pattern-based CWE-89 detection: SQL execute sink receives a dynamic query expression.",
+          })
+        );
+      }
+    }
+
+    const assignment = line.match(
+      /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(['"])([^'"\r\n]{8,})\2\s*$/
+    );
+    if (!assignment) return;
+    const keyName = String(assignment[1] || "");
+    const literal = String(assignment[3] || "");
+    metrics.secretPatternsChecked += 1;
+    if (!SECRET_VAR_PATTERN.test(keyName) || SECRET_PLACEHOLDER_PATTERN.test(literal)) {
+      return;
+    }
+    const definition = resolveDefinition("hardcoded_secret");
+    addFinding(
+      createPythonFinding({
+        file,
+        lines,
+        lineStart: lineNumber,
+        lineEnd: lineNumber,
+        definition,
+        severity: "high",
+        executionContext,
+        sourceToSinkDetected: false,
+        flowStatus: "none",
+        evidenceParts: [
+          `Matched assignment: ${keyName} = "<secret_literal>"`,
+          "Pattern rule: hardcoded secret-like literal assignment.",
+        ],
+        matchedExpression: "python.constant_assignment",
+        reasoning: "Secret-like literal appears hardcoded in Python source.",
+        inputSourceRank: INPUT_RANK.UNKNOWN,
+        exploitability: "Possible",
+        flowConfidence: 30,
+        exploitabilityConfidence: 60,
+        confidenceReason: "Pattern-based CWE-798 detection: secret literal assignment.",
+      })
+    );
+  });
+
+  return {
+    findings,
+    parseError: false,
+    metrics,
+    metadata: {
+      parsing_strategy: "python_pattern_engine",
+      pattern_rules: Object.keys(PYTHON_FLOW_SINK_REGISTRY || {}),
+      sources: PYTHON_SOURCE_PATTERNS,
+      sinks: PYTHON_SINK_PATTERNS,
+    },
+  };
+}
+
+function analyzePythonFile(file) {
+  const flowResult = runFlowEngine(file);
+  const patternResult = runPatternRules(file);
+  const findings = dedupeFindings([
+    ...(patternResult.findings || []),
+    ...(flowResult.findings || []),
+  ]);
+
+  return {
+    findings,
+    parseError: Boolean(flowResult.parseError || patternResult.parseError),
+    metrics: mergeMetrics(flowResult.metrics, patternResult.metrics),
+    metadata: {
+      ...flowResult.metadata,
+      detection_architecture: "hybrid_pattern_flow",
+      detection_layers: ["pattern_engine", "flow_engine"],
+      sink_registry: PYTHON_FLOW_SINK_REGISTRY,
+      pattern_engine: patternResult.metadata,
+      flow_engine: {
+        parsing_strategy: flowResult.metadata?.parsing_strategy || "python_token_lite",
+      },
+      sources: PYTHON_SOURCE_PATTERNS,
+      sinks: PYTHON_SINK_PATTERNS,
+    },
+  };
+}
+
 export const pythonAnalyzerPlugin = {
   key: "python",
   name: "Python Analyzer",
-  parsingStrategy: "token_lite",
+  parsingStrategy: "hybrid_pattern_flow",
   frameworkDetection: ["Flask", "FastAPI", "Django"],
   sources: PYTHON_SOURCE_PATTERNS,
   sinks: PYTHON_SINK_PATTERNS,
