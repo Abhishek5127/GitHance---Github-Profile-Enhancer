@@ -921,37 +921,110 @@ function buildImprovementSuggestions({
   securityQuality = {},
 }) {
   const suggestions = [];
+  const priorityRank = {
+    high: 0,
+    medium: 1,
+    low: 2,
+  };
+
+  function addSuggestion({
+    priority = "low",
+    category = "general",
+    title = "",
+    action = "",
+    why = "",
+    target = "",
+    nextSteps = [],
+  }) {
+    suggestions.push({
+      priority,
+      category,
+      title,
+      action,
+      why,
+      target,
+      nextSteps: (Array.isArray(nextSteps) ? nextSteps : [])
+        .map((step) => String(step || "").trim())
+        .filter(Boolean)
+        .slice(0, 4),
+    });
+  }
+
   const consistency = String(productivity?.consistencyLabel || "");
   const repoAvg = safeNumber(repositoryHealth?.summary?.averageHealthScore, 0);
   const atRiskRepos = safeNumber(repositoryHealth?.summary?.atRiskRepositories, 0);
   const impactScore = safeNumber(openSourceImpact?.score, 0);
   const collaborationLevel = String(collaborationBehavior?.level || "");
   const inactiveRepos = safeNumber(securityQuality?.indicators?.inactiveRepositories, 0);
+  const activeDayRatio = safeNumber(productivity?.activeDayRatio, 0);
+  const consistencyScore = safeNumber(productivity?.consistencyScore, 0);
+  const monthlyCollabRate = safeNumber(
+    collaborationBehavior?.metrics?.monthlyInteractionRate,
+    0
+  );
+  const unlicensedRepos = safeNumber(
+    securityQuality?.indicators?.unlicensedRepositories,
+    0
+  );
+  const backlogRepos = safeNumber(
+    securityQuality?.indicators?.highIssueBacklogRepositories,
+    0
+  );
 
   if (consistency !== "consistent") {
-    suggestions.push({
+    addSuggestion({
       priority: "high",
+      category: "productivity",
       title: "Improve commit consistency",
       action:
-        "Adopt smaller, daily commits and maintain a weekly delivery cadence to improve streak and predictability.",
+        "Move to a weekly rhythm with predictable checkpoints instead of burst commits.",
+      why: `Current consistency score is ${Math.round(consistencyScore)}/100 with an active-day ratio of ${Math.round(
+        activeDayRatio * 100
+      )}%.`,
+      target:
+        "Reach consistency >= 70 and active-day ratio >= 35% within the next 8 weeks.",
+      nextSteps: [
+        "Commit on at least 4 distinct days each week.",
+        "Split large changes into incremental PR-ready commits.",
+        "Set one weekly maintenance slot for issue triage + docs updates.",
+      ],
     });
   }
 
   if (repoAvg < 65 || atRiskRepos > 0) {
-    suggestions.push({
+    addSuggestion({
       priority: "high",
+      category: "repository_health",
       title: "Raise repository health",
       action:
-        "Prioritize repositories with low health scores: close stale issues, refresh README docs, and push maintenance updates.",
+        "Prioritize low-health repositories for maintenance and documentation upgrades.",
+      why: `Average repository health is ${Math.round(
+        repoAvg
+      )}/100 with ${Math.round(atRiskRepos)} repositories marked at-risk.`,
+      target:
+        "Move average repository health above 70 and reduce at-risk repositories in the next quarter.",
+      nextSteps: [
+        "Select top 3 at-risk repos and publish a maintenance checklist.",
+        "Refresh README, roadmap, and contribution notes for each selected repo.",
+        "Close stale issues older than 60 days or label them clearly.",
+      ],
     });
   }
 
   if (impactScore < 50) {
-    suggestions.push({
+    addSuggestion({
       priority: "medium",
+      category: "open_source",
       title: "Increase open source impact",
       action:
-        "Contribute pull requests to external repositories and improve project discoverability with clearer docs and release notes.",
+        "Boost public impact with external contributions and better project discoverability.",
+      why: `Open Source Impact Score is ${Math.round(impactScore)}/100, indicating room to expand community reach.`,
+      target: "Increase impact score to 55+ over the next 2-3 months.",
+      nextSteps: [
+        "Open or review at least 2 external PRs per month.",
+        "Add release notes/changelogs to your most visible repos.",
+        "Use clear topics and README badges to improve project discovery.",
+      ],
     });
   }
 
@@ -959,33 +1032,87 @@ function buildImprovementSuggestions({
     collaborationLevel === "limited_collaboration" ||
     collaborationLevel === "solo_focused"
   ) {
-    suggestions.push({
+    addSuggestion({
       priority: "medium",
+      category: "collaboration",
       title: "Collaborate more publicly",
       action:
-        "Participate in issue discussions, code reviews, and PR feedback loops to increase collaboration visibility.",
+        "Increase visible collaboration through reviews, issue discussions, and cross-repo contributions.",
+      why: `Current collaboration level is ${collaborationLevel.replaceAll(
+        "_",
+        " "
+      )} with a monthly interaction rate of ${monthlyCollabRate.toFixed(1)}.`,
+      target: "Sustain 3+ collaborative interactions per month.",
+      nextSteps: [
+        "Review at least one PR each week.",
+        "Comment on issues with reproducible debugging details.",
+        "Contribute small fixes to repositories outside your own namespace.",
+      ],
     });
   }
 
   if (inactiveRepos > 0) {
-    suggestions.push({
+    addSuggestion({
       priority: "low",
+      category: "maintenance",
       title: "Archive or revive inactive projects",
       action:
-        "Archive truly abandoned repositories and revive strategic ones with roadmap updates and dependency maintenance.",
+        "Reduce maintenance drag by archiving dead projects and reviving strategic ones.",
+      why: `${Math.round(
+        inactiveRepos
+      )} repositories show long inactivity and may dilute profile quality signals.`,
+      target: "Bring inactive repository count down over the next release cycle.",
+      nextSteps: [
+        "Archive repositories with no strategic roadmap.",
+        "For active candidates, open a roadmap issue and dependency update PR.",
+      ],
+    });
+  }
+
+  if (unlicensedRepos > 0 || backlogRepos > 0) {
+    addSuggestion({
+      priority: "low",
+      category: "quality",
+      title: "Improve repository governance hygiene",
+      action:
+        "Standardize licenses, issue labeling, and contributor guidance across active repositories.",
+      why: `${Math.round(unlicensedRepos)} repositories lack licenses and ${Math.round(
+        backlogRepos
+      )} repositories have high issue backlogs.`,
+      target:
+        "Ensure every maintained repository has a license and issue triage labels within 4 weeks.",
+      nextSteps: [
+        "Add SPDX-compatible LICENSE files to maintained repos.",
+        "Create `good first issue`, `needs-info`, and `blocked` labels.",
+        "Add issue and PR templates to improve triage quality.",
+      ],
     });
   }
 
   if (!suggestions.length) {
-    suggestions.push({
+    addSuggestion({
       priority: "low",
+      category: "general",
       title: "Maintain momentum",
       action:
         "Keep current delivery cadence and periodically refresh documentation, issue triage, and roadmap visibility.",
+      why: "Current metrics are balanced across activity, collaboration, and repository health.",
+      target: "Sustain current performance band while improving one category each month.",
+      nextSteps: [
+        "Track one lead metric weekly (consistency, impact, or health).",
+        "Ship one documentation improvement every sprint.",
+      ],
     });
   }
 
-  return suggestions;
+  return suggestions
+    .sort((a, b) => {
+      const aRank = priorityRank[a.priority] ?? 99;
+      const bRank = priorityRank[b.priority] ?? 99;
+      if (aRank !== bRank) return aRank - bRank;
+      return String(a.title || "").localeCompare(String(b.title || ""));
+    })
+    .slice(0, 6);
 }
 
 function computeDeveloperPerformanceScore({

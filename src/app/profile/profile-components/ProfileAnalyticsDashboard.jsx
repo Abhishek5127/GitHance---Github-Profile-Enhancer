@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 
 const CARD = "rounded-3xl border border-white/10 bg-white/5 p-6";
@@ -33,6 +34,14 @@ const LEVEL_TONES = {
   downward: "border-red-400/40 bg-red-500/10 text-red-200",
   stable: "border-cyan-300/40 bg-cyan-500/10 text-cyan-200",
 };
+
+const DASHBOARD_TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "activity", label: "Activity" },
+  { id: "projects", label: "Projects" },
+  { id: "impact", label: "Impact" },
+  { id: "quality", label: "Quality" },
+];
 
 function num(value, fallback = 0) {
   const parsed = Number(value);
@@ -399,6 +408,7 @@ export default function ProfileAnalyticsDashboard({ data }) {
     ? structured.improvement_suggestions
     : [];
   const developerScore = structured?.developer_score || {};
+  const [activeTab, setActiveTab] = useState("overview");
 
   const monthlyTrend = Array.isArray(activityInsights?.monthlyContributionTrends)
     ? activityInsights.monthlyContributionTrends
@@ -426,7 +436,7 @@ export default function ProfileAnalyticsDashboard({ data }) {
     .map((repo) => ({
       label: repo?.name || repo?.fullName || "Unknown",
       value: num(repo?.healthScore, 0),
-      hint: `${startCase(repo?.healthStatus)} • ${startCase(repo?.maintenanceFrequency)} maintenance`,
+      hint: `${startCase(repo?.healthStatus)} - ${startCase(repo?.maintenanceFrequency)} maintenance`,
     }));
 
   const repoActivityBars = repoActivity.slice(0, 8).map((repo) => ({
@@ -546,6 +556,29 @@ export default function ProfileAnalyticsDashboard({ data }) {
         </div>
       </div>
 
+      <div className={`${CARD} sticky top-3 z-10 backdrop-blur`}>
+        <div className="flex flex-wrap gap-2">
+          {DASHBOARD_TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={`tab-${tab.id}`}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                  isActive
+                    ? "border-cyan-300/60 bg-cyan-400/15 text-cyan-100"
+                    : "border-white/15 bg-white/5 text-white/60 hover:bg-white/10"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {activeTab === "overview" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="1. Developer Activity Summary"
@@ -564,7 +597,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           />
         </div>
       </div>
+      )}
 
+      {activeTab === "activity" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="2. Productivity Metrics"
@@ -613,7 +648,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           />
         </div>
       </div>
+      )}
 
+      {activeTab === "projects" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="3. Repository Health Insights"
@@ -668,11 +705,11 @@ export default function ProfileAnalyticsDashboard({ data }) {
                       />
                     </div>
                     <p className="mt-2 text-xs text-white/55">
-                      Issues: {exact(repo?.openIssues)} • Stars: {exact(repo?.stars)} • Forks:{" "}
+                      Issues: {exact(repo?.openIssues)} - Stars: {exact(repo?.stars)} - Forks:{" "}
                       {exact(repo?.forks)}
                     </p>
                     <p className="mt-1 text-xs text-white/45">
-                      {startCase(repo?.maintenanceFrequency)} maintenance •{" "}
+                      {startCase(repo?.maintenanceFrequency)} maintenance -{" "}
                       {startCase(repo?.issueResolutionIndicator)}
                     </p>
                   </div>
@@ -681,7 +718,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           </div>
         </div>
       </div>
+      )}
 
+      {activeTab === "activity" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="4. Coding Pattern Analysis"
@@ -727,7 +766,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           </div>
         </div>
       </div>
+      )}
 
+      {activeTab === "projects" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="5. Technology Profile"
@@ -774,7 +815,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           />
         </div>
       </div>
+      )}
 
+      {activeTab === "impact" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="6. Open Source Impact"
@@ -809,7 +852,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           />
         </div>
       </div>
+      )}
 
+      {activeTab === "impact" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="7. Collaboration Behavior"
@@ -855,7 +900,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           </div>
         </div>
       </div>
+      )}
 
+      {activeTab === "quality" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="8. Security & Code Quality Indicators"
@@ -901,7 +948,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           )}
         </div>
       </div>
+      )}
 
+      {activeTab === "quality" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="9. Improvement Suggestions"
@@ -917,12 +966,40 @@ export default function ProfileAnalyticsDashboard({ data }) {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-white">{suggestion?.title || "Suggestion"}</h3>
-                  <Badge
-                    label={startCase(suggestion?.priority || "low")}
-                    tone={toneFor(PRIORITY_TONES, suggestion?.priority)}
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      label={startCase(suggestion?.priority || "low")}
+                      tone={toneFor(PRIORITY_TONES, suggestion?.priority)}
+                    />
+                    {suggestion?.category ? (
+                      <Badge
+                        label={startCase(suggestion.category)}
+                        tone="border-white/20 bg-white/10 text-white/70"
+                      />
+                    ) : null}
+                  </div>
                 </div>
                 <p className="mt-2 text-sm text-white/65">{suggestion?.action || ""}</p>
+                {suggestion?.why ? (
+                  <p className="mt-2 text-xs text-white/50">
+                    <span className="font-semibold text-white/70">Why:</span> {suggestion.why}
+                  </p>
+                ) : null}
+                {suggestion?.target ? (
+                  <p className="mt-1 text-xs text-white/50">
+                    <span className="font-semibold text-white/70">Target:</span> {suggestion.target}
+                  </p>
+                ) : null}
+                {Array.isArray(suggestion?.nextSteps) && suggestion.nextSteps.length ? (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-[#0b0d0f] p-3">
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-white/55">Next Steps</p>
+                    <ul className="mt-2 space-y-1 text-xs text-white/65">
+                      {suggestion.nextSteps.map((step, stepIndex) => (
+                        <li key={`step-${index}-${stepIndex}`}>- {step}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             ))
           ) : (
@@ -932,7 +1009,9 @@ export default function ProfileAnalyticsDashboard({ data }) {
           )}
         </div>
       </div>
+      )}
 
+      {activeTab === "overview" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="10. Developer Score"
@@ -965,8 +1044,11 @@ export default function ProfileAnalyticsDashboard({ data }) {
           </div>
         </div>
       </div>
+      )}
 
-      <ContributionHeatmap days={dashboard?.contributionHeatmap?.days || []} />
+      {activeTab === "activity" && (
+        <ContributionHeatmap days={dashboard?.contributionHeatmap?.days || []} />
+      )}
     </div>
   );
 }
