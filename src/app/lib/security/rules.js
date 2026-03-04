@@ -10,6 +10,7 @@ export const SUPPORTED_SEMANTIC_LANGUAGES = new Set([
   "javascript",
   "typescript",
   "java",
+  "python",
 ]);
 
 export const VULNERABILITY_DEFINITIONS = {
@@ -243,6 +244,7 @@ export function normalizeLanguage(language) {
   if (normalized === "jsx") return "javascript";
   if (normalized === "ts") return "typescript";
   if (normalized === "tsx") return "typescript";
+  if (normalized === "py") return "python";
   if (normalized === "c#") return "csharp";
   if (normalized === "c/c++") return "c++";
   return normalized;

@@ -2628,7 +2628,7 @@ function buildInsights({
       .sort((a, b) => a.localeCompare(b))
       .join(", ");
     insights.push(
-      `${unsupportedLanguageFiles} files were skipped because semantic adapters are currently active for JavaScript/TypeScript and Java only. Detected unsupported languages: ${list}.`
+      `${unsupportedLanguageFiles} files were skipped because semantic adapters are currently active for JavaScript/TypeScript, Java, and Python only. Detected unsupported languages: ${list}.`
     );
   }
 

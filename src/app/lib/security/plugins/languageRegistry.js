@@ -1,14 +1,8 @@
 import { getExtension } from "@/app/lib/security/config";
 import { javaAnalyzerPlugin } from "@/app/lib/security/plugins/javaAnalyzer";
+import { pythonAnalyzerPlugin } from "@/app/lib/security/plugins/pythonAnalyzer";
 
 const FUTURE_PLUGIN_BLUEPRINTS = {
-  python: {
-    key: "python",
-    parsingStrategy: "python_ast",
-    frameworkDetection: ["Flask", "Django", "FastAPI"],
-    sources: ["request.args", "request.form", "request.json"],
-    sinks: ["os.system", "subprocess.run", "eval", "exec"],
-  },
   go: {
     key: "go",
     parsingStrategy: "go_parser",
@@ -41,6 +35,7 @@ export function createLanguageRegistry(javascriptAnalyzerPlugin) {
     mjs: javascriptAnalyzerPlugin,
     cjs: javascriptAnalyzerPlugin,
     java: javaAnalyzerPlugin,
+    py: pythonAnalyzerPlugin,
   };
 }
 
