@@ -118,6 +118,46 @@ const ATTACK_SURFACE = {
   TEST_ONLY: "TEST_ONLY",
   MIXED: "MIXED",
 };
+const REPORTING_EXECUTION_CONTEXTS = {
+  WEB_SERVER: "WEB_SERVER",
+  API_SERVER: "API_SERVER",
+  CLI_TOOL: "CLI_TOOL",
+  LOCAL_SCRIPT: "LOCAL_SCRIPT",
+  CONFIG_FILE: "CONFIG_FILE",
+};
+const INPUT_TRUST_LEVEL = {
+  USER_CONTROLLED: "USER_CONTROLLED",
+  EXTERNAL_SERVICE: "EXTERNAL_SERVICE",
+  ENVIRONMENT_VARIABLE: "ENVIRONMENT_VARIABLE",
+  CONFIG_FILE: "CONFIG_FILE",
+  LOCAL_CONSTANT: "LOCAL_CONSTANT",
+};
+const TRUST_LEVEL_SCORE = {
+  [INPUT_TRUST_LEVEL.USER_CONTROLLED]: 4,
+  [INPUT_TRUST_LEVEL.EXTERNAL_SERVICE]: 3,
+  [INPUT_TRUST_LEVEL.ENVIRONMENT_VARIABLE]: 2,
+  [INPUT_TRUST_LEVEL.CONFIG_FILE]: 1,
+  [INPUT_TRUST_LEVEL.LOCAL_CONSTANT]: 0,
+};
+const INFRASTRUCTURE_PATH_SEGMENTS = [
+  "/security/",
+  "/analyzer/",
+  "/scanner/",
+  "/rules/",
+  "/benchmark/",
+  "/tests/",
+  "/test/",
+  "/fixtures/",
+  "/mock/",
+];
+const DANGEROUS_SINK_RULE_IDS = new Set([
+  "command_execution",
+  "dynamic_code_execution",
+  "sql_injection",
+  "path_traversal",
+  "unsafe_deserialization",
+  "template_injection",
+]);
 const LOG_SECRET_NAME_PATTERN =
   /(token|password|secret|key|auth|credential|jwt|session)/i;
 const NODE_FS_MODULE = "node:fs";
@@ -193,6 +233,25 @@ function mergeInputRank(current, incoming) {
   return inputRankValue(right) > inputRankValue(left) ? right : left;
 }
 
+function trustLevelValue(level) {
+  return TRUST_LEVEL_SCORE[level] ?? -1;
+}
+
+function mergeTrustLevel(current, incoming) {
+  const left = current || INPUT_TRUST_LEVEL.LOCAL_CONSTANT;
+  const right = incoming || INPUT_TRUST_LEVEL.LOCAL_CONSTANT;
+  return trustLevelValue(right) > trustLevelValue(left) ? right : left;
+}
+
+function mapTrustLevelToInputRank(level) {
+  if (level === INPUT_TRUST_LEVEL.USER_CONTROLLED) return INPUT_RANK.CRITICAL;
+  if (level === INPUT_TRUST_LEVEL.EXTERNAL_SERVICE) return INPUT_RANK.MEDIUM;
+  if (level === INPUT_TRUST_LEVEL.ENVIRONMENT_VARIABLE) return INPUT_RANK.MEDIUM;
+  if (level === INPUT_TRUST_LEVEL.CONFIG_FILE) return INPUT_RANK.LOW;
+  if (level === INPUT_TRUST_LEVEL.LOCAL_CONSTANT) return INPUT_RANK.LOW;
+  return INPUT_RANK.UNKNOWN;
+}
+
 function exploitabilityValue(label) {
   return EXPLOITABILITY_SCORE[label] ?? 1;
 }
@@ -214,6 +273,15 @@ function toConfidenceLabel(score) {
   if (score >= 80) return "high";
   if (score >= 60) return "medium";
   return "low";
+}
+
+function downgradeSeverityOneLevel(severity) {
+  const normalized = String(severity || "").toLowerCase();
+  if (normalized === "critical") return "high";
+  if (normalized === "high") return "medium";
+  if (normalized === "medium") return "low";
+  if (normalized === "low") return "informational";
+  return "informational";
 }
 
 function trackSecretPatternCheck(state) {
@@ -2249,6 +2317,8 @@ function groupFindings(findings, options = {}) {
       execution_context: finding.executionContext || EXECUTION_CONTEXTS.INTERNAL_LIB,
       attack_surface: finding.attackSurface || ATTACK_SURFACE.INTERNAL_SERVICE,
       input_source_rank: finding.inputSourceRank || INPUT_RANK.UNKNOWN,
+      trust_level: finding.trustLevel || INPUT_TRUST_LEVEL.LOCAL_CONSTANT,
+      context_adjustment: finding.contextAdjustment || "",
       exploitability: finding.exploitability || "Unlikely",
       confidence_score: Number(finding.confidenceScore || 0),
       detection_confidence: Number(finding.detectionConfidence || 0),
@@ -2278,6 +2348,8 @@ function groupFindings(findings, options = {}) {
         attack_surface: finding.attackSurface || ATTACK_SURFACE.INTERNAL_SERVICE,
         attack_surfaces: [finding.attackSurface || ATTACK_SURFACE.INTERNAL_SERVICE],
         input_source_rank: finding.inputSourceRank || INPUT_RANK.UNKNOWN,
+        trust_level: finding.trustLevel || INPUT_TRUST_LEVEL.LOCAL_CONSTANT,
+        context_adjustment: finding.contextAdjustment || "",
         exploitability: finding.exploitability || "Unlikely",
         reasoning: finding.reasoning || "",
         why_this_matters: finding.whyThisMatters || "",
@@ -2298,6 +2370,7 @@ function groupFindings(findings, options = {}) {
         _overall_confidence_sum: Number(
           finding.overallConfidence || finding.confidenceScore || 0
         ),
+        _context_adjustments: finding.contextAdjustment ? [finding.contextAdjustment] : [],
       });
       continue;
     }
@@ -2313,6 +2386,7 @@ function groupFindings(findings, options = {}) {
       current.input_source_rank,
       finding.inputSourceRank
     );
+    current.trust_level = mergeTrustLevel(current.trust_level, finding.trustLevel);
     current.exploitability = mergeExploitability(
       current.exploitability,
       finding.exploitability
@@ -2346,6 +2420,13 @@ function groupFindings(findings, options = {}) {
     current._overall_confidence_sum += Number(
       finding.overallConfidence || finding.confidenceScore || 0
     );
+    if (finding.contextAdjustment) {
+      current._context_adjustments = [
+        ...(current._context_adjustments || []),
+        finding.contextAdjustment,
+      ];
+      current.context_adjustment = Array.from(new Set(current._context_adjustments)).join("; ");
+    }
     if (!current.reasoning && finding.reasoning) current.reasoning = finding.reasoning;
     if (!current.why_this_matters && finding.whyThisMatters) {
       current.why_this_matters = finding.whyThisMatters;
@@ -2383,10 +2464,14 @@ function groupFindings(findings, options = {}) {
         _flow_confidence_sum,
         _exploitability_confidence_sum,
         _overall_confidence_sum,
+        _context_adjustments,
         ...rest
       } = group;
       return {
         ...rest,
+        context_adjustment:
+          rest.context_adjustment ||
+          Array.from(new Set(_context_adjustments || [])).join("; "),
         confidence_score: confidenceScore,
         detection_confidence: detectionConfidence,
         flow_confidence: flowConfidence,
@@ -2674,12 +2759,244 @@ function buildInsights({
   return insights;
 }
 
+function getFindingSignalText(finding) {
+  return [
+    finding?.filePath,
+    finding?.evidence,
+    finding?.flowHint,
+    finding?.matchedExpression,
+    finding?.fullyQualifiedFunction,
+    finding?.reasoning,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function classifyTrustLevelForFinding(finding) {
+  const signalText = getFindingSignalText(finding);
+
+  if (
+    /\bprocess\.env\b|\bsystem\.getenv\b|\bos\.environ\b|\bdotenv\b/.test(signalText)
+  ) {
+    return INPUT_TRUST_LEVEL.ENVIRONMENT_VARIABLE;
+  }
+
+  if (
+    /\.env(\.|\/|$)|application\.properties|application\.ya?ml|config\.json|config\/|\/config\//.test(
+      signalText
+    )
+  ) {
+    return INPUT_TRUST_LEVEL.CONFIG_FILE;
+  }
+
+  if (
+    /\bfetch\s*\(|axios|resttemplate|httpclient|external_api|external service|third[- ]party|webhook/.test(
+      signalText
+    )
+  ) {
+    return INPUT_TRUST_LEVEL.EXTERNAL_SERVICE;
+  }
+
+  if (
+    /\b(req|request)\.(body|query|params|headers|cookies|args|form|json|data|get|post)\b|@requestparam|@pathvariable|@requestbody|\binput\s*\(/.test(
+      signalText
+    )
+  ) {
+    return INPUT_TRUST_LEVEL.USER_CONTROLLED;
+  }
+
+  if (
+    /static constant path|constant path|hardcoded|literal|__dirname|__filename|static join with constant filename/.test(
+      signalText
+    )
+  ) {
+    return INPUT_TRUST_LEVEL.LOCAL_CONSTANT;
+  }
+
+  const rank = String(finding?.inputSourceRank || "").toUpperCase();
+  if (rank === INPUT_RANK.CRITICAL) return INPUT_TRUST_LEVEL.USER_CONTROLLED;
+  if (rank === INPUT_RANK.MEDIUM) return INPUT_TRUST_LEVEL.EXTERNAL_SERVICE;
+  if (rank === INPUT_RANK.LOW) return INPUT_TRUST_LEVEL.CONFIG_FILE;
+  return INPUT_TRUST_LEVEL.LOCAL_CONSTANT;
+}
+
+function classifyReportingExecutionContext(finding) {
+  const current = String(finding?.executionContext || "").toUpperCase();
+  const path = getPathLower(finding?.filePath || "");
+
+  if (current === EXECUTION_CONTEXTS.WEB_SERVER && path.includes("/api/")) {
+    return REPORTING_EXECUTION_CONTEXTS.API_SERVER;
+  }
+  if (current === EXECUTION_CONTEXTS.CLI_TOOL) return REPORTING_EXECUTION_CONTEXTS.CLI_TOOL;
+  if (current === EXECUTION_CONTEXTS.CONFIG_FILE) return REPORTING_EXECUTION_CONTEXTS.CONFIG_FILE;
+  if (
+    current === EXECUTION_CONTEXTS.BUILD_SCRIPT ||
+    path.includes("/scripts/") ||
+    /\.(sh|bash|zsh|ps1|psm1|psd1)$/.test(path)
+  ) {
+    return REPORTING_EXECUTION_CONTEXTS.LOCAL_SCRIPT;
+  }
+  if (current === EXECUTION_CONTEXTS.WEB_SERVER) return REPORTING_EXECUTION_CONTEXTS.WEB_SERVER;
+  return current || REPORTING_EXECUTION_CONTEXTS.LOCAL_SCRIPT;
+}
+
+function isAnalyzerInfrastructurePath(filePath) {
+  const normalized = getPathLower(filePath || "");
+  return INFRASTRUCTURE_PATH_SEGMENTS.some((segment) => normalized.includes(segment));
+}
+
+function isFilesystemFinding(finding) {
+  const category = String(finding?.category || "").toLowerCase();
+  const ruleId = String(finding?.ruleId || "").toLowerCase();
+  const pattern = String(finding?.rootCausePattern || "").toLowerCase();
+  return (
+    ruleId === "path_traversal" ||
+    String(finding?.cwe || "").toUpperCase() === "CWE-22" ||
+    category.includes("path traversal") ||
+    pattern.includes("filesystem")
+  );
+}
+
+function applyPostProcessSeverityAdjustments({ finding, trustLevel, reportingContext, adjustments }) {
+  let severity = String(finding?.severity || "informational").toLowerCase();
+
+  if (
+    reportingContext === REPORTING_EXECUTION_CONTEXTS.CLI_TOOL ||
+    reportingContext === REPORTING_EXECUTION_CONTEXTS.LOCAL_SCRIPT
+  ) {
+    const downgraded = downgradeSeverityOneLevel(severity);
+    if (downgraded !== severity) {
+      severity = downgraded;
+      adjustments.push("Severity downgraded due to CLI execution context");
+    }
+  }
+
+  if (
+    trustLevel === INPUT_TRUST_LEVEL.ENVIRONMENT_VARIABLE &&
+    !DANGEROUS_SINK_RULE_IDS.has(String(finding?.ruleId || ""))
+  ) {
+    if (severityRank(severity) > severityRank("medium")) {
+      severity = "medium";
+      adjustments.push("Severity capped at Medium for environment-variable source");
+    }
+  }
+
+  if (
+    trustLevel === INPUT_TRUST_LEVEL.CONFIG_FILE ||
+    (trustLevel === INPUT_TRUST_LEVEL.LOCAL_CONSTANT &&
+      String(finding?.ruleId || "") !== "hardcoded_secret")
+  ) {
+    if (severityRank(severity) > severityRank("low")) {
+      severity = "low";
+      adjustments.push("Severity capped due to low-trust config/local source");
+    }
+  }
+
+  return severity;
+}
+
+function refineFilesystemClassification({ finding, trustLevel, adjustments }) {
+  if (!isFilesystemFinding(finding)) return;
+
+  if (trustLevel === INPUT_TRUST_LEVEL.ENVIRONMENT_VARIABLE) {
+    finding.cwe = "CWE-73";
+    finding.category = "Filesystem Path From Environment Input";
+    finding.title = "Filesystem path operation influenced by environment source";
+    adjustments.push("CWE refined from path traversal to environment-controlled filesystem path");
+    if (severityRank(String(finding?.severity || "").toLowerCase()) > severityRank("medium")) {
+      finding.severity = "medium";
+      adjustments.push("Severity reduced: environment-based filesystem path is not direct remote input");
+    }
+    return;
+  }
+
+  if (trustLevel === INPUT_TRUST_LEVEL.LOCAL_CONSTANT) {
+    finding.forceSuppressed = true;
+    adjustments.push("Suppressed: filesystem operation uses constant path and is not exploitable");
+  }
+}
+
+function adjustPublicHttpExploitability(finding, adjustments) {
+  if (finding?.attackSurface !== ATTACK_SURFACE.PUBLIC_HTTP) return;
+  const currentExploitability = String(finding?.exploitability || "Possible");
+  if (currentExploitability === "Unlikely") {
+    finding.exploitability = "Possible";
+  } else if (currentExploitability === "Possible") {
+    finding.exploitability = "Likely";
+  }
+
+  const boostedExploitabilityConfidence = Math.min(
+    100,
+    Number(finding?.exploitabilityConfidence || 0) + 10
+  );
+  finding.exploitabilityConfidence = boostedExploitabilityConfidence;
+
+  const detectionConfidence = Math.max(0, Math.min(100, Number(finding?.detectionConfidence || 0)));
+  const flowConfidenceValue = Math.max(0, Math.min(100, Number(finding?.flowConfidenceValue || 0)));
+  const overallConfidence = computeOverallConfidence({
+    detectionConfidence,
+    flowConfidence: flowConfidenceValue,
+    exploitabilityConfidence: boostedExploitabilityConfidence,
+    flowConfidenceLabelValue: flowConfidenceLabel(flowConfidenceValue),
+    exploitability: finding.exploitability || "Possible",
+  });
+
+  finding.confidenceScore = overallConfidence;
+  finding.overallConfidence = overallConfidence;
+  finding.confidence = toConfidenceLabel(overallConfidence);
+  adjustments.push("Exploitability score increased due to PUBLIC_HTTP attack surface");
+}
+
+function postProcessFindings(findings) {
+  return (findings || []).map((finding) => {
+    const adjusted = { ...finding };
+    const adjustments = [];
+
+    const trustLevel = classifyTrustLevelForFinding(adjusted);
+    adjusted.trustLevel = trustLevel;
+    adjusted.inputSourceRank = mapTrustLevelToInputRank(trustLevel);
+
+    const reportingContext = classifyReportingExecutionContext(adjusted);
+    adjusted.executionContext = reportingContext;
+
+    adjusted.severity = applyPostProcessSeverityAdjustments({
+      finding: adjusted,
+      trustLevel,
+      reportingContext,
+      adjustments,
+    });
+
+    refineFilesystemClassification({
+      finding: adjusted,
+      trustLevel,
+      adjustments,
+    });
+
+    if (isAnalyzerInfrastructurePath(adjusted.filePath)) {
+      adjusted.forceSuppressed = true;
+      adjustments.push("Suppressed: analyzer/test infrastructure path");
+    }
+
+    adjustPublicHttpExploitability(adjusted, adjustments);
+
+    adjusted.contextAdjustment = adjustments.join("; ");
+    if (adjusted.contextAdjustment) {
+      adjusted.reasoning = `${adjusted.reasoning || ""} ${adjusted.contextAdjustment}`.trim();
+    }
+
+    return adjusted;
+  });
+}
+
 function shouldSuppressFinding(finding) {
+  if (finding?.forceSuppressed) return true;
   const executionContext = finding.executionContext;
   const lowValueContext = [
     EXECUTION_CONTEXTS.CLI_TOOL,
     EXECUTION_CONTEXTS.BUILD_SCRIPT,
     EXECUTION_CONTEXTS.TEST_FILE,
+    REPORTING_EXECUTION_CONTEXTS.LOCAL_SCRIPT,
   ].includes(executionContext);
   const lowRank = finding.inputSourceRank === INPUT_RANK.LOW;
   const lowExploitability = finding.exploitability === "Unlikely";
@@ -3639,8 +3956,9 @@ export function analyzeDeveloperSecurity({
   }
 
   const dedupedRawFindings = dedupeFindingList(rawFindings);
+  const postProcessedFindings = postProcessFindings(dedupedRawFindings);
 
-  dedupedRawFindings.sort((a, b) => {
+  postProcessedFindings.sort((a, b) => {
     const severityDiff = severityRank(b.severity) - severityRank(a.severity);
     if (severityDiff !== 0) return severityDiff;
     if (a.filePath !== b.filePath) return a.filePath.localeCompare(b.filePath);
@@ -3648,7 +3966,7 @@ export function analyzeDeveloperSecurity({
   });
 
   const { active: activeFindings, suppressed: suppressedFindings } =
-    splitSuppressedFindings(dedupedRawFindings);
+    splitSuppressedFindings(postProcessedFindings);
   const groupedIssues = groupFindings(activeFindings, { suppressed: false });
   const suppressedGroupedIssues = groupFindings(suppressedFindings, { suppressed: true });
   const totalInstances = activeFindings.length;
@@ -3709,6 +4027,15 @@ export function analyzeDeveloperSecurity({
     ratingLabel: rating.label,
     risk_scope: "developer_code_only",
     analysis_mode: "hybrid_multilanguage_sast",
+    post_processing: {
+      stage: "post_process_findings",
+      trust_levels: INPUT_TRUST_LEVEL,
+      false_positive_filters: INFRASTRUCTURE_PATH_SEGMENTS,
+      notes: [
+        "Trust-level classification and context adjustments are applied after core detection.",
+        "Core taint-flow and pattern detection logic remains unchanged.",
+      ],
+    },
     developer_risk: {
       issues_found: totalInstances,
       security_score: securityScore,
