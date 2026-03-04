@@ -14,6 +14,11 @@ import {
   severityRank,
 } from "@/app/lib/security/rules";
 import { isLikelyThirdPartyCode } from "@/app/lib/security/thirdPartySignatures";
+import {
+  createLanguageRegistry,
+  getAnalyzerForFile,
+  getFuturePluginBlueprints,
+} from "@/app/lib/security/plugins/languageRegistry";
 
 const traverse = traverseModule.default || traverseModule;
 
@@ -2623,7 +2628,7 @@ function buildInsights({
       .sort((a, b) => a.localeCompare(b))
       .join(", ");
     insights.push(
-      `${unsupportedLanguageFiles} files were skipped because semantic parser adapters are currently active for JavaScript/TypeScript only. Detected unsupported languages: ${list}.`
+      `${unsupportedLanguageFiles} files were skipped because semantic adapters are currently active for JavaScript/TypeScript and Java only. Detected unsupported languages: ${list}.`
     );
   }
 
@@ -2674,10 +2679,21 @@ function splitSuppressedFindings(findings) {
   return { active, suppressed };
 }
 
-const LANGUAGE_ANALYZERS = {
-  javascript: analyzeJsTsFile,
-  typescript: analyzeJsTsFile,
+const javascriptAnalyzerPlugin = {
+  key: "javascript",
+  name: "JavaScript/TypeScript Analyzer",
+  parsingStrategy: "semantic_ast",
+  frameworkDetection: ["Express", "Fastify", "Koa", "Next.js"],
+  sources: ["req.query", "req.body", "req.params", "process.argv"],
+  sinks: Object.values(JS_TS_SINK_CATALOG)
+    .flat()
+    .map((sink) => sink.global || `${sink.module || sink.globalObject}.${(sink.members || [])[0] || ""}`)
+    .filter(Boolean),
+  analyze: analyzeJsTsFile,
 };
+
+const LANGUAGE_REGISTRY = createLanguageRegistry(javascriptAnalyzerPlugin);
+const FUTURE_LANGUAGE_PLUGIN_BLUEPRINTS = getFuturePluginBlueprints();
 
 export function analyzeDeveloperSecurity({
   sourceFiles,
@@ -2715,11 +2731,11 @@ export function analyzeDeveloperSecurity({
       continue;
     }
 
-    const language = normalizeLanguage(file.language);
-    const analyzer = LANGUAGE_ANALYZERS[language];
-    if (!analyzer || !SUPPORTED_SEMANTIC_LANGUAGES.has(language)) {
+    const normalizedLanguage = normalizeLanguage(file.language);
+    const { ext, analyzer } = getAnalyzerForFile(LANGUAGE_REGISTRY, file.path);
+    if (!analyzer) {
       safeSkipped.unsupported_language_semantic_parser += 1;
-      unsupportedLanguagesDetected.add(language || "unknown");
+      unsupportedLanguagesDetected.add(normalizedLanguage || ext || "unknown");
       continue;
     }
 
@@ -2727,8 +2743,9 @@ export function analyzeDeveloperSecurity({
     if (isAuthenticationRelatedFile(file.path, file.content)) {
       aggregateMetrics.authenticationRelatedFilesInspected += 1;
     }
-    supportedLanguageFiles.set(language, (supportedLanguageFiles.get(language) || 0) + 1);
-    const { findings, parseError, metrics } = analyzer(file);
+    const pluginKey = normalizedLanguage || analyzer.key || ext || "unknown";
+    supportedLanguageFiles.set(pluginKey, (supportedLanguageFiles.get(pluginKey) || 0) + 1);
+    const { findings, parseError, metrics } = analyzer.analyze(file);
     if (parseError) {
       safeSkipped.parser_error += 1;
       continue;
@@ -2807,7 +2824,7 @@ export function analyzeDeveloperSecurity({
     rating: rating.grade,
     ratingLabel: rating.label,
     risk_scope: "developer_code_only",
-    analysis_mode: "semantic_ast",
+    analysis_mode: "language_plugin_registry",
     developer_risk: {
       issues_found: totalInstances,
       security_score: securityScore,
@@ -2826,11 +2843,30 @@ export function analyzeDeveloperSecurity({
     exclusion_summary: safeSkipped,
     parser_support: {
       supported_semantic_languages: Array.from(SUPPORTED_SEMANTIC_LANGUAGES),
+      plugin_registry_extensions: Object.keys(LANGUAGE_REGISTRY).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+      active_plugins: Array.from(
+        new Map(
+          Object.values(LANGUAGE_REGISTRY).map((plugin) => [
+            plugin.key || plugin.name,
+            {
+              key: plugin.key,
+              name: plugin.name,
+              parsing_strategy: plugin.parsingStrategy,
+              framework_detection: plugin.frameworkDetection || [],
+              sources: plugin.sources || [],
+              sinks: plugin.sinks || [],
+            },
+          ])
+        ).values()
+      ),
       supported_analyzed_files: Object.fromEntries(supportedLanguageFiles.entries()),
       unsupported_languages_detected: Array.from(unsupportedLanguagesDetected).sort((a, b) =>
         a.localeCompare(b)
       ),
       available_sink_catalog_languages: Object.keys(NON_JS_SINK_CATALOG),
+      future_language_blueprints: FUTURE_LANGUAGE_PLUGIN_BLUEPRINTS,
     },
     totals: {
       findings: totalInstances,

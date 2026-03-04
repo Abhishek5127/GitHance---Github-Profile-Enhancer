@@ -27,6 +27,7 @@ export const EXCLUDED_DIRECTORIES = new Set([
   ".svelte-kit",
   ".idea",
   ".vscode",
+  ".mvn",
   ".gradle",
   ".mypy_cache",
   ".pytest_cache",

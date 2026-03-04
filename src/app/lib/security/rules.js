@@ -6,7 +6,11 @@ export const SEVERITY_WEIGHTS = {
   informational: 1,
 };
 
-export const SUPPORTED_SEMANTIC_LANGUAGES = new Set(["javascript", "typescript"]);
+export const SUPPORTED_SEMANTIC_LANGUAGES = new Set([
+  "javascript",
+  "typescript",
+  "java",
+]);
 
 export const VULNERABILITY_DEFINITIONS = {
   command_execution: {
@@ -135,6 +139,19 @@ export const VULNERABILITY_DEFINITIONS = {
       "Use cryptographic randomness APIs for secrets, tokens, and nonces.",
     rootCausePattern: "non-cryptographic-randomness-security-context",
   },
+  unsafe_deserialization: {
+    id: "unsafe_deserialization",
+    category: "Deserialization",
+    concept: "Unsafe deserialization",
+    cwe: "CWE-502",
+    title: "Untrusted deserialization sink invoked",
+    description:
+      "Deserialization APIs process potentially untrusted serialized objects.",
+    impact: "Remote code execution or application compromise via gadget chains.",
+    recommendation:
+      "Avoid native object deserialization for untrusted input and use safe formats.",
+    rootCausePattern: "unsafe-object-deserialization-sink",
+  },
 };
 
 export const JS_TS_SINK_CATALOG = {
@@ -223,7 +240,9 @@ export const NON_JS_SINK_CATALOG = {
 export function normalizeLanguage(language) {
   const normalized = String(language || "").trim().toLowerCase();
   if (normalized === "js") return "javascript";
+  if (normalized === "jsx") return "javascript";
   if (normalized === "ts") return "typescript";
+  if (normalized === "tsx") return "typescript";
   if (normalized === "c#") return "csharp";
   if (normalized === "c/c++") return "c++";
   return normalized;

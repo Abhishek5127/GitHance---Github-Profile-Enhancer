@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "readme:assets": "node scripts/generate-readme-assets.mjs"
+    "readme:assets": "node scripts/generate-readme-assets.mjs",
+    "test:security:js-regression": "node scripts/test-js-regression.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
