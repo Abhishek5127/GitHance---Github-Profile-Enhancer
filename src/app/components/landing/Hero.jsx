@@ -24,7 +24,7 @@ const modes = [
     copy: "Generate README structure based on your repo and fill the gaps with focused prompts.",
     detail: "Installation, usage, and structure done right.",
     blocklist: [
-      { label: "Build Readme", path: "/repo-builder" },
+      { label: "Build Readme", path: "profile-builder" },
       { label: "Repository Readme", path: "/repo-builder" },
       { label: "Analyze Repositories", path: "/analyze" },
     ],
@@ -55,7 +55,6 @@ const colorMap = {
 export default function Hero() {
   const [active, setActive] = useState(modes[0]);
   const router = useRouter();
-  const primaryBuilderPath = active.id === "readme" ? "/repo-builder" : "/profile-builder";
 
   return (
     <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-20 pt-16 text-white lg:grid-cols-[1.1fr_0.9fr]">
@@ -75,7 +74,7 @@ export default function Hero() {
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-4">
-          <button onClick={() => { router.push(primaryBuilderPath) }} className="rounded-full cursor-pointer bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]">
+          <button onClick={() => { router.push('/profile-builder') }} className="rounded-full cursor-pointer bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]">
             Start building
           </button>
           <button className="rounded-full border cursor-pointer border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
