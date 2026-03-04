@@ -33,6 +33,12 @@ const PYTHON_SINK_PATTERNS = [
   "hashlib.md5(",
   "hashlib.sha1(",
   "render_template_string(",
+  "zipfile.ZipFile.extractall(",
+  "zipfile.ZipFile.extract(",
+  "tarfile.extractall(",
+  "tarfile.extract(",
+  "app.run(debug=True)",
+  "format_string_%_operator",
 ];
 
 const PYTHON_ROUTE_PATTERN =
@@ -45,6 +51,7 @@ const ASSIGNMENT_PATTERN = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/;
 const SECRET_VAR_PATTERN = /(password|secret|api[_-]?key|token)/i;
 const SECRET_PLACEHOLDER_PATTERN = /^(changeme|example|sample|dummy|test|password|secret|token)$/i;
 const SECURITY_RANDOM_CONTEXT_PATTERN = /(token|otp|session|auth|nonce|identifier|id)/i;
+const FORMAT_STRING_SOURCE_PATTERN = /\brequest\.(args|form|json|data|GET|POST)\b/;
 
 const EXECUTION_CONTEXTS = {
   WEB_SERVER: "WEB_SERVER",
@@ -279,6 +286,163 @@ function resolveTemplateInjectionDefinition() {
   };
 }
 
+function resolveArchiveExtractionDefinition() {
+  return {
+    id: "archive_zip_slip",
+    category: "File Handling",
+    concept: "Archive extraction path traversal (Zip Slip)",
+    cwe: "CWE-22",
+    title: "Archive extraction without path validation",
+    description:
+      "Archive extraction API is used without validating extracted member paths.",
+    impact:
+      "Attackers can write files outside intended directories through crafted archive entries.",
+    recommendation:
+      "Validate archive entry paths (normalize/resolve and enforce base directory) before extraction.",
+    rootCausePattern: "archive-extract-without-path-validation",
+  };
+}
+
+function resolveFormatStringInjectionDefinition() {
+  return {
+    id: "format_string_injection",
+    category: "Injection",
+    concept: "Format string injection",
+    cwe: "CWE-134",
+    title: "User-controlled input used as format string",
+    description:
+      "User-controlled input is used as the left operand in Python % string formatting.",
+    impact:
+      "Can leak sensitive data or trigger unexpected formatting behavior and instability.",
+    recommendation:
+      "Do not use untrusted data as format templates; use constant format strings with safe interpolation.",
+    rootCausePattern: "python-percent-format-user-controlled-template",
+  };
+}
+
+function resolveFlaskDebugExposureDefinition() {
+  return {
+    id: "flask_debug_mode_exposure",
+    category: "Configuration",
+    concept: "Flask debug mode exposure",
+    cwe: "CWE-489",
+    title: "Flask debug mode enabled",
+    description:
+      "Debug mode is enabled in runtime configuration and may expose sensitive diagnostics.",
+    impact:
+      "Debug mode can expose internals and increase attack surface in production deployments.",
+    recommendation:
+      "Disable debug mode in non-development environments and enforce environment-based config guards.",
+    rootCausePattern: "flask-debug-true-runtime-configuration",
+  };
+}
+
+function inferArchiveHandles(lines) {
+  const zipHandles = new Set();
+  const tarHandles = new Set();
+
+  for (const rawLine of lines) {
+    const line = stripInlineComment(rawLine);
+    const zipWithMatch = line.match(
+      /^\s*with\s+(?:zipfile\.ZipFile|ZipFile)\s*\([^)]*\)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/
+    );
+    if (zipWithMatch?.[1]) zipHandles.add(zipWithMatch[1]);
+
+    const tarWithMatch = line.match(
+      /^\s*with\s+(?:tarfile\.(?:open|TarFile)|TarFile)\s*\([^)]*\)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/
+    );
+    if (tarWithMatch?.[1]) tarHandles.add(tarWithMatch[1]);
+
+    const zipAssignMatch = line.match(
+      /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:zipfile\.ZipFile|ZipFile)\s*\(/
+    );
+    if (zipAssignMatch?.[1]) zipHandles.add(zipAssignMatch[1]);
+
+    const tarAssignMatch = line.match(
+      /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:tarfile\.(?:open|TarFile)|TarFile)\s*\(/
+    );
+    if (tarAssignMatch?.[1]) tarHandles.add(tarAssignMatch[1]);
+  }
+
+  return { zipHandles, tarHandles };
+}
+
+function detectArchiveExtractionCall(line, archiveHandles) {
+  const source = stripInlineComment(line);
+
+  const directZip = source.match(
+    /\b(?:zipfile\.ZipFile|ZipFile)\s*\([^)]*\)\s*\.\s*(extractall|extract)\s*\(/
+  );
+  if (directZip?.[1]) {
+    return { archiveType: "zip", method: directZip[1] };
+  }
+
+  const directTar = source.match(
+    /\b(?:tarfile\.(?:open|TarFile)|TarFile)\s*\([^)]*\)\s*\.\s*(extractall|extract)\s*\(/
+  );
+  if (directTar?.[1]) {
+    return { archiveType: "tar", method: directTar[1] };
+  }
+
+  const handleCall = source.match(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*(extractall|extract)\s*\(/
+  );
+  if (handleCall?.[1] && handleCall?.[2]) {
+    const handle = handleCall[1];
+    if (archiveHandles.zipHandles.has(handle)) {
+      return { archiveType: "zip", method: handleCall[2] };
+    }
+    if (archiveHandles.tarHandles.has(handle)) {
+      return { archiveType: "tar", method: handleCall[2] };
+    }
+  }
+
+  const staticTar = source.match(/\btarfile\.(extractall|extract)\s*\(/);
+  if (staticTar?.[1]) {
+    return { archiveType: "tar", method: staticTar[1] };
+  }
+
+  return null;
+}
+
+function hasArchivePathValidationHint(lines, lineIndex) {
+  const from = Math.max(0, lineIndex - 5);
+  const to = Math.min(lines.length, lineIndex + 6);
+  const window = lines.slice(from, to).join("\n").toLowerCase();
+  return (
+    window.includes("normpath") ||
+    window.includes("realpath") ||
+    window.includes("abspath") ||
+    window.includes("commonpath") ||
+    window.includes(".resolve(") ||
+    window.includes("isabs(") ||
+    window.includes("safe_extract") ||
+    window.includes("getmembers(") ||
+    window.includes("member.name") ||
+    window.includes("tarinfo")
+  );
+}
+
+function extractPercentFormatExpression(line) {
+  const source = stripInlineComment(line);
+  const match = source.match(/(.+?)\s%(?![=])\s*(.+)/);
+  if (!match?.[1] || !match?.[2]) return null;
+  const left = String(match[1] || "").trim();
+  const right = String(match[2] || "").trim();
+  if (!left || !right) return null;
+  if (/^['"]/.test(left)) return null;
+  return { left, right };
+}
+
+function isFlaskDebugModePattern(line) {
+  const source = stripInlineComment(line);
+  return (
+    /\b[A-Za-z_][A-Za-z0-9_]*\.run\s*\([^)]*\bdebug\s*=\s*True\b/.test(source) ||
+    /\b[A-Za-z_][A-Za-z0-9_]*\.debug\s*=\s*True\b/.test(source) ||
+    /\b(?:FLASK_DEBUG|DEBUG)\s*=\s*True\b/.test(source)
+  );
+}
+
 function createPythonFinding({
   file,
   lines,
@@ -392,6 +556,10 @@ function analyzePythonFile(file) {
   const findings = [];
   const dedupe = new Set();
   const flowSignals = inferFlowSignals(lines);
+  const archiveHandles = inferArchiveHandles(lines);
+  const flaskContext =
+    /(^|\s)(from\s+flask\s+import|import\s+flask)\b/m.test(content) ||
+    /@app\./.test(content);
 
   const metrics = {
     httpRoutesAnalyzed: 0,
@@ -418,6 +586,130 @@ function analyzePythonFile(file) {
 
     if (lower.includes("request.") || lower.includes("input(")) {
       metrics.secretPatternsChecked += 1;
+    }
+
+    const archiveExtraction = detectArchiveExtractionCall(line, archiveHandles);
+    if (archiveExtraction) {
+      metrics.sinksReviewed += 1;
+      const hasValidation = hasArchivePathValidationHint(lines, index);
+      if (!hasValidation) {
+        const definition = resolveArchiveExtractionDefinition();
+        addFinding(
+          createPythonFinding({
+            file,
+            lines,
+            lineStart: lineNumber,
+            lineEnd: lineNumber,
+            definition,
+            severity: "high",
+            executionContext,
+            sourceToSinkDetected: false,
+            flowStatus: "none",
+            evidenceParts: [
+              `Matched call: ${line.trim()}`,
+              `Resolved API: ${archiveExtraction.archiveType}.${archiveExtraction.method}`,
+              "Path validation evidence: not found near archive extraction.",
+            ],
+            matchedExpression:
+              archiveExtraction.archiveType === "zip"
+                ? `zipfile.ZipFile.${archiveExtraction.method}`
+                : `tarfile.${archiveExtraction.method}`,
+            reasoning:
+              "Archive extraction is executed without visible entry-path normalization or base-directory enforcement.",
+            inputSourceRank: INPUT_RANK.UNKNOWN,
+            exploitability:
+              attackSurface === ATTACK_SURFACE.PUBLIC_HTTP
+                ? "Likely"
+                : "Possible",
+            flowConfidence: 22,
+            exploitabilityConfidence:
+              attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 78 : 62,
+            confidenceReason:
+              "Pattern-based Zip Slip detection: extraction sink found without nearby validation controls.",
+          })
+        );
+      }
+      return;
+    }
+
+    const percentFormat = extractPercentFormatExpression(line);
+    if (
+      percentFormat &&
+      FORMAT_STRING_SOURCE_PATTERN.test(percentFormat.left)
+    ) {
+      metrics.sinksReviewed += 1;
+      const definition = resolveFormatStringInjectionDefinition();
+      addFinding(
+        createPythonFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition,
+          severity: "medium",
+          executionContext,
+          sourceToSinkDetected: true,
+          flowStatus: "confirmed",
+          evidenceParts: [
+            `Matched expression: ${line.trim()}`,
+            `Format source: ${percentFormat.left}`,
+            "Sink: Python % string-format operator",
+          ],
+          matchedExpression: "python.percent_format_operator",
+          reasoning:
+            "User-controlled HTTP input is used directly as a format template in % formatting.",
+          inputSourceRank: INPUT_RANK.CRITICAL,
+          exploitability:
+            attackSurface === ATTACK_SURFACE.PUBLIC_HTTP
+              ? "Likely"
+              : "Possible",
+          flowConfidence: 70,
+          exploitabilityConfidence:
+            attackSurface === ATTACK_SURFACE.PUBLIC_HTTP ? 80 : 64,
+          confidenceReason:
+            "Pattern-based CWE-134 detection: request-derived format string used with % operator.",
+        })
+      );
+      return;
+    }
+
+    if (flaskContext && isFlaskDebugModePattern(line)) {
+      metrics.sinksReviewed += 1;
+      const definition = resolveFlaskDebugExposureDefinition();
+      const severity =
+        executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? "medium" : "low";
+      addFinding(
+        createPythonFinding({
+          file,
+          lines,
+          lineStart: lineNumber,
+          lineEnd: lineNumber,
+          definition,
+          severity,
+          executionContext,
+          sourceToSinkDetected: false,
+          flowStatus: "none",
+          evidenceParts: [
+            `Matched configuration: ${line.trim()}`,
+            "Resolved setting: Flask debug mode enabled",
+            "Security risk: debug stack traces and internals may be exposed.",
+          ],
+          matchedExpression: "flask.app.run(debug=True)",
+          reasoning:
+            "Flask debug mode appears enabled and can expose sensitive diagnostics in non-development environments.",
+          inputSourceRank: INPUT_RANK.UNKNOWN,
+          exploitability:
+            executionContext === EXECUTION_CONTEXTS.WEB_SERVER
+              ? "Possible"
+              : "Unlikely",
+          flowConfidence: 20,
+          exploitabilityConfidence:
+            executionContext === EXECUTION_CONTEXTS.WEB_SERVER ? 64 : 48,
+          confidenceReason:
+            "Pattern-based CWE-489 detection: explicit debug=True runtime configuration.",
+        })
+      );
+      return;
     }
 
     if (
