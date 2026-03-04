@@ -486,6 +486,688 @@ function buildLanguageActivity(repos = [], events = [], languages = []) {
   return monthKeys.map((monthKey) => monthlyMap.get(monthKey));
 }
 
+function average(values = []) {
+  const safeValues = (Array.isArray(values) ? values : []).filter((value) =>
+    Number.isFinite(Number(value))
+  );
+  if (!safeValues.length) return 0;
+  return safeValues.reduce((sum, value) => sum + Number(value), 0) / safeValues.length;
+}
+
+function activityLevelFromCommits(totalCommits = 0, activeDayRatio = 0) {
+  if (totalCommits >= 500 || activeDayRatio >= 0.6) return "high";
+  if (totalCommits >= 180 || activeDayRatio >= 0.35) return "moderate";
+  if (totalCommits >= 40 || activeDayRatio >= 0.12) return "low";
+  return "inactive";
+}
+
+function consistencyLabel(score = 0) {
+  const safeScore = Math.max(0, Math.floor(safeNumber(score, 0)));
+  if (safeScore >= 70) return "consistent";
+  if (safeScore >= 40) return "sporadic";
+  return "inactive";
+}
+
+function trendDirectionFromMonthlySeries(monthlyTrend = []) {
+  const series = Array.isArray(monthlyTrend) ? monthlyTrend : [];
+  if (series.length < 4) {
+    return {
+      direction: "stable",
+      deltaPercent: 0,
+    };
+  }
+
+  const splitIndex = Math.floor(series.length / 2);
+  const firstHalf = series.slice(0, splitIndex).map((entry) => safeNumber(entry?.value, 0));
+  const secondHalf = series.slice(splitIndex).map((entry) => safeNumber(entry?.value, 0));
+  const firstAvg = average(firstHalf);
+  const secondAvg = average(secondHalf);
+  const denominator = Math.max(1, firstAvg);
+  const deltaPercent = ((secondAvg - firstAvg) / denominator) * 100;
+
+  if (deltaPercent >= 10) {
+    return { direction: "upward", deltaPercent: Math.round(deltaPercent) };
+  }
+  if (deltaPercent <= -10) {
+    return { direction: "downward", deltaPercent: Math.round(deltaPercent) };
+  }
+  return { direction: "stable", deltaPercent: Math.round(deltaPercent) };
+}
+
+function scoreRepositoryHealth(repo = {}) {
+  const now = Date.now();
+  const pushedAt = toDate(repo?.pushed_at || repo?.updated_at || repo?.created_at);
+  const lastPushDays = pushedAt
+    ? Math.max(0, Math.floor((now - pushedAt.getTime()) / DAY_MS))
+    : 9999;
+  const openIssues = Math.max(0, Math.floor(safeNumber(repo?.open_issues_count, 0)));
+  const hasDescription = Boolean(String(repo?.description || "").trim());
+  const hasHomepage = Boolean(String(repo?.homepage || "").trim());
+  const hasWiki = Boolean(repo?.has_wiki);
+  const hasLicense = Boolean(repo?.license);
+  const stars = Math.max(0, Math.floor(safeNumber(repo?.stargazers_count, 0)));
+  const forks = Math.max(0, Math.floor(safeNumber(repo?.forks_count, 0)));
+
+  const freshnessScore =
+    lastPushDays <= 14
+      ? 35
+      : lastPushDays <= 45
+        ? 28
+        : lastPushDays <= 120
+          ? 20
+          : lastPushDays <= 240
+            ? 12
+            : 4;
+
+  const maintenanceScore =
+    lastPushDays <= 30
+      ? 20
+      : lastPushDays <= 90
+        ? 14
+        : lastPushDays <= 180
+          ? 9
+          : 3;
+
+  const issueScore =
+    openIssues === 0
+      ? 15
+      : openIssues <= 5
+        ? 12
+        : openIssues <= 15
+          ? 8
+          : openIssues <= 35
+            ? 4
+            : 1;
+
+  const documentationSignals = [hasDescription, hasHomepage, hasWiki, hasLicense].filter(
+    Boolean
+  ).length;
+  const documentationScore = Math.min(20, documentationSignals * 5);
+  const communityScore = Math.min(10, Math.round(Math.log1p(stars + forks) * 2.5));
+
+  let score = freshnessScore + maintenanceScore + issueScore + documentationScore + communityScore;
+  if (repo?.archived || repo?.disabled) {
+    score = Math.min(score, 25);
+  }
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const health =
+    score >= 80 ? "excellent" : score >= 65 ? "good" : score >= 45 ? "fair" : "at_risk";
+
+  return {
+    score,
+    health,
+    factors: {
+      lastPushDays,
+      openIssues,
+      documentationSignals,
+      hasLicense,
+      archived: Boolean(repo?.archived),
+      disabled: Boolean(repo?.disabled),
+    },
+  };
+}
+
+function buildRepositoryHealthInsights(repos = []) {
+  const scored = repos.map((repo) => {
+    const health = scoreRepositoryHealth(repo);
+    return {
+      name: String(repo?.name || ""),
+      fullName: String(repo?.full_name || ""),
+      private: Boolean(repo?.private),
+      url: String(repo?.html_url || ""),
+      stars: Math.max(0, Math.floor(safeNumber(repo?.stargazers_count, 0))),
+      forks: Math.max(0, Math.floor(safeNumber(repo?.forks_count, 0))),
+      openIssues: Math.max(0, Math.floor(safeNumber(repo?.open_issues_count, 0))),
+      updatedAt: String(repo?.updated_at || ""),
+      pushedAt: String(repo?.pushed_at || ""),
+      language: String(repo?.language || ""),
+      documentation: {
+        hasDescription: Boolean(String(repo?.description || "").trim()),
+        hasHomepage: Boolean(String(repo?.homepage || "").trim()),
+        hasWiki: Boolean(repo?.has_wiki),
+        hasLicense: Boolean(repo?.license),
+      },
+      maintenanceFrequency: health.factors.lastPushDays <= 30 ? "high" : health.factors.lastPushDays <= 120 ? "medium" : "low",
+      issueResolutionIndicator:
+        health.factors.openIssues === 0
+          ? "healthy"
+          : health.factors.openIssues <= 10
+            ? "manageable"
+            : health.factors.openIssues <= 30
+              ? "watch"
+              : "needs_attention",
+      healthScore: health.score,
+      healthStatus: health.health,
+    };
+  });
+
+  const averageHealth = Math.round(average(scored.map((entry) => entry.healthScore)));
+  const strongRepos = scored.filter((entry) => entry.healthScore >= 80).length;
+  const atRiskRepos = scored.filter((entry) => entry.healthScore < 45).length;
+
+  return {
+    summary: {
+      averageHealthScore: averageHealth,
+      strongRepositories: strongRepos,
+      atRiskRepositories: atRiskRepos,
+    },
+    repositories: scored.sort((a, b) => b.healthScore - a.healthScore),
+  };
+}
+
+function inferTechnologyProfile(topLanguages = []) {
+  const list = Array.isArray(topLanguages) ? topLanguages : [];
+  const top = list.slice(0, 6);
+  const langNames = new Set(top.map((entry) => String(entry?.name || "").toLowerCase()));
+
+  const frontendSignals = ["javascript", "typescript", "html", "css", "vue", "svelte"];
+  const backendSignals = ["python", "java", "go", "ruby", "php", "c#", "rust", "kotlin"];
+  const dataSignals = ["python", "r", "jupyter notebook", "scala", "sql"];
+  const systemsSignals = ["c", "c++", "rust", "go", "zig"];
+
+  const signalCount = (signals) =>
+    signals.reduce((count, signal) => (langNames.has(signal) ? count + 1 : count), 0);
+
+  const frontendCount = signalCount(frontendSignals);
+  const backendCount = signalCount(backendSignals);
+  const dataCount = signalCount(dataSignals);
+  const systemsCount = signalCount(systemsSignals);
+
+  let role = "full_stack_developer";
+  if (dataCount >= 2 && backendCount >= 1) {
+    role = "data_engineer";
+  } else if (systemsCount >= 2 && frontendCount === 0) {
+    role = "systems_developer";
+  } else if (frontendCount >= 2 && backendCount <= 1) {
+    role = "frontend_developer";
+  } else if (backendCount >= 2 && frontendCount <= 1) {
+    role = "backend_developer";
+  }
+
+  const confidence = Math.max(
+    35,
+    Math.min(
+      95,
+      Math.round(
+        45 +
+          frontendCount * 8 +
+          backendCount * 8 +
+          dataCount * 6 +
+          systemsCount * 6 +
+          Math.max(0, safeNumber(top[0]?.percent, 0) / 4)
+      )
+    )
+  );
+
+  const specialization = role
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+  return {
+    primaryLanguages: top.map((entry) => ({
+      language: entry.name,
+      percent: safeNumber(entry.percent, 0),
+      weight: safeNumber(entry.value, 0),
+    })),
+    specializationRole: role,
+    specializationLabel: specialization,
+    confidence,
+  };
+}
+
+function buildCodingPatternAnalysis({
+  productiveTime = {},
+  weeklyCommitActivity = [],
+  monthlyContributionTrends = [],
+  commitConsistencyScore = 0,
+}) {
+  const weekly = Array.isArray(weeklyCommitActivity) ? weeklyCommitActivity : [];
+  const topDays = [...weekly]
+    .sort((a, b) => safeNumber(b?.value, 0) - safeNumber(a?.value, 0))
+    .slice(0, 3)
+    .map((entry) => ({
+      day: String(entry?.label || ""),
+      commits: Math.max(0, Math.floor(safeNumber(entry?.value, 0))),
+    }));
+
+  const trend = trendDirectionFromMonthlySeries(monthlyContributionTrends);
+
+  return {
+    mostActiveHours: {
+      dominantBucket: String(productiveTime?.dominantBucket || "unknown").toLowerCase(),
+      peakHourUtc: Math.max(0, Math.floor(safeNumber(productiveTime?.peakHourUtc, 0))),
+    },
+    mostProductiveDays: topDays,
+    codingConsistency: {
+      score: Math.max(0, Math.floor(safeNumber(commitConsistencyScore, 0))),
+      label: consistencyLabel(commitConsistencyScore),
+    },
+    contributionTrends: trend,
+  };
+}
+
+function buildOpenSourceImpact({
+  totalStars = 0,
+  totalForks = 0,
+  collaborationMetrics = {},
+  externalContributionRepos = [],
+}) {
+  const pullRequests = Math.max(0, Math.floor(safeNumber(collaborationMetrics?.pullRequests, 0)));
+  const reviews = Math.max(0, Math.floor(safeNumber(collaborationMetrics?.reviews, 0)));
+  const externalRepoCount = Array.isArray(externalContributionRepos)
+    ? externalContributionRepos.length
+    : 0;
+
+  const starsScore = Math.min(35, Math.round(Math.log1p(Math.max(0, totalStars)) * 6));
+  const forksScore = Math.min(20, Math.round(Math.log1p(Math.max(0, totalForks)) * 6));
+  const prScore = Math.min(20, Math.round(Math.log1p(pullRequests) * 7));
+  const reviewScore = Math.min(10, Math.round(Math.log1p(reviews) * 5));
+  const externalScore = Math.min(15, externalRepoCount * 2);
+  const impactScore = Math.max(
+    0,
+    Math.min(100, starsScore + forksScore + prScore + reviewScore + externalScore)
+  );
+
+  const impactLevel =
+    impactScore >= 75
+      ? "high"
+      : impactScore >= 50
+        ? "moderate"
+        : impactScore >= 30
+          ? "growing"
+          : "limited";
+
+  return {
+    score: impactScore,
+    level: impactLevel,
+    metrics: {
+      stars: Math.max(0, Math.floor(safeNumber(totalStars, 0))),
+      forks: Math.max(0, Math.floor(safeNumber(totalForks, 0))),
+      pullRequests,
+      reviews,
+      externalRepositoryContributions: externalRepoCount,
+    },
+  };
+}
+
+function buildCollaborationBehavior({
+  collaborationMetrics = {},
+  externalContributionRepos = [],
+  monthsForWindow = MONTHS_FOR_ACTIVITY,
+}) {
+  const pullRequests = Math.max(0, Math.floor(safeNumber(collaborationMetrics?.pullRequests, 0)));
+  const issues = Math.max(0, Math.floor(safeNumber(collaborationMetrics?.issues, 0)));
+  const reviews = Math.max(0, Math.floor(safeNumber(collaborationMetrics?.reviews, 0)));
+  const total = pullRequests + issues + reviews;
+  const monthlyRate = Number((total / Math.max(1, monthsForWindow)).toFixed(1));
+  const externalRepos = Array.isArray(externalContributionRepos)
+    ? externalContributionRepos.length
+    : 0;
+
+  const level =
+    monthlyRate >= 8
+      ? "highly_collaborative"
+      : monthlyRate >= 3
+        ? "moderately_collaborative"
+        : monthlyRate > 0
+          ? "limited_collaboration"
+          : "solo_focused";
+
+  return {
+    level,
+    metrics: {
+      pullRequests,
+      issues,
+      reviews,
+      totalInteractions: total,
+      monthlyInteractionRate: monthlyRate,
+      externalRepositoriesCollaborated: externalRepos,
+    },
+  };
+}
+
+function buildSecurityAndQualityIndicators({
+  repos = [],
+  commitConsistencyScore = 0,
+  repositoryHealth = {},
+}) {
+  const now = Date.now();
+  const nonForkRepos = (Array.isArray(repos) ? repos : []).filter((repo) => !repo?.fork);
+  const inactiveRepos = nonForkRepos.filter((repo) => {
+    const updated = toDate(repo?.pushed_at || repo?.updated_at || repo?.created_at);
+    if (!updated) return true;
+    const ageDays = Math.floor((now - updated.getTime()) / DAY_MS);
+    return ageDays > 180;
+  });
+  const abandonedRepos = nonForkRepos.filter((repo) => {
+    const updated = toDate(repo?.pushed_at || repo?.updated_at || repo?.created_at);
+    if (!updated) return true;
+    const ageDays = Math.floor((now - updated.getTime()) / DAY_MS);
+    return ageDays > 365 && safeNumber(repo?.open_issues_count, 0) > 0;
+  });
+  const unlicensedRepos = nonForkRepos.filter((repo) => !repo?.license);
+  const highIssueRepos = nonForkRepos.filter(
+    (repo) => safeNumber(repo?.open_issues_count, 0) >= 20
+  );
+
+  const risks = [];
+  if (inactiveRepos.length) {
+    risks.push({
+      type: "inactive_repositories",
+      severity: inactiveRepos.length >= 5 ? "high" : "medium",
+      count: inactiveRepos.length,
+      note: "Several repositories have not been updated in over 180 days.",
+    });
+  }
+  if (abandonedRepos.length) {
+    risks.push({
+      type: "abandoned_projects",
+      severity: abandonedRepos.length >= 3 ? "high" : "medium",
+      count: abandonedRepos.length,
+      note: "Projects appear abandoned with stale activity and open issues.",
+    });
+  }
+  if (consistencyLabel(commitConsistencyScore) !== "consistent") {
+    risks.push({
+      type: "inconsistent_commits",
+      severity: commitConsistencyScore < 40 ? "high" : "medium",
+      count: 1,
+      note: "Commit pattern is inconsistent, reducing delivery predictability.",
+    });
+  }
+  if (highIssueRepos.length) {
+    risks.push({
+      type: "issue_backlog",
+      severity: "medium",
+      count: highIssueRepos.length,
+      note: "Some repositories show high open-issue backlog.",
+    });
+  }
+  if (unlicensedRepos.length) {
+    risks.push({
+      type: "missing_license",
+      severity: "low",
+      count: unlicensedRepos.length,
+      note: "Multiple repositories do not define an explicit license.",
+    });
+  }
+
+  return {
+    indicators: {
+      inactiveRepositories: inactiveRepos.length,
+      abandonedProjects: abandonedRepos.length,
+      highIssueBacklogRepositories: highIssueRepos.length,
+      unlicensedRepositories: unlicensedRepos.length,
+      commitConsistencyScore: Math.max(0, Math.floor(safeNumber(commitConsistencyScore, 0))),
+      outdatedDependencies: {
+        status: "unknown",
+        reason: "Dependency manifests were not scanned in this analytics pass.",
+      },
+      averageRepositoryHealthScore: Math.max(
+        0,
+        Math.floor(safeNumber(repositoryHealth?.summary?.averageHealthScore, 0))
+      ),
+    },
+    risks,
+  };
+}
+
+function buildImprovementSuggestions({
+  productivity = {},
+  repositoryHealth = {},
+  openSourceImpact = {},
+  collaborationBehavior = {},
+  securityQuality = {},
+}) {
+  const suggestions = [];
+  const consistency = String(productivity?.consistencyLabel || "");
+  const repoAvg = safeNumber(repositoryHealth?.summary?.averageHealthScore, 0);
+  const atRiskRepos = safeNumber(repositoryHealth?.summary?.atRiskRepositories, 0);
+  const impactScore = safeNumber(openSourceImpact?.score, 0);
+  const collaborationLevel = String(collaborationBehavior?.level || "");
+  const inactiveRepos = safeNumber(securityQuality?.indicators?.inactiveRepositories, 0);
+
+  if (consistency !== "consistent") {
+    suggestions.push({
+      priority: "high",
+      title: "Improve commit consistency",
+      action:
+        "Adopt smaller, daily commits and maintain a weekly delivery cadence to improve streak and predictability.",
+    });
+  }
+
+  if (repoAvg < 65 || atRiskRepos > 0) {
+    suggestions.push({
+      priority: "high",
+      title: "Raise repository health",
+      action:
+        "Prioritize repositories with low health scores: close stale issues, refresh README docs, and push maintenance updates.",
+    });
+  }
+
+  if (impactScore < 50) {
+    suggestions.push({
+      priority: "medium",
+      title: "Increase open source impact",
+      action:
+        "Contribute pull requests to external repositories and improve project discoverability with clearer docs and release notes.",
+    });
+  }
+
+  if (
+    collaborationLevel === "limited_collaboration" ||
+    collaborationLevel === "solo_focused"
+  ) {
+    suggestions.push({
+      priority: "medium",
+      title: "Collaborate more publicly",
+      action:
+        "Participate in issue discussions, code reviews, and PR feedback loops to increase collaboration visibility.",
+    });
+  }
+
+  if (inactiveRepos > 0) {
+    suggestions.push({
+      priority: "low",
+      title: "Archive or revive inactive projects",
+      action:
+        "Archive truly abandoned repositories and revive strategic ones with roadmap updates and dependency maintenance.",
+    });
+  }
+
+  if (!suggestions.length) {
+    suggestions.push({
+      priority: "low",
+      title: "Maintain momentum",
+      action:
+        "Keep current delivery cadence and periodically refresh documentation, issue triage, and roadmap visibility.",
+    });
+  }
+
+  return suggestions;
+}
+
+function computeDeveloperPerformanceScore({
+  activityLevel = "inactive",
+  commitConsistencyScore = 0,
+  collaborationBehavior = {},
+  repositoryHealth = {},
+  openSourceImpact = {},
+}) {
+  const activityScore =
+    activityLevel === "high" ? 90 : activityLevel === "moderate" ? 72 : activityLevel === "low" ? 48 : 20;
+  const consistency = Math.max(0, Math.min(100, Math.floor(safeNumber(commitConsistencyScore, 0))));
+  const collaborationRate = safeNumber(
+    collaborationBehavior?.metrics?.monthlyInteractionRate,
+    0
+  );
+  const collaborationScore = Math.max(15, Math.min(100, Math.round(collaborationRate * 10)));
+  const projectQualityScore = Math.max(
+    0,
+    Math.min(100, Math.floor(safeNumber(repositoryHealth?.summary?.averageHealthScore, 0)))
+  );
+  const impactScore = Math.max(
+    0,
+    Math.min(100, Math.floor(safeNumber(openSourceImpact?.score, 0)))
+  );
+
+  const composite = Math.round(
+    activityScore * 0.25 +
+      consistency * 0.25 +
+      collaborationScore * 0.2 +
+      projectQualityScore * 0.2 +
+      impactScore * 0.1
+  );
+
+  const band =
+    composite >= 80
+      ? "elite"
+      : composite >= 65
+        ? "strong"
+        : composite >= 50
+          ? "developing"
+          : "early_stage";
+
+  return {
+    score: composite,
+    band,
+    components: {
+      activity: activityScore,
+      consistency,
+      collaboration: collaborationScore,
+      projectQuality: projectQualityScore,
+      openSourceImpact: impactScore,
+    },
+  };
+}
+
+function buildDeveloperAnalysis({
+  username = "",
+  totalCommits = 0,
+  contributionDays = [],
+  streaks = {},
+  weeklyCommitActivity = [],
+  monthlyContributionTrends = [],
+  repositoryHealth = {},
+  languageDistribution = [],
+  productiveTime = {},
+  collaborationMetrics = {},
+  totalStars = 0,
+  totalForks = 0,
+  repos = [],
+  events = [],
+  commitConsistencyScore = 0,
+}) {
+  const activeDays = (Array.isArray(contributionDays) ? contributionDays : []).filter(
+    (entry) => safeNumber(entry?.count, 0) > 0
+  ).length;
+  const activeDayRatio =
+    activeDays / Math.max(1, Array.isArray(contributionDays) ? contributionDays.length : 1);
+  const avgCommitsPerWeek = Number((safeNumber(totalCommits, 0) / 52).toFixed(2));
+  const activityLevel = activityLevelFromCommits(totalCommits, activeDayRatio);
+  const productivityLabel = consistencyLabel(commitConsistencyScore);
+
+  const externalContributionRepos = [
+    ...new Set(
+      (Array.isArray(events) ? events : [])
+        .map((event) => String(event?.repo?.name || "").trim().toLowerCase())
+        .filter((repoName) => repoName && !repoName.startsWith(`${username}/`))
+    ),
+  ];
+
+  const codingPatterns = buildCodingPatternAnalysis({
+    productiveTime,
+    weeklyCommitActivity,
+    monthlyContributionTrends,
+    commitConsistencyScore,
+  });
+  const technologyProfile = inferTechnologyProfile(languageDistribution);
+  const openSourceImpact = buildOpenSourceImpact({
+    totalStars,
+    totalForks,
+    collaborationMetrics,
+    externalContributionRepos,
+  });
+  const collaborationBehavior = buildCollaborationBehavior({
+    collaborationMetrics,
+    externalContributionRepos,
+  });
+  const securityQuality = buildSecurityAndQualityIndicators({
+    repos,
+    commitConsistencyScore,
+    repositoryHealth,
+  });
+
+  const productivityMetrics = {
+    totalCommits: Math.max(0, Math.floor(safeNumber(totalCommits, 0))),
+    averageCommitsPerWeek: avgCommitsPerWeek,
+    activeDays,
+    activeDayRatio: Number(activeDayRatio.toFixed(3)),
+    contributionStreak: Math.max(0, Math.floor(safeNumber(streaks?.current, 0))),
+    longestStreak: Math.max(0, Math.floor(safeNumber(streaks?.longest, 0))),
+    consistencyScore: Math.max(0, Math.floor(safeNumber(commitConsistencyScore, 0))),
+    consistencyLabel: productivityLabel,
+  };
+
+  const developerScore = computeDeveloperPerformanceScore({
+    activityLevel,
+    commitConsistencyScore,
+    collaborationBehavior,
+    repositoryHealth,
+    openSourceImpact,
+  });
+
+  const summaryText =
+    activityLevel === "high"
+      ? "High activity developer with strong engagement and frequent contributions."
+      : activityLevel === "moderate"
+        ? "Moderately active developer with steady GitHub engagement."
+        : activityLevel === "low"
+          ? "Low activity developer with intermittent contribution patterns."
+          : "Currently inactive developer with limited recent GitHub activity.";
+
+  const suggestions = buildImprovementSuggestions({
+    productivity: productivityMetrics,
+    repositoryHealth,
+    openSourceImpact,
+    collaborationBehavior,
+    securityQuality,
+  });
+
+  return {
+    developerActivitySummary: {
+      activityLevel,
+      engagement: summaryText,
+      highlights: {
+        activeDays,
+        averageCommitsPerWeek: avgCommitsPerWeek,
+        collaborationInteractions: Math.max(
+          0,
+          Math.floor(safeNumber(collaborationBehavior?.metrics?.totalInteractions, 0))
+        ),
+      },
+    },
+    productivityMetrics,
+    repositoryHealthInsights: repositoryHealth,
+    codingPatternAnalysis: codingPatterns,
+    technologyProfile,
+    openSourceImpact: {
+      openSourceImpactScore: openSourceImpact.score,
+      impactLevel: openSourceImpact.level,
+      ...openSourceImpact.metrics,
+    },
+    collaborationBehavior,
+    securityAndCodeQualityIndicators: securityQuality,
+    improvementSuggestions: suggestions,
+    developerScore: {
+      developerPerformanceScore: developerScore.score,
+      performanceBand: developerScore.band,
+      componentScores: developerScore.components,
+    },
+  };
+}
+
 async function fetchGithubJson(url, token) {
   const response = await fetch(url, {
     headers: toHeaders(token),
@@ -707,6 +1389,28 @@ export async function POST(req) {
       collaborationMetrics.issues +
       collaborationMetrics.reviews;
 
+    const repositoryHealthInsights = buildRepositoryHealthInsights(nonForkRepos);
+    const developerAnalysis = buildDeveloperAnalysis({
+      username: requestedUsername,
+      totalCommits: Math.max(
+        0,
+        Math.floor(safeNumber(contributionsCollection?.totalCommitContributions, 0))
+      ),
+      contributionDays,
+      streaks,
+      weeklyCommitActivity,
+      monthlyContributionTrends,
+      repositoryHealth: repositoryHealthInsights,
+      languageDistribution,
+      productiveTime,
+      collaborationMetrics,
+      totalStars,
+      totalForks,
+      repos: nonForkRepos,
+      events,
+      commitConsistencyScore,
+    });
+
     return NextResponse.json(
       {
         ok: true,
@@ -756,6 +1460,19 @@ export async function POST(req) {
           productiveTime,
           repositoryCreationTrends,
           collaborationMetrics,
+        },
+        structuredAnalysis: {
+          developer_activity_summary: developerAnalysis.developerActivitySummary,
+          productivity_metrics: developerAnalysis.productivityMetrics,
+          repository_health_insights: developerAnalysis.repositoryHealthInsights,
+          coding_pattern_analysis: developerAnalysis.codingPatternAnalysis,
+          technology_profile: developerAnalysis.technologyProfile,
+          open_source_impact: developerAnalysis.openSourceImpact,
+          collaboration_behavior: developerAnalysis.collaborationBehavior,
+          security_code_quality_indicators:
+            developerAnalysis.securityAndCodeQualityIndicators,
+          improvement_suggestions: developerAnalysis.improvementSuggestions,
+          developer_score: developerAnalysis.developerScore,
         },
         contributionHeatmap: {
           days: contributionDays,
