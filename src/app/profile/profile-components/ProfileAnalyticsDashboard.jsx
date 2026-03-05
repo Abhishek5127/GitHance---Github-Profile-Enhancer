@@ -17,6 +17,8 @@ const SEVERITY_TONES = {
   high: "border-red-400/40 bg-red-500/10 text-red-200",
   medium: "border-amber-400/40 bg-amber-500/10 text-amber-200",
   low: "border-cyan-300/40 bg-cyan-400/10 text-cyan-200",
+  minimal: "border-emerald-400/40 bg-emerald-500/10 text-emerald-200",
+  unknown: "border-zinc-400/40 bg-zinc-500/10 text-zinc-200",
 };
 
 const LEVEL_TONES = {
@@ -77,6 +79,16 @@ function ageLabel(days) {
   if (!years) return `${months}m`;
   if (!months) return `${years}y`;
   return `${years}y ${months}m`;
+}
+
+function daysSince(value) {
+  const parsed = new Date(value || "");
+  if (Number.isNaN(parsed.getTime())) return null;
+  return Math.max(0, Math.floor((Date.now() - parsed.getTime()) / (24 * 60 * 60 * 1000)));
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function toIsoDay(value) {
@@ -488,6 +500,182 @@ export default function ProfileAnalyticsDashboard({ data }) {
       value: num(value, 0),
     })
   );
+
+  const dataWarnings = dashboard?.dataWarnings || {};
+  const securityIndicators = security?.indicators || {};
+  const repositoryHealthList = Array.isArray(repoHealth?.repositories) ? repoHealth.repositories : [];
+  const repositoriesAnalyzed = repositoryHealthList.length;
+  const repositoryDivisor = Math.max(1, repositoriesAnalyzed);
+  const inactiveRepositoryCount = num(securityIndicators?.inactiveRepositories, 0);
+  const abandonedProjectCount = num(securityIndicators?.abandonedProjects, 0);
+  const issueBacklogCount = num(securityIndicators?.highIssueBacklogRepositories, 0);
+  const unlicensedRepositoryCount = num(securityIndicators?.unlicensedRepositories, 0);
+  const commitConsistencyScore = clamp(
+    num(securityIndicators?.commitConsistencyScore, productivity?.consistencyScore),
+    0,
+    100
+  );
+  const averageRepositoryHealthScore = clamp(
+    num(securityIndicators?.averageRepositoryHealthScore, repoHealth?.summary?.averageHealthScore),
+    0,
+    100
+  );
+  const hasCommitSignal = num(productivity?.totalCommits, 0) > 0;
+
+  const qualityRiskScore = repositoriesAnalyzed
+    ? clamp(
+        Math.round(
+          (inactiveRepositoryCount / repositoryDivisor) * 34 +
+            (abandonedProjectCount / repositoryDivisor) * 28 +
+            (issueBacklogCount / repositoryDivisor) * 18 +
+            (unlicensedRepositoryCount / repositoryDivisor) * 10 +
+            Math.max(0, 65 - commitConsistencyScore) * 0.18 +
+            Math.max(0, 70 - averageRepositoryHealthScore) * 0.24
+        ),
+        0,
+        100
+      )
+    : null;
+  const qualityRiskLevel =
+    qualityRiskScore === null
+      ? "unknown"
+      : qualityRiskScore >= 70
+        ? "high"
+        : qualityRiskScore >= 45
+          ? "medium"
+          : qualityRiskScore >= 20
+            ? "low"
+            : "minimal";
+  const qualityRiskBarClass =
+    qualityRiskLevel === "high"
+      ? "from-red-500 to-rose-300"
+      : qualityRiskLevel === "medium"
+        ? "from-amber-500 to-yellow-300"
+        : qualityRiskLevel === "low"
+          ? "from-cyan-500 to-sky-300"
+          : qualityRiskLevel === "minimal"
+            ? "from-emerald-500 to-teal-300"
+            : "from-zinc-500 to-zinc-300";
+
+  const fallbackRisks = [];
+  if (!Array.isArray(security?.risks) || !security.risks.length) {
+    if (inactiveRepositoryCount > 0) {
+      fallbackRisks.push({
+        type: "inactive_repositories",
+        severity: inactiveRepositoryCount >= 5 ? "high" : "medium",
+        count: inactiveRepositoryCount,
+        note: "Some repositories have no recent pushes in over 180 days.",
+      });
+    }
+    if (abandonedProjectCount > 0) {
+      fallbackRisks.push({
+        type: "abandoned_projects",
+        severity: abandonedProjectCount >= 3 ? "high" : "medium",
+        count: abandonedProjectCount,
+        note: "Stale repositories still have unresolved open issues.",
+      });
+    }
+    if (issueBacklogCount > 0) {
+      fallbackRisks.push({
+        type: "issue_backlog",
+        severity: issueBacklogCount >= 3 ? "high" : "medium",
+        count: issueBacklogCount,
+        note: "A backlog threshold was crossed in active repositories.",
+      });
+    }
+    if (unlicensedRepositoryCount > 0) {
+      fallbackRisks.push({
+        type: "missing_license",
+        severity: "low",
+        count: unlicensedRepositoryCount,
+        note: "One or more repositories are missing explicit licensing.",
+      });
+    }
+    if (hasCommitSignal && commitConsistencyScore < 55) {
+      fallbackRisks.push({
+        type: "inconsistent_commits",
+        severity: commitConsistencyScore < 40 ? "high" : "medium",
+        count: 1,
+        note: "Commit cadence is inconsistent, reducing delivery predictability.",
+      });
+    }
+  }
+
+  const qualityRisks = Array.isArray(security?.risks) && security.risks.length ? security.risks : fallbackRisks;
+  const qualityAttentionRepos = repositoryHealthList
+    .map((repo) => {
+      const staleDays = daysSince(repo?.pushedAt || repo?.updatedAt);
+      const openIssues = num(repo?.openIssues, 0);
+      const healthScore = num(repo?.healthScore, 0);
+      const reasons = [];
+      let weight = 0;
+
+      if (healthScore < 45) {
+        reasons.push(`health ${exact(healthScore)}/100`);
+        weight += 3;
+      }
+      if (staleDays !== null && staleDays > 180) {
+        reasons.push(`${exact(staleDays)}d since push`);
+        weight += staleDays > 365 ? 3 : 2;
+      }
+      if (openIssues >= 20) {
+        reasons.push(`${exact(openIssues)} open issues`);
+        weight += openIssues >= 40 ? 3 : 2;
+      }
+      if (!repo?.documentation?.hasLicense) {
+        reasons.push("missing license");
+        weight += 1;
+      }
+
+      return {
+        name: repo?.name || repo?.fullName || "Repository",
+        healthScore,
+        reasons,
+        weight,
+      };
+    })
+    .filter((entry) => entry.weight > 0 && entry.reasons.length)
+    .sort((a, b) => b.weight - a.weight || a.healthScore - b.healthScore)
+    .slice(0, 5);
+
+  const positiveQualitySignals = [
+    repositoriesAnalyzed > 0 && inactiveRepositoryCount === 0
+      ? "No inactive repositories older than 180 days were detected."
+      : "",
+    repositoriesAnalyzed > 0 && abandonedProjectCount === 0
+      ? "No abandoned repositories with unresolved issues were detected."
+      : "",
+    repositoriesAnalyzed > 0 && issueBacklogCount === 0
+      ? "Issue backlog stayed below the high-risk threshold."
+      : "",
+    repositoriesAnalyzed > 0 && unlicensedRepositoryCount === 0
+      ? "All analyzed repositories include an explicit license."
+      : "",
+    hasCommitSignal && commitConsistencyScore >= 70
+      ? `Commit consistency is stable at ${exact(commitConsistencyScore)}/100.`
+      : "",
+    repositoriesAnalyzed > 0 && averageRepositoryHealthScore >= 70
+      ? `Average repository health is strong at ${exact(averageRepositoryHealthScore)}/100.`
+      : "",
+  ]
+    .filter(Boolean)
+    .slice(0, 4);
+
+  const qualityCoverageNote = repositoriesAnalyzed
+    ? `Analyzed ${exact(repositoriesAnalyzed)} repositories for quality and maintenance signals.`
+    : dataWarnings?.repositoriesPartial
+      ? "Repository metadata could not be loaded completely, so these indicators are partial."
+      : "No owned repositories were found in this snapshot, so quality indicators are limited.";
+  const qualityRiskSummary =
+    qualityRiskLevel === "unknown"
+      ? "The dashboard cannot compute a confident risk profile yet."
+      : qualityRiskLevel === "high"
+        ? "Multiple signals indicate elevated quality and maintenance risk."
+        : qualityRiskLevel === "medium"
+          ? "Quality risk is moderate and should be watched closely."
+          : qualityRiskLevel === "low"
+            ? "A few manageable quality risks were detected."
+            : "Current security and quality indicators are healthy.";
 
   return (
     <div className="grid gap-6">
@@ -907,45 +1095,125 @@ export default function ProfileAnalyticsDashboard({ data }) {
         <SectionTitle
           eyebrow="8. Security & Code Quality Indicators"
           title="Potential risks and maintenance blind spots"
-          description="Flags inactive repositories, backlog pressure, abandoned work, and consistency risk."
+          description="Combines repository freshness, issue pressure, licensing hygiene, and consistency into a quality risk profile."
         />
-        <div className="mt-6 grid gap-4 xl:grid-cols-3">
-          <MetricTile
-            label="Inactive Repos"
-            value={exact(security?.indicators?.inactiveRepositories)}
-          />
-          <MetricTile
-            label="Abandoned Projects"
-            value={exact(security?.indicators?.abandonedProjects)}
-          />
-          <MetricTile
-            label="High Issue Backlog"
-            value={exact(security?.indicators?.highIssueBacklogRepositories)}
-          />
-        </div>
-        <div className="mt-4 grid gap-3">
-          {(Array.isArray(security?.risks) ? security.risks : []).length ? (
-            (Array.isArray(security?.risks) ? security.risks : []).map((risk, index) => (
-              <div
-                key={`risk-${index}`}
-                className="rounded-2xl border border-white/10 bg-[#0f1115] p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-white">{startCase(risk?.type)}</p>
-                  <Badge
-                    label={startCase(risk?.severity)}
-                    tone={toneFor(SEVERITY_TONES, risk?.severity)}
-                  />
-                </div>
-                <p className="mt-2 text-sm text-white/65">{risk?.note}</p>
-                <p className="mt-1 text-xs text-white/50">Affected count: {exact(risk?.count)}</p>
+        <div className="mt-6 grid gap-4 xl:grid-cols-[1.2fr,1fr]">
+          <div className={PANEL}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">Quality Risk Score</p>
+                <p className="mt-2 text-4xl font-semibold text-white">
+                  {qualityRiskScore === null ? "N/A" : exact(qualityRiskScore)}
+                </p>
+                <p className="mt-1 text-xs text-white/55">{qualityRiskSummary}</p>
               </div>
-            ))
-          ) : (
-            <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-              No major quality or security risks were detected from the current analytics snapshot.
+              <Badge
+                label={startCase(qualityRiskLevel)}
+                tone={toneFor(SEVERITY_TONES, qualityRiskLevel)}
+              />
             </div>
-          )}
+            <div className="mt-4 h-2 rounded-full bg-white/10">
+              <div
+                className={`h-2 rounded-full bg-gradient-to-r ${qualityRiskBarClass}`}
+                style={{
+                  width: `${Math.max(8, qualityRiskScore === null ? 8 : qualityRiskScore)}%`,
+                }}
+              />
+            </div>
+            <p className="mt-3 text-xs text-white/55">{qualityCoverageNote}</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MetricTile label="Inactive Repos" value={exact(inactiveRepositoryCount)} />
+            <MetricTile label="Abandoned Projects" value={exact(abandonedProjectCount)} />
+            <MetricTile label="High Issue Backlog" value={exact(issueBacklogCount)} />
+            <MetricTile label="Missing License" value={exact(unlicensedRepositoryCount)} />
+            <MetricTile label="Commit Consistency" value={`${exact(commitConsistencyScore)}/100`} />
+            <MetricTile
+              label="Avg Repo Health"
+              value={`${exact(averageRepositoryHealthScore)}/100`}
+            />
+          </div>
+        </div>
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className={PANEL}>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/70">
+              Risk Signals
+            </h3>
+            <div className="mt-4 grid gap-3">
+              {qualityRisks.length ? (
+                qualityRisks.map((risk, index) => (
+                  <div
+                    key={`risk-${index}`}
+                    className="rounded-2xl border border-white/10 bg-[#0b0d0f] p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-white">{startCase(risk?.type)}</p>
+                      <Badge
+                        label={startCase(risk?.severity || "low")}
+                        tone={toneFor(SEVERITY_TONES, risk?.severity)}
+                      />
+                    </div>
+                    <p className="mt-2 text-sm text-white/65">{risk?.note}</p>
+                    <p className="mt-1 text-xs text-white/50">
+                      Affected count: {exact(risk?.count || 0)}
+                    </p>
+                  </div>
+                ))
+              ) : repositoriesAnalyzed === 0 ? (
+                <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                  Not enough repository data was available to produce concrete risk signals.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+                  No major quality or security risks were detected in this analytics snapshot.
+                </div>
+              )}
+            </div>
+          </div>
+          <div className={PANEL}>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/70">
+              Repositories Needing Attention
+            </h3>
+            <div className="mt-4 grid gap-3">
+              {qualityAttentionRepos.length ? (
+                qualityAttentionRepos.map((repo, index) => (
+                  <div
+                    key={`quality-repo-${repo.name}-${index}`}
+                    className="rounded-2xl border border-white/10 bg-[#0b0d0f] p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold text-white">{repo.name}</p>
+                      <Badge
+                        label={`${exact(repo.healthScore)}/100`}
+                        tone={toneFor(
+                          LEVEL_TONES,
+                          repo.healthScore >= 80
+                            ? "high"
+                            : repo.healthScore >= 60
+                              ? "moderate"
+                              : "low"
+                        )}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-white/55">{repo.reasons.join(" - ")}</p>
+                  </div>
+                ))
+              ) : positiveQualitySignals.length ? (
+                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+                  <p className="font-semibold">Positive signals detected:</p>
+                  <ul className="mt-2 space-y-1 text-xs text-emerald-100">
+                    {positiveQualitySignals.map((signal, index) => (
+                      <li key={`quality-positive-${index}`}>- {signal}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-[#0b0d0f] p-4 text-sm text-white/60">
+                  Repository-specific quality flags are not available yet.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
       )}
