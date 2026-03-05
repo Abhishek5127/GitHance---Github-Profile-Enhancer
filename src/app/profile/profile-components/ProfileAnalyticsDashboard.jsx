@@ -398,6 +398,7 @@ export default function ProfileAnalyticsDashboard({ data }) {
   const techProfile = structured?.technology_profile || {};
   const impact = structured?.open_source_impact || {};
   const collaboration = structured?.collaboration_behavior || {};
+  const repositoryQualityAudit = structured?.repository_quality_audit || {};
   const suggestions = Array.isArray(structured?.improvement_suggestions)
     ? structured.improvement_suggestions
     : [];
@@ -484,30 +485,93 @@ export default function ProfileAnalyticsDashboard({ data }) {
     })
   );
   const repositoryHealthList = Array.isArray(repoHealth?.repositories) ? repoHealth.repositories : [];
+  const qualityAuditRepositories = Array.isArray(repositoryQualityAudit?.repositories)
+    ? repositoryQualityAudit.repositories
+    : [];
+  const qualityAuditCategories = Array.isArray(repositoryQualityAudit?.categoryScores)
+    ? repositoryQualityAudit.categoryScores
+    : [];
+  const qualityAuditDeductions = Array.isArray(repositoryQualityAudit?.deductionBreakdown)
+    ? repositoryQualityAudit.deductionBreakdown
+    : [];
+  const qualityAuditBasis = Array.isArray(repositoryQualityAudit?.scoringBasis)
+    ? repositoryQualityAudit.scoringBasis
+    : [];
+  const qualityAuditCoverage = repositoryQualityAudit?.scanCoverage || {};
+  const qualityAuditCategoryBars = qualityAuditCategories.map((entry) => ({
+    label: entry?.label || "Category",
+    value: num(entry?.percent, 0),
+    hint: `${num(entry?.score, 0).toFixed(1)}/${num(entry?.maxScore, 0).toFixed(1)} weighted points`,
+  }));
+  const qualityAuditScore = num(repositoryQualityAudit?.profileScore, 0);
+  const qualityAuditGrade = String(repositoryQualityAudit?.profileGrade || "N/A");
+  const qualityAuditAnalyzedRepos = Math.max(0, Math.floor(num(qualityAuditCoverage?.repositoriesAnalyzed, 0)));
+  const qualityAuditRequestedRepos = Math.max(0, Math.floor(num(qualityAuditCoverage?.repositoriesRequested, 0)));
   const securityAnalysisRepositories = (
-    repositoryHealthList.length
-      ? repositoryHealthList.slice(0, 12).map((repo) => ({
+    qualityAuditRepositories.length
+      ? qualityAuditRepositories.slice(0, 12).map((repo) => ({
           name: repo?.name || "",
           fullName: repo?.fullName || repo?.name || "",
           visibility: repo?.private ? "Private" : "Public",
+          score: repo?.score,
+          grade: repo?.grade || "N/A",
+          status: repo?.status || "complete",
+          healthScore: 0,
+          openIssues: num(repo?.openIssues, 0),
+          maintenanceFrequency: repo?.status === "failed" ? "Unavailable" : "Assessed",
+          pushedAt: repo?.pushedAt || repo?.updatedAt || "",
+          missingComponents: Array.isArray(repo?.missingComponents) ? repo.missingComponents : [],
+          configSignals: Array.isArray(repo?.detected?.configSignals) ? repo.detected.configSignals : [],
+          dependencyManifests: Array.isArray(repo?.detected?.dependencyManifests)
+            ? repo.detected.dependencyManifests
+            : [],
+          testingFrameworks: Array.isArray(repo?.detected?.testingFrameworks)
+            ? repo.detected.testingFrameworks
+            : [],
+          ciPipelines: Array.isArray(repo?.detected?.ciPipelines) ? repo.detected.ciPipelines : [],
+          scanError: repo?.error || "",
+        }))
+      : repositoryHealthList.length
+        ? repositoryHealthList.slice(0, 12).map((repo) => ({
+          name: repo?.name || "",
+          fullName: repo?.fullName || repo?.name || "",
+          visibility: repo?.private ? "Private" : "Public",
+          score: null,
+          grade: "N/A",
+          status: "fallback",
           healthScore: num(repo?.healthScore, 0),
           openIssues: num(repo?.openIssues, 0),
           maintenanceFrequency: startCase(repo?.maintenanceFrequency || "unknown"),
           pushedAt: repo?.pushedAt || repo?.updatedAt || "",
+          missingComponents: [],
+          configSignals: [],
+          dependencyManifests: [],
+          testingFrameworks: [],
+          ciPipelines: [],
+          scanError: "",
         }))
-      : repoActivity.slice(0, 12).map((repo) => {
-          const fallbackFullName = String(repo?.fullName || repo?.name || "").trim();
-          const fallbackName = String(repo?.name || fallbackFullName.split("/").pop() || "").trim();
-          return {
-            name: fallbackName,
-            fullName: fallbackFullName || fallbackName,
-            visibility: "Unknown",
-            healthScore: 0,
-            openIssues: 0,
-            maintenanceFrequency: "Unknown",
-            pushedAt: "",
-          };
-        })
+        : repoActivity.slice(0, 12).map((repo) => {
+            const fallbackFullName = String(repo?.fullName || repo?.name || "").trim();
+            const fallbackName = String(repo?.name || fallbackFullName.split("/").pop() || "").trim();
+            return {
+              name: fallbackName,
+              fullName: fallbackFullName || fallbackName,
+              visibility: "Unknown",
+              score: null,
+              grade: "N/A",
+              status: "fallback",
+              healthScore: 0,
+              openIssues: 0,
+              maintenanceFrequency: "Unknown",
+              pushedAt: "",
+              missingComponents: [],
+              configSignals: [],
+              dependencyManifests: [],
+              testingFrameworks: [],
+              ciPipelines: [],
+              scanError: "",
+            };
+          })
   ).filter((repo) => repo.name);
 
   return (
@@ -927,11 +991,98 @@ export default function ProfileAnalyticsDashboard({ data }) {
       <div className={CARD}>
         <SectionTitle
           eyebrow="8. Security Analysis"
-          title="Select a repository for deep security scanning"
-          description="Choose any repository below to open the dedicated security analysis page."
+          title="Profile quality score and repository security entry points"
+          description="Score is based on documentation, configuration, structure, dependencies, testing, CI/CD, and community support. Click a repository to run deep security analysis."
         />
+        <div className="mt-6 grid gap-4 xl:grid-cols-[0.9fr,1.1fr]">
+          <div className={PANEL}>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">Profile Quality Score</p>
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <p className="text-4xl font-semibold text-white">{exact(qualityAuditScore)}</p>
+              <Badge
+                label={qualityAuditGrade}
+                tone="border-cyan-300/40 bg-cyan-500/10 text-cyan-200"
+              />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <MetricTile label="Repos Scanned" value={exact(qualityAuditAnalyzedRepos)} />
+              <MetricTile label="Repos Considered" value={exact(qualityAuditRequestedRepos)} />
+            </div>
+            <p className="mt-3 text-xs text-white/55">
+              Overall score deductions are based on missing documentation, weak structure signals,
+              missing config/dependency metadata, limited tests, CI gaps, and community support gaps.
+            </p>
+          </div>
+          <BarChart
+            title="Quality Category Scores"
+            items={qualityAuditCategoryBars}
+            valueFormatter={(value) => `${num(value, 0).toFixed(0)}%`}
+            colorClass="from-cyan-400 to-emerald-400"
+          />
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className={PANEL}>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/70">
+              Scoring Basis
+            </h3>
+            <div className="mt-3 grid gap-2">
+              {qualityAuditBasis.length ? (
+                qualityAuditBasis.map((basis) => (
+                  <div
+                    key={`basis-${basis?.key}`}
+                    className="rounded-xl border border-white/10 bg-[#0b0d0f] p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-white/75">
+                        {basis?.label || "Category"}
+                      </p>
+                      <span className="text-[11px] text-white/45">
+                        Weight {exact(basis?.weight)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-white/55">
+                      {(Array.isArray(basis?.checks) ? basis.checks : []).join(" - ")}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-[#0b0d0f] p-3 text-xs text-white/55">
+                  Scoring basis unavailable for this snapshot.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className={PANEL}>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/70">
+              Top Deduction Reasons
+            </h3>
+            <div className="mt-3 grid gap-2">
+              {qualityAuditDeductions.length ? (
+                qualityAuditDeductions.map((item) => (
+                  <div
+                    key={`deduction-${item?.key}`}
+                    className="rounded-xl border border-white/10 bg-[#0b0d0f] p-3"
+                  >
+                    <p className="text-sm font-semibold text-white">{item?.label || "Deduction"}</p>
+                    <p className="mt-1 text-xs text-white/55">
+                      Points deducted: {num(item?.pointsDeducted, 0).toFixed(2)} - Repositories affected:{" "}
+                      {exact(item?.repositoriesAffected)}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+                  No deduction reasons found in this scan window.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {securityAnalysisRepositories.length ? (
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {securityAnalysisRepositories.map((repo) => (
               <button
                 key={`security-analysis-${repo.fullName}`}
@@ -941,32 +1092,64 @@ export default function ProfileAnalyticsDashboard({ data }) {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="truncate text-sm font-semibold text-white">{repo.name}</p>
-                  <Badge
-                    label={repo.visibility}
-                    tone={
-                      repo.visibility === "Private"
-                        ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
-                        : repo.visibility === "Public"
-                          ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
-                          : "border-white/20 bg-white/5 text-white/70"
-                    }
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      label={repo.visibility}
+                      tone={
+                        repo.visibility === "Private"
+                          ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
+                          : repo.visibility === "Public"
+                            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                            : "border-white/20 bg-white/5 text-white/70"
+                      }
+                    />
+                    {repo.score !== null ? (
+                      <Badge
+                        label={`${exact(repo.score)} (${repo.grade})`}
+                        tone="border-cyan-300/40 bg-cyan-500/10 text-cyan-200"
+                      />
+                    ) : null}
+                  </div>
                 </div>
+
                 <p className="mt-2 text-xs text-white/60">{repo.fullName}</p>
-                <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-white/65">
-                  <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
-                    Health {exact(repo.healthScore)}/100
-                  </span>
-                  <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
-                    Issues {exact(repo.openIssues)}
-                  </span>
-                </div>
-                <p className="mt-3 text-xs text-white/55">
-                  Maintenance: {repo.maintenanceFrequency}
-                </p>
-                <p className="mt-1 text-xs text-white/45">
+                {repo.scanError ? (
+                  <p className="mt-3 text-xs text-amber-300">{repo.scanError}</p>
+                ) : (
+                  <>
+                    <div className="mt-3 grid gap-1 text-xs text-white/55">
+                      <p>
+                        Config:{" "}
+                        {repo.configSignals.length ? repo.configSignals.join(", ") : "No major config signal"}
+                      </p>
+                      <p>
+                        Dependency:{" "}
+                        {repo.dependencyManifests.length
+                          ? repo.dependencyManifests.join(", ")
+                          : "No supported manifest"}
+                      </p>
+                      <p>
+                        Testing:{" "}
+                        {repo.testingFrameworks.length
+                          ? repo.testingFrameworks.join(", ")
+                          : "No framework detected"}
+                      </p>
+                      <p>
+                        CI/CD: {repo.ciPipelines.length ? repo.ciPipelines.join(", ") : "No pipeline detected"}
+                      </p>
+                    </div>
+                    <p className="mt-3 text-xs text-white/55">
+                      Missing essentials:{" "}
+                      {repo.missingComponents.length
+                        ? repo.missingComponents.slice(0, 3).join(", ")
+                        : "None from scored checklist"}
+                    </p>
+                  </>
+                )}
+                <p className="mt-3 text-xs text-white/45">
                   Updated:{" "}
-                  {repo.pushedAt ? new Date(repo.pushedAt).toLocaleDateString("en-US") : "Unknown"}
+                  {repo.pushedAt ? new Date(repo.pushedAt).toLocaleDateString("en-US") : "Unknown"} - Open issues:{" "}
+                  {exact(repo.openIssues)}
                 </p>
                 <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
                   Open Security Analysis

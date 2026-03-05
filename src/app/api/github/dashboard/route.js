@@ -11,6 +11,148 @@ const REPOS_PER_PAGE = 100;
 const EVENTS_PER_PAGE = 100;
 const MONTHS_FOR_ACTIVITY = 12;
 const MONTHS_FOR_LANGUAGE_ACTIVITY = 6;
+const REPO_QUALITY_SCAN_LIMIT = 8;
+const REPO_QUALITY_SCAN_CONCURRENCY = 3;
+const REPO_QUALITY_MAX_TREE_ITEMS = 15000;
+
+const REPO_QUALITY_CATEGORY_WEIGHTS = {
+  coreDocumentation: 24,
+  repositoryConfiguration: 14,
+  projectStructure: 16,
+  dependencyManagement: 12,
+  testing: 14,
+  ciCd: 12,
+  communitySupport: 8,
+};
+
+const REPO_QUALITY_SCORING_BASIS = [
+  {
+    key: "coreDocumentation",
+    label: "Core Documentation",
+    weight: REPO_QUALITY_CATEGORY_WEIGHTS.coreDocumentation,
+    checks: [
+      "README.md",
+      "LICENSE",
+      "CHANGELOG.md",
+      "CONTRIBUTING.md",
+      "CODE_OF_CONDUCT.md",
+      "SECURITY.md",
+    ],
+  },
+  {
+    key: "repositoryConfiguration",
+    label: "Repository Configuration",
+    weight: REPO_QUALITY_CATEGORY_WEIGHTS.repositoryConfiguration,
+    checks: [".gitignore", ".env.example", "lint/format/docker configuration"],
+  },
+  {
+    key: "projectStructure",
+    label: "Project Structure",
+    weight: REPO_QUALITY_CATEGORY_WEIGHTS.projectStructure,
+    checks: [
+      "src/ or app/ directory",
+      "docs/ directory",
+      "assets/images/static folder",
+      "clear modular folder structure",
+    ],
+  },
+  {
+    key: "dependencyManagement",
+    label: "Dependency Management",
+    weight: REPO_QUALITY_CATEGORY_WEIGHTS.dependencyManagement,
+    checks: [
+      "supported dependency manifest",
+      "lockfile or dependency resolution file",
+    ],
+  },
+  {
+    key: "testing",
+    label: "Testing",
+    weight: REPO_QUALITY_CATEGORY_WEIGHTS.testing,
+    checks: ["tests/ directory", "testing framework detection"],
+  },
+  {
+    key: "ciCd",
+    label: "CI/CD",
+    weight: REPO_QUALITY_CATEGORY_WEIGHTS.ciCd,
+    checks: [
+      ".github/workflows",
+      "CI pipeline file detection",
+      "automated testing in CI",
+    ],
+  },
+  {
+    key: "communitySupport",
+    label: "Community Support",
+    weight: REPO_QUALITY_CATEGORY_WEIGHTS.communitySupport,
+    checks: ["issue templates", "pull request template", "GitHub discussions"],
+  },
+];
+
+const README_FILE_PATTERN = /(^|\/)readme(\.[^/]+)?$/i;
+const LICENSE_FILE_PATTERN = /(^|\/)licen[sc]e(\.[^/]+)?$/i;
+const CHANGELOG_FILE_PATTERN = /(^|\/)changelog(\.[^/]+)?$/i;
+const CONTRIBUTING_FILE_PATTERN = /(^|\/)contributing(\.[^/]+)?$/i;
+const CODE_OF_CONDUCT_FILE_PATTERN = /(^|\/)code[_-]of[_-]conduct(\.[^/]+)?$/i;
+const SECURITY_FILE_PATTERN = /(^|\/)security(\.[^/]+)?$/i;
+const TEST_DIRECTORY_PATTERN = /(^|\/)(__tests__|tests?|spec)(\/|$)/i;
+
+const CONFIG_FILE_PATTERNS = [
+  {
+    key: "eslint",
+    label: "ESLint",
+    pattern:
+      /(^|\/)(eslint\.config\.(js|mjs|cjs|ts)|\.eslintrc(\.(js|cjs|json|yaml|yml))?)$/i,
+  },
+  {
+    key: "prettier",
+    label: "Prettier",
+    pattern:
+      /(^|\/)(prettier\.config\.(js|mjs|cjs|ts)|\.prettierrc(\.(js|cjs|json|yaml|yml))?|\.prettierignore)$/i,
+  },
+  {
+    key: "docker",
+    label: "Docker",
+    pattern: /(^|\/)(dockerfile|docker-compose\.ya?ml|\.dockerignore)$/i,
+  },
+];
+
+const SUPPORTED_DEPENDENCY_MANIFESTS = [
+  { key: "package.json", label: "package.json", pattern: /(^|\/)package\.json$/i },
+  { key: "requirements.txt", label: "requirements.txt", pattern: /(^|\/)requirements(\-[^/]+)?\.txt$/i },
+  { key: "go.mod", label: "go.mod", pattern: /(^|\/)go\.mod$/i },
+  { key: "cargo.toml", label: "Cargo.toml", pattern: /(^|\/)cargo\.toml$/i },
+  { key: "pom.xml", label: "pom.xml", pattern: /(^|\/)pom\.xml$/i },
+  { key: "build.gradle", label: "build.gradle", pattern: /(^|\/)build\.gradle(\.kts)?$/i },
+];
+
+const DEPENDENCY_LOCKFILE_PATTERNS = [
+  /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb|npm-shrinkwrap\.json)$/i,
+  /(^|\/)(poetry\.lock|pipfile\.lock|go\.sum|cargo\.lock)$/i,
+  /(^|\/)(composer\.lock|gemfile\.lock|gradle\.lockfile)$/i,
+];
+
+const TESTING_FRAMEWORK_PATTERNS = [
+  { label: "Jest", pattern: /(^|\/)(jest\.config\.(js|cjs|mjs|ts)|\.jestrc(\.[^/]+)?)$/i },
+  { label: "Vitest", pattern: /(^|\/)vitest\.config\.(js|cjs|mjs|ts)$/i },
+  { label: "Pytest", pattern: /(^|\/)(pytest\.ini|conftest\.py|tox\.ini)$/i },
+  { label: "Playwright", pattern: /(^|\/)playwright\.config\.(js|cjs|mjs|ts)$/i },
+  { label: "Cypress", pattern: /(^|\/)(cypress\.config\.(js|cjs|mjs|ts)|cypress\/)/i },
+  { label: "Mocha", pattern: /(^|\/)(\.mocharc(\.[^/]+)?|mocha\.opts)$/i },
+  { label: "PHPUnit", pattern: /(^|\/)phpunit\.xml(\.dist)?$/i },
+  { label: "Go test", pattern: /_test\.go$/i },
+  { label: "Rust tests", pattern: /(^|\/)tests\/.*\.rs$/i },
+];
+
+const CI_PIPELINE_PATTERNS = [
+  { label: "GitHub Actions", pattern: /^\.github\/workflows\/.+\.ya?ml$/i },
+  { label: "Jenkins", pattern: /(^|\/)jenkinsfile$/i },
+  { label: "GitLab CI", pattern: /(^|\/)\.gitlab-ci\.yml$/i },
+  { label: "CircleCI", pattern: /(^|\/)\.circleci\/config\.yml$/i },
+  { label: "Azure Pipelines", pattern: /(^|\/)azure-pipelines\.ya?ml$/i },
+  { label: "Bitbucket Pipelines", pattern: /(^|\/)bitbucket-pipelines\.ya?ml$/i },
+  { label: "Travis CI", pattern: /(^|\/)\.travis\.yml$/i },
+];
 
 const LANGUAGE_COLORS = [
   "#60a5fa",
@@ -653,6 +795,708 @@ function buildRepositoryHealthInsights(repos = []) {
       atRiskRepositories: atRiskRepos,
     },
     repositories: scored.sort((a, b) => b.healthScore - a.healthScore),
+  };
+}
+
+function qualityGradeFromScore(score = 0) {
+  const safeScore = Math.max(0, Math.min(100, Math.round(safeNumber(score, 0))));
+  if (safeScore >= 92) return "A+";
+  if (safeScore >= 85) return "A";
+  if (safeScore >= 75) return "B";
+  if (safeScore >= 65) return "C";
+  if (safeScore >= 50) return "D";
+  return "F";
+}
+
+function normalizeRepoPath(pathValue) {
+  return String(pathValue || "").trim().toLowerCase();
+}
+
+function pathListIncludesPattern(paths = [], pattern) {
+  return (Array.isArray(paths) ? paths : []).some((pathValue) => pattern.test(pathValue));
+}
+
+function scoreQualityCategory({ key, label, weight, checks = [] }) {
+  const safeChecks = Array.isArray(checks) ? checks : [];
+  const divisor = Math.max(1, safeChecks.length);
+  const perCheckWeight = safeNumber(weight, 0) / divisor;
+
+  let score = 0;
+  const deductions = [];
+
+  const checkResults = safeChecks.map((check) => {
+    const value = clamp(safeNumber(check?.value, 0), 0, 1);
+    const checkScore = value * perCheckWeight;
+    score += checkScore;
+
+    if (value < 1) {
+      deductions.push({
+        key: String(check?.key || ""),
+        label: String(check?.deductionLabel || `Missing ${check?.label || "requirement"}`),
+        points: Number(((1 - value) * perCheckWeight).toFixed(2)),
+      });
+    }
+
+    return {
+      key: String(check?.key || ""),
+      label: String(check?.label || ""),
+      value: Number(value.toFixed(2)),
+      status: value >= 0.95 ? "present" : value >= 0.45 ? "partial" : "missing",
+      details: String(check?.details || ""),
+    };
+  });
+
+  const maxScore = safeNumber(weight, 0);
+  const finalScore = Number(score.toFixed(2));
+  const percent = maxScore > 0 ? Math.round((finalScore / maxScore) * 100) : 0;
+
+  return {
+    key,
+    label,
+    score: finalScore,
+    maxScore,
+    percent,
+    checks: checkResults,
+    deductions,
+  };
+}
+
+function analyzeRepositoryQualityFromTree({
+  repo = {},
+  tree = [],
+  treeTruncated = false,
+  treeItemCount = 0,
+}) {
+  const safeTree = Array.isArray(tree) ? tree : [];
+  const filePaths = [];
+  const directoryPaths = new Set();
+  const topLevelDirectories = new Set();
+
+  safeTree.forEach((node) => {
+    const pathValue = normalizeRepoPath(node?.path);
+    if (!pathValue) return;
+
+    const nodeType = String(node?.type || "");
+    const segments = pathValue.split("/").filter(Boolean);
+    if (!segments.length) return;
+    if (segments.length > 1) topLevelDirectories.add(segments[0]);
+
+    if (nodeType === "tree") {
+      directoryPaths.add(pathValue);
+      return;
+    }
+
+    if (nodeType !== "blob") return;
+    filePaths.push(pathValue);
+
+    for (let index = 1; index < segments.length; index += 1) {
+      directoryPaths.add(segments.slice(0, index).join("/"));
+    }
+  });
+
+  const topLevelFiles = new Set(filePaths.filter((pathValue) => !pathValue.includes("/")));
+  const hasReadme =
+    [...topLevelFiles].some((fileName) => README_FILE_PATTERN.test(fileName)) ||
+    pathListIncludesPattern(filePaths, README_FILE_PATTERN);
+  const hasLicense =
+    Boolean(repo?.license) ||
+    [...topLevelFiles].some((fileName) => LICENSE_FILE_PATTERN.test(fileName)) ||
+    pathListIncludesPattern(filePaths, LICENSE_FILE_PATTERN);
+  const hasChangelog = pathListIncludesPattern(filePaths, CHANGELOG_FILE_PATTERN);
+  const hasContributing = pathListIncludesPattern(filePaths, CONTRIBUTING_FILE_PATTERN);
+  const hasCodeOfConduct = pathListIncludesPattern(filePaths, CODE_OF_CONDUCT_FILE_PATTERN);
+  const hasSecurityDoc = pathListIncludesPattern(filePaths, SECURITY_FILE_PATTERN);
+
+  const hasGitignore = topLevelFiles.has(".gitignore") || pathListIncludesPattern(filePaths, /(^|\/)\.gitignore$/i);
+  const hasEnvExample = pathListIncludesPattern(filePaths, /(^|\/)\.env(\.[^/]+)?\.example$/i);
+
+  const configSignals = CONFIG_FILE_PATTERNS.map((config) => ({
+    key: config.key,
+    label: config.label,
+    detected: pathListIncludesPattern(filePaths, config.pattern),
+  }));
+  const detectedConfigSignals = configSignals.filter((entry) => entry.detected).map((entry) => entry.label);
+  const configSignalQuality =
+    detectedConfigSignals.length >= 2
+      ? 1
+      : detectedConfigSignals.length === 1
+        ? 0.65
+        : 0;
+
+  const hasSourceDirectory = directoryPaths.has("src") || directoryPaths.has("app");
+  const hasDocsDirectory = directoryPaths.has("docs");
+  const hasAssetsOrStaticDirectory = [
+    "assets",
+    "images",
+    "static",
+    "public/assets",
+    "public/images",
+    "public/static",
+  ].some(
+    (target) =>
+      directoryPaths.has(target) ||
+      [...directoryPaths].some((dirPath) => dirPath.startsWith(`${target}/`))
+  );
+
+  const structuralSignals = ["src", "app", "packages", "modules", "services", "components", "lib", "internal"];
+  const topStructureCount = [...topLevelDirectories].filter((dirPath) =>
+    structuralSignals.includes(dirPath)
+  ).length;
+  const srcChildren = new Set(
+    [...directoryPaths]
+      .filter((dirPath) => dirPath.startsWith("src/"))
+      .map((dirPath) => dirPath.split("/")[1])
+      .filter(Boolean)
+  ).size;
+  const appChildren = new Set(
+    [...directoryPaths]
+      .filter((dirPath) => dirPath.startsWith("app/"))
+      .map((dirPath) => dirPath.split("/")[1])
+      .filter(Boolean)
+  ).size;
+  const modularityQuality =
+    topStructureCount >= 2 || srcChildren >= 3 || appChildren >= 3
+      ? 1
+      : topStructureCount >= 1 && (srcChildren >= 2 || appChildren >= 2)
+        ? 0.75
+        : topStructureCount >= 1
+          ? 0.5
+          : 0;
+
+  const detectedDependencyManifests = SUPPORTED_DEPENDENCY_MANIFESTS.filter((manifest) =>
+    pathListIncludesPattern(filePaths, manifest.pattern)
+  ).map((manifest) => manifest.label);
+  const hasDependencyManifest = detectedDependencyManifests.length > 0;
+  const hasDependencyLockfile = DEPENDENCY_LOCKFILE_PATTERNS.some((pattern) =>
+    pathListIncludesPattern(filePaths, pattern)
+  );
+  const lockfileQuality = hasDependencyLockfile ? 1 : hasDependencyManifest ? 0.6 : 0;
+
+  const hasTestsDirectory =
+    [...directoryPaths].some((dirPath) => TEST_DIRECTORY_PATTERN.test(dirPath)) ||
+    filePaths.some((pathValue) => TEST_DIRECTORY_PATTERN.test(pathValue));
+  const detectedTestingFrameworks = TESTING_FRAMEWORK_PATTERNS.filter((framework) =>
+    pathListIncludesPattern(filePaths, framework.pattern)
+  ).map((framework) => framework.label);
+  const testingFrameworkQuality =
+    detectedTestingFrameworks.length >= 2
+      ? 1
+      : detectedTestingFrameworks.length === 1
+        ? 0.8
+        : 0;
+
+  const ciPipelineFiles = CI_PIPELINE_PATTERNS.filter((pipeline) =>
+    pathListIncludesPattern(filePaths, pipeline.pattern)
+  ).map((pipeline) => pipeline.label);
+  const hasGithubWorkflows =
+    directoryPaths.has(".github/workflows") ||
+    filePaths.some((pathValue) => pathValue.startsWith(".github/workflows/"));
+  const hasCiPipelineFiles = ciPipelineFiles.length > 0;
+  const workflowNames = filePaths
+    .filter((pathValue) => pathValue.startsWith(".github/workflows/"))
+    .map((pathValue) => pathValue.split("/").pop() || "");
+  const hasLikelyCiTestWorkflow = workflowNames.some((name) =>
+    /(test|ci|build|checks?|pipeline)/i.test(name)
+  );
+  const automatedTestingInCi =
+    hasCiPipelineFiles &&
+    (hasLikelyCiTestWorkflow || hasTestsDirectory || detectedTestingFrameworks.length > 0);
+  const automatedTestingCiQuality = automatedTestingInCi ? 1 : hasCiPipelineFiles ? 0.5 : 0;
+
+  const hasIssueTemplates =
+    filePaths.some((pathValue) => pathValue === ".github/issue_template.md") ||
+    filePaths.some((pathValue) => pathValue.startsWith(".github/issue_template/"));
+  const hasPullRequestTemplate =
+    filePaths.some(
+      (pathValue) =>
+        pathValue === ".github/pull_request_template.md" ||
+        pathValue === "pull_request_template.md" ||
+        pathValue.startsWith(".github/pull_request_template/")
+    );
+  const discussionsKnown = typeof repo?.has_discussions === "boolean";
+  const discussionsEnabled = Boolean(repo?.has_discussions);
+  const discussionsQuality = discussionsKnown ? (discussionsEnabled ? 1 : 0) : 0.5;
+
+  const categories = [
+    scoreQualityCategory({
+      key: "coreDocumentation",
+      label: "Core Documentation",
+      weight: REPO_QUALITY_CATEGORY_WEIGHTS.coreDocumentation,
+      checks: [
+        {
+          key: "readme",
+          label: "README.md",
+          value: hasReadme ? 1 : 0,
+          deductionLabel: "Missing README.md",
+        },
+        {
+          key: "license",
+          label: "LICENSE",
+          value: hasLicense ? 1 : 0,
+          deductionLabel: "Missing LICENSE",
+        },
+        {
+          key: "changelog",
+          label: "CHANGELOG.md",
+          value: hasChangelog ? 1 : 0,
+          deductionLabel: "Missing CHANGELOG.md",
+        },
+        {
+          key: "contributing",
+          label: "CONTRIBUTING.md",
+          value: hasContributing ? 1 : 0,
+          deductionLabel: "Missing CONTRIBUTING.md",
+        },
+        {
+          key: "code_of_conduct",
+          label: "CODE_OF_CONDUCT.md",
+          value: hasCodeOfConduct ? 1 : 0,
+          deductionLabel: "Missing CODE_OF_CONDUCT.md",
+        },
+        {
+          key: "security",
+          label: "SECURITY.md",
+          value: hasSecurityDoc ? 1 : 0,
+          deductionLabel: "Missing SECURITY.md",
+        },
+      ],
+    }),
+    scoreQualityCategory({
+      key: "repositoryConfiguration",
+      label: "Repository Configuration",
+      weight: REPO_QUALITY_CATEGORY_WEIGHTS.repositoryConfiguration,
+      checks: [
+        {
+          key: "gitignore",
+          label: ".gitignore",
+          value: hasGitignore ? 1 : 0,
+          deductionLabel: "Missing .gitignore",
+        },
+        {
+          key: "env_example",
+          label: ".env.example",
+          value: hasEnvExample ? 1 : 0,
+          deductionLabel: "Missing .env.example",
+        },
+        {
+          key: "config_files",
+          label: "Config files (eslint/prettier/docker)",
+          value: configSignalQuality,
+          deductionLabel: "Missing lint/format/docker configuration files",
+          details: detectedConfigSignals.length
+            ? `Detected: ${detectedConfigSignals.join(", ")}`
+            : "No lint/format/docker config files detected",
+        },
+      ],
+    }),
+    scoreQualityCategory({
+      key: "projectStructure",
+      label: "Project Structure",
+      weight: REPO_QUALITY_CATEGORY_WEIGHTS.projectStructure,
+      checks: [
+        {
+          key: "source_dir",
+          label: "src/ or app/ directory",
+          value: hasSourceDirectory ? 1 : 0,
+          deductionLabel: "Missing src/ or app/ directory",
+        },
+        {
+          key: "docs_dir",
+          label: "docs/ directory",
+          value: hasDocsDirectory ? 1 : 0,
+          deductionLabel: "Missing docs/ directory",
+        },
+        {
+          key: "assets_dir",
+          label: "assets/images/static folder",
+          value: hasAssetsOrStaticDirectory ? 1 : 0,
+          deductionLabel: "Missing assets/images/static folder",
+        },
+        {
+          key: "modular_structure",
+          label: "Clear modular structure",
+          value: modularityQuality,
+          deductionLabel: "Project structure appears weakly modular",
+        },
+      ],
+    }),
+    scoreQualityCategory({
+      key: "dependencyManagement",
+      label: "Dependency Management",
+      weight: REPO_QUALITY_CATEGORY_WEIGHTS.dependencyManagement,
+      checks: [
+        {
+          key: "dependency_manifest",
+          label: "Supported dependency manifest",
+          value: hasDependencyManifest ? 1 : 0,
+          deductionLabel: "No supported dependency manifest detected",
+          details: detectedDependencyManifests.length
+            ? `Detected: ${detectedDependencyManifests.join(", ")}`
+            : "",
+        },
+        {
+          key: "dependency_lockfile",
+          label: "Lockfile or dependency resolution file",
+          value: lockfileQuality,
+          deductionLabel: "Missing dependency lockfile/resolution file",
+        },
+      ],
+    }),
+    scoreQualityCategory({
+      key: "testing",
+      label: "Testing",
+      weight: REPO_QUALITY_CATEGORY_WEIGHTS.testing,
+      checks: [
+        {
+          key: "tests_directory",
+          label: "tests/ directory",
+          value: hasTestsDirectory ? 1 : 0,
+          deductionLabel: "Missing tests/ directory",
+        },
+        {
+          key: "testing_frameworks",
+          label: "Testing frameworks detected",
+          value: testingFrameworkQuality,
+          deductionLabel: "No testing framework detected",
+          details: detectedTestingFrameworks.length
+            ? `Detected: ${detectedTestingFrameworks.join(", ")}`
+            : "",
+        },
+      ],
+    }),
+    scoreQualityCategory({
+      key: "ciCd",
+      label: "CI/CD",
+      weight: REPO_QUALITY_CATEGORY_WEIGHTS.ciCd,
+      checks: [
+        {
+          key: "github_workflows",
+          label: ".github/workflows",
+          value: hasGithubWorkflows ? 1 : 0,
+          deductionLabel: "Missing .github/workflows",
+        },
+        {
+          key: "pipeline_files",
+          label: "CI pipeline files",
+          value: hasCiPipelineFiles ? 1 : 0,
+          deductionLabel: "No CI pipeline file detected",
+          details: ciPipelineFiles.length ? `Detected: ${ciPipelineFiles.join(", ")}` : "",
+        },
+        {
+          key: "automated_ci_tests",
+          label: "Automated testing configuration",
+          value: automatedTestingCiQuality,
+          deductionLabel: "CI appears to lack automated testing",
+        },
+      ],
+    }),
+    scoreQualityCategory({
+      key: "communitySupport",
+      label: "Community Support",
+      weight: REPO_QUALITY_CATEGORY_WEIGHTS.communitySupport,
+      checks: [
+        {
+          key: "issue_templates",
+          label: "Issue templates",
+          value: hasIssueTemplates ? 1 : 0,
+          deductionLabel: "Missing issue templates",
+        },
+        {
+          key: "pr_template",
+          label: "Pull request template",
+          value: hasPullRequestTemplate ? 1 : 0,
+          deductionLabel: "Missing pull request template",
+        },
+        {
+          key: "github_discussions",
+          label: "GitHub discussions enabled",
+          value: discussionsQuality,
+          deductionLabel: discussionsKnown
+            ? "GitHub discussions are disabled"
+            : "GitHub discussions status unknown",
+        },
+      ],
+    }),
+  ];
+
+  let totalScore = categories.reduce((sum, category) => sum + safeNumber(category?.score, 0), 0);
+  const deductions = categories.flatMap((category) =>
+    (Array.isArray(category?.deductions) ? category.deductions : []).map((deduction) => ({
+      key: `${category.key}:${deduction.key}`,
+      label: deduction.label,
+      points: deduction.points,
+    }))
+  );
+
+  if (treeTruncated) {
+    totalScore = Math.max(0, totalScore - 3);
+    deductions.push({
+      key: "scan:partial_tree",
+      label: "Repository tree scan was truncated; confidence penalty applied",
+      points: 3,
+    });
+  }
+
+  totalScore = Math.max(0, Math.min(100, Math.round(totalScore)));
+  const grade = qualityGradeFromScore(totalScore);
+  const missingComponents = categories.flatMap((category) =>
+    category.checks
+      .filter((check) => check.status === "missing")
+      .map((check) => check.label)
+  );
+
+  return {
+    name: String(repo?.name || ""),
+    fullName: String(repo?.full_name || ""),
+    private: Boolean(repo?.private),
+    url: String(repo?.html_url || ""),
+    score: totalScore,
+    grade,
+    status: treeTruncated ? "partial" : "complete",
+    openIssues: Math.max(0, Math.floor(safeNumber(repo?.open_issues_count, 0))),
+    pushedAt: String(repo?.pushed_at || ""),
+    updatedAt: String(repo?.updated_at || ""),
+    categoryScores: categories.map((category) => ({
+      key: category.key,
+      label: category.label,
+      score: category.score,
+      maxScore: category.maxScore,
+      percent: category.percent,
+    })),
+    deductions: deductions.sort((a, b) => safeNumber(b.points, 0) - safeNumber(a.points, 0)),
+    missingComponents: [...new Set(missingComponents)],
+    detected: {
+      configSignals: detectedConfigSignals,
+      dependencyManifests: detectedDependencyManifests,
+      testingFrameworks: detectedTestingFrameworks,
+      ciPipelines: ciPipelineFiles,
+      hasIssueTemplates,
+      hasPullRequestTemplate,
+      discussionsEnabled: discussionsEnabled,
+    },
+    scanMeta: {
+      treeItemsScanned: Math.max(0, Math.floor(safeNumber(treeItemCount, filePaths.length))),
+      fileNodesScanned: filePaths.length,
+      truncated: Boolean(treeTruncated),
+    },
+  };
+}
+
+async function fetchRepositoryTreeForQualityAudit({ repo = {}, token = "" }) {
+  const fullName = String(repo?.full_name || "").trim();
+  const branch = String(repo?.default_branch || "").trim();
+
+  if (!fullName || !branch) {
+    return {
+      ok: false,
+      error: "Repository metadata is incomplete for tree scanning.",
+      status: 422,
+    };
+  }
+
+  const treeUrl = `${GITHUB_REST_URL}/repos/${fullName}/git/trees/${encodeURIComponent(
+    branch
+  )}?recursive=1`;
+  const treeResponse = await fetchGithubJson(treeUrl, token);
+
+  if (!treeResponse.ok) {
+    return {
+      ok: false,
+      error: String(treeResponse?.data?.message || "Failed to fetch repository tree"),
+      status: treeResponse.status || 502,
+    };
+  }
+
+  const treeItems = Array.isArray(treeResponse?.data?.tree) ? treeResponse.data.tree : [];
+  const apiTruncated = Boolean(treeResponse?.data?.truncated);
+  const tooManyItems = treeItems.length > REPO_QUALITY_MAX_TREE_ITEMS;
+  const trimmedTree = tooManyItems
+    ? treeItems.slice(0, REPO_QUALITY_MAX_TREE_ITEMS)
+    : treeItems;
+
+  return {
+    ok: true,
+    tree: trimmedTree,
+    totalItems: treeItems.length,
+    truncated: apiTruncated || tooManyItems,
+  };
+}
+
+async function mapWithConcurrency(items = [], concurrency = 1, worker) {
+  const safeItems = Array.isArray(items) ? items : [];
+  if (!safeItems.length) return [];
+
+  let nextIndex = 0;
+  const safeConcurrency = Math.max(1, Math.min(concurrency, safeItems.length));
+  const output = new Array(safeItems.length);
+
+  const workers = Array.from({ length: safeConcurrency }, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= safeItems.length) break;
+      output[index] = await worker(safeItems[index], index);
+    }
+  });
+
+  await Promise.all(workers);
+  return output.filter(Boolean);
+}
+
+async function buildRepositoryQualityAudit({ repos = [], token = "" }) {
+  const candidates = (Array.isArray(repos) ? repos : []).slice(0, REPO_QUALITY_SCAN_LIMIT);
+  if (!candidates.length) {
+    return {
+      profileScore: 0,
+      profileGrade: qualityGradeFromScore(0),
+      scanCoverage: {
+        repositoriesRequested: 0,
+        repositoriesAnalyzed: 0,
+        repositoriesSkipped: 0,
+        maxRepositoriesConsidered: REPO_QUALITY_SCAN_LIMIT,
+      },
+      scoringBasis: REPO_QUALITY_SCORING_BASIS,
+      categoryScores: [],
+      deductionBreakdown: [],
+      repositories: [],
+    };
+  }
+
+  const analyzedRepositories = await mapWithConcurrency(
+    candidates,
+    REPO_QUALITY_SCAN_CONCURRENCY,
+    async (repo) => {
+      const treeResult = await fetchRepositoryTreeForQualityAudit({ repo, token });
+      if (!treeResult.ok) {
+        return {
+          name: String(repo?.name || ""),
+          fullName: String(repo?.full_name || ""),
+          private: Boolean(repo?.private),
+          url: String(repo?.html_url || ""),
+          score: null,
+          grade: "N/A",
+          status: "failed",
+          error: treeResult.error,
+          openIssues: Math.max(0, Math.floor(safeNumber(repo?.open_issues_count, 0))),
+          pushedAt: String(repo?.pushed_at || ""),
+          updatedAt: String(repo?.updated_at || ""),
+          categoryScores: [],
+          deductions: [],
+          missingComponents: [],
+          detected: {
+            configSignals: [],
+            dependencyManifests: [],
+            testingFrameworks: [],
+            ciPipelines: [],
+            hasIssueTemplates: false,
+            hasPullRequestTemplate: false,
+            discussionsEnabled: Boolean(repo?.has_discussions),
+          },
+          scanMeta: {
+            treeItemsScanned: 0,
+            fileNodesScanned: 0,
+            truncated: false,
+          },
+        };
+      }
+
+      return analyzeRepositoryQualityFromTree({
+        repo,
+        tree: treeResult.tree,
+        treeTruncated: treeResult.truncated,
+        treeItemCount: treeResult.totalItems,
+      });
+    }
+  );
+
+  const scoredRepos = analyzedRepositories.filter(
+    (repo) => typeof repo?.score === "number" && Number.isFinite(repo.score)
+  );
+  const profileScore = scoredRepos.length
+    ? Math.round(average(scoredRepos.map((repo) => safeNumber(repo?.score, 0))))
+    : 0;
+
+  const categoryAccumulator = new Map();
+  scoredRepos.forEach((repo) => {
+    (Array.isArray(repo?.categoryScores) ? repo.categoryScores : []).forEach((category) => {
+      const key = String(category?.key || "");
+      if (!key) return;
+
+      if (!categoryAccumulator.has(key)) {
+        categoryAccumulator.set(key, {
+          key,
+          label: String(category?.label || key.replaceAll("_", " ")),
+          scoreSum: 0,
+          maxScoreSum: 0,
+          count: 0,
+        });
+      }
+
+      const item = categoryAccumulator.get(key);
+      item.scoreSum += safeNumber(category?.score, 0);
+      item.maxScoreSum += safeNumber(category?.maxScore, 0);
+      item.count += 1;
+    });
+  });
+
+  const categoryScores = [...categoryAccumulator.values()]
+    .map((entry) => {
+      const averageScore = entry.count ? entry.scoreSum / entry.count : 0;
+      const averageMax = entry.count ? entry.maxScoreSum / entry.count : 0;
+      return {
+        key: entry.key,
+        label: entry.label,
+        score: Number(averageScore.toFixed(2)),
+        maxScore: Number(averageMax.toFixed(2)),
+        percent: averageMax > 0 ? Math.round((averageScore / averageMax) * 100) : 0,
+      };
+    })
+    .sort((a, b) => safeNumber(b.maxScore, 0) - safeNumber(a.maxScore, 0));
+
+  const deductionMap = new Map();
+  scoredRepos.forEach((repo) => {
+    const repoLabel = String(repo?.fullName || repo?.name || "").trim();
+    (Array.isArray(repo?.deductions) ? repo.deductions : []).forEach((deduction) => {
+      const key = String(deduction?.key || "").trim();
+      if (!key) return;
+      if (!deductionMap.has(key)) {
+        deductionMap.set(key, {
+          key,
+          label: String(deduction?.label || "Score deduction"),
+          pointsDeducted: 0,
+          repositoriesAffected: new Set(),
+        });
+      }
+
+      const item = deductionMap.get(key);
+      item.pointsDeducted += safeNumber(deduction?.points, 0);
+      if (repoLabel) item.repositoriesAffected.add(repoLabel);
+    });
+  });
+
+  const deductionBreakdown = [...deductionMap.values()]
+    .map((entry) => ({
+      key: entry.key,
+      label: entry.label,
+      pointsDeducted: Number(entry.pointsDeducted.toFixed(2)),
+      repositoriesAffected: entry.repositoriesAffected.size,
+    }))
+    .sort((a, b) => safeNumber(b.pointsDeducted, 0) - safeNumber(a.pointsDeducted, 0))
+    .slice(0, 12);
+
+  return {
+    profileScore,
+    profileGrade: qualityGradeFromScore(profileScore),
+    scanCoverage: {
+      repositoriesRequested: candidates.length,
+      repositoriesAnalyzed: scoredRepos.length,
+      repositoriesSkipped: Math.max(0, candidates.length - scoredRepos.length),
+      maxRepositoriesConsidered: REPO_QUALITY_SCAN_LIMIT,
+    },
+    scoringBasis: REPO_QUALITY_SCORING_BASIS,
+    categoryScores,
+    deductionBreakdown,
+    repositories: analyzedRepositories,
   };
 }
 
@@ -1517,6 +2361,10 @@ export async function POST(req) {
       collaborationMetrics.reviews;
 
     const repositoryHealthInsights = buildRepositoryHealthInsights(nonForkRepos);
+    const repositoryQualityAudit = await buildRepositoryQualityAudit({
+      repos: nonForkRepos,
+      token: accessToken,
+    });
     const developerAnalysis = buildDeveloperAnalysis({
       username: requestedUsername,
       totalCommits: Math.max(
@@ -1592,6 +2440,7 @@ export async function POST(req) {
           developer_activity_summary: developerAnalysis.developerActivitySummary,
           productivity_metrics: developerAnalysis.productivityMetrics,
           repository_health_insights: developerAnalysis.repositoryHealthInsights,
+          repository_quality_audit: repositoryQualityAudit,
           coding_pattern_analysis: developerAnalysis.codingPatternAnalysis,
           technology_profile: developerAnalysis.technologyProfile,
           open_source_impact: developerAnalysis.openSourceImpact,
