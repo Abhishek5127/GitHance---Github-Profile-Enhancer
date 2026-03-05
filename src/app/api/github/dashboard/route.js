@@ -463,7 +463,7 @@ function buildLanguageDistribution(repos = []) {
     .map(([name, value], index) => ({
       name,
       value,
-      percent: Math.round((value / totalWeight) * 1000) / 10,
+      percent: Number(((value / totalWeight) * 100).toFixed(4)),
       color: LANGUAGE_COLORS[index % LANGUAGE_COLORS.length],
     }));
 }

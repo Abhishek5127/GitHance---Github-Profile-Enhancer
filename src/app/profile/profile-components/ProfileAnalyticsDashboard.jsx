@@ -59,6 +59,12 @@ function pct(value, digits = 0) {
   return `${parsed.toFixed(digits)}%`;
 }
 
+function formatPercent(value, digits = 1) {
+  const parsed = num(value, 0);
+  if (parsed > 0 && parsed < 0.1) return "<0.1%";
+  return `${parsed.toFixed(digits)}%`;
+}
+
 function startCase(value) {
   return String(value || "")
     .replaceAll("_", " ")
@@ -263,11 +269,21 @@ function BarChart({
 }
 
 function PieChart({ title, items = [] }) {
-  const safe = (Array.isArray(items) ? items : []).filter((item) => num(item?.percent, 0) > 0);
+  const base = Array.isArray(items) ? items : [];
+  const totalValue = base.reduce((sum, item) => sum + Math.max(0, num(item?.value, 0)), 0);
+  const safe = base
+    .map((item) => ({
+      ...item,
+      computedPercent:
+        totalValue > 0
+          ? (Math.max(0, num(item?.value, 0)) / totalValue) * 100
+          : Math.max(0, num(item?.percent, 0)),
+    }))
+    .filter((item) => item.computedPercent > 0);
   const stops = [];
   let acc = 0;
   safe.forEach((item) => {
-    const value = num(item?.percent, 0);
+    const value = num(item?.computedPercent, 0);
     const next = Math.min(100, acc + value);
     stops.push(`${item.color || "#22d3ee"} ${acc}% ${next}%`);
     acc = next;
@@ -296,7 +312,7 @@ function PieChart({ title, items = [] }) {
                   {item?.name || item?.language || "Unknown"}
                 </span>
                 <span className="text-xs text-white/60">
-                  {num(item?.percent, 0).toFixed(1)}%
+                  {formatPercent(item?.computedPercent, 1)}
                 </span>
               </div>
             ))}
@@ -507,6 +523,13 @@ export default function ProfileAnalyticsDashboard({ data }) {
   const qualityAuditGrade = String(repositoryQualityAudit?.profileGrade || "N/A");
   const qualityAuditAnalyzedRepos = Math.max(0, Math.floor(num(qualityAuditCoverage?.repositoriesAnalyzed, 0)));
   const qualityAuditRequestedRepos = Math.max(0, Math.floor(num(qualityAuditCoverage?.repositoriesRequested, 0)));
+  const primaryLanguageEntries = Array.isArray(techProfile?.primaryLanguages)
+    ? techProfile.primaryLanguages
+    : [];
+  const primaryLanguageTotalWeight = primaryLanguageEntries.reduce(
+    (sum, entry) => sum + Math.max(0, num(entry?.weight, 0)),
+    0
+  );
   const securityAnalysisRepositories = (
     qualityAuditRepositories.length
       ? qualityAuditRepositories.slice(0, 12).map((repo) => ({
@@ -876,21 +899,25 @@ export default function ProfileAnalyticsDashboard({ data }) {
                 tone="border-emerald-300/40 bg-emerald-400/10 text-emerald-200"
               />
             </div>
-            <div className="mt-4 grid gap-2">
-              {(Array.isArray(techProfile?.primaryLanguages) ? techProfile.primaryLanguages : []).map(
-                (entry) => (
+              <div className="mt-4 grid gap-2">
+              {primaryLanguageEntries.map((entry) => {
+                const computedPercent =
+                  primaryLanguageTotalWeight > 0
+                    ? (Math.max(0, num(entry?.weight, 0)) / primaryLanguageTotalWeight) * 100
+                    : num(entry?.percent, 0);
+                return (
                   <div
                     key={`lang-${entry?.language}`}
                     className="flex items-center justify-between rounded-xl border border-white/10 bg-[#0b0d0f] px-3 py-2 text-sm"
                   >
                     <span className="text-white/80">{entry?.language || "Unknown"}</span>
-                    <span className="text-xs text-white/60">{num(entry?.percent, 0).toFixed(1)}%</span>
+                    <span className="text-xs text-white/60">{formatPercent(computedPercent, 1)}</span>
                   </div>
                 )
-              )}
+              })}
+              </div>
             </div>
           </div>
-        </div>
         <div className="mt-4">
           <LineChart
             title="Language Activity Trend"

@@ -96,8 +96,8 @@ export default function Hero() {
               key={mode.id}
               onClick={() => setActive(mode)}
               className={`rounded-full px-4 py-2 text-xs cursor-pointer font-semibold transition ${active.id === mode.id
-                  ? "bg-white text-black"
-                  : "border border-white/15 text-white/70 hover:bg-white/10"
+                ? "bg-white text-black"
+                : "border border-white/15 text-white/70 hover:bg-white/10"
                 }`}
             >
               {mode.label}
