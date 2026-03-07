@@ -59,9 +59,6 @@ export default function Hero() {
   return (
     <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-20 pt-16 text-white lg:grid-cols-[1.1fr_0.9fr]">
       <div>
-        <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.25em] text-white/70">
-          GitHance Platform
-        </div>
 
         <h1 className="mt-6 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
           Build a GitHub presence
@@ -83,9 +80,9 @@ export default function Hero() {
         </div>
 
         <div className="mt-10 flex flex-wrap items-center gap-3 text-sm text-white/60">
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">3 min setup</span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">No design tools</span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Built for teams</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">3 min setup</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">No design tools</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Built for Developers</span>
         </div>
       </div>
 

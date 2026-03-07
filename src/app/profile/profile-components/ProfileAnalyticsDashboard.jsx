@@ -1117,7 +1117,7 @@ export default function ProfileAnalyticsDashboard({ data }) {
                 onClick={() => router.push(`/readme-analyze/${encodeURIComponent(repo.name)}`)}
                 className="rounded-2xl border border-white/10 bg-[#0f1115] p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-300/40 hover:bg-[#12161c]"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
                   <p className="truncate text-sm font-semibold text-white">{repo.name}</p>
                   <div className="flex flex-wrap gap-2">
                     <Badge

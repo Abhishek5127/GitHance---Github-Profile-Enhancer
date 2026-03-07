@@ -34,28 +34,65 @@ export default function LandingNav() {
   return (
     <header className="relative z-30 w-full">
       <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 pt-6">
-        <div onClick={()=>{Router.push('/')}} className="flex items-center cursor-pointer gap-3">
+        <div onClick={() => { Router.push('/') }} className="flex items-center cursor-pointer gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5">
             <span className="text-sm font-semibold text-white">
-                <Image
+              <Image
                 src={assets.Logo}
                 height={100}
                 width={100}
-                alt="Logo"/>
+                alt="Logo" />
             </span>
           </div>
           <div className="text-xl font-bold text-white">GitHance</div>
         </div>
 
-        <div className="hidden items-center gap-6 text-sm text-white/70 md:flex">
+        <div
+          className="
+  hidden md:flex items-center gap-8 text-sm
+  relative
+  px-6 py-4
+  rounded-3xl
+  text-white/80
+
+  bg-white/10
+  backdrop-blur-xl
+  border border-white/20
+  shadow-lg shadow-black/20
+
+  before:content-['']
+  before:absolute
+  before:inset-0
+  before:rounded-3xl
+  before:bg-gradient-to-b
+  before:from-white/20
+  before:to-transparent
+  before:opacity-40
+  before:pointer-events-none
+"
+        >
           {links.map((item) => (
             <a
               key={item.label}
               href={item.href}
-              className="relative pb-1 transition hover:text-white"
+              className="
+      relative pb-1
+      transition-all duration-300
+      hover:text-white
+      group
+      "
             >
               {item.label}
-              <span className="absolute inset-x-0 -bottom-1 h-px scale-x-0 bg-white/60 transition group-hover:scale-x-100" />
+
+              <span
+                className="
+        absolute inset-x-0 -bottom-1 h-px
+        bg-white/70
+        scale-x-0
+        transition-transform duration-300
+        group-hover:scale-x-100
+        "
+              />
             </a>
           ))}
         </div>
@@ -83,9 +120,6 @@ export default function LandingNav() {
               Sign in
             </button>
           )}
-          <button className="hidden cursor-pointer h-10 items-center justify-center rounded-full border border-white/15 bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/10 hover:text-white md:flex">
-            Start free
-          </button>
           <button
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/20 md:hidden"
             aria-label="Toggle menu"
