@@ -1178,7 +1178,7 @@ export default function ProfileAnalyticsDashboard({ data }) {
                   {repo.pushedAt ? new Date(repo.pushedAt).toLocaleDateString("en-US") : "Unknown"} - Open issues:{" "}
                   {exact(repo.openIssues)}
                 </p>
-                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
                   Open Security Analysis
                 </p>
               </button>
