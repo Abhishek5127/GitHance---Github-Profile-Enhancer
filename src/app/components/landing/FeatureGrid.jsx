@@ -35,7 +35,7 @@ export default function FeatureGrid() {
             Everything you need to ship developer branding.
           </h2>
         </div>
-        <div></div>
+        
         <a
           href="#"
           className="hidden rounded-full border border-white/20 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 md:inline-flex"

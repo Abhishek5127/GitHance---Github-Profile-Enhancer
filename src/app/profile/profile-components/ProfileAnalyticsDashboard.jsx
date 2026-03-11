@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
-const CARD = "rounded-3xl border border-white/10 bg-white/5 p-6";
-const PANEL = "rounded-2xl border border-white/10 bg-[#0f1115] p-4";
-const HEATMAP_COLORS = ["#1f2937", "#0f766e", "#14b8a6", "#22d3ee", "#67e8f9"];
+const CARD = "analytics-card p-6";
+const PANEL = "analytics-panel p-4";
+const HEATMAP_COLORS = ["#e7f3e1", "#c9e7c4", "#97d892", "#60c06a", "#2f7d32"];
 
 const PRIORITY_TONES = {
   high: "border-red-400/40 bg-red-500/10 text-red-200",
@@ -30,7 +29,7 @@ const LEVEL_TONES = {
   stable: "border-cyan-300/40 bg-cyan-500/10 text-cyan-200",
 };
 
-const DASHBOARD_TABS = [
+export const DASHBOARD_TABS = [
   { id: "overview", label: "Overview" },
   { id: "activity", label: "Activity" },
   { id: "projects", label: "Projects" },
@@ -114,7 +113,7 @@ function Badge({ label, tone = "border-white/20 bg-white/10 text-white/70" }) {
 
 function MetricTile({ label, value, hint = "" }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#0f1115] px-4 py-3">
+    <div className="analytics-panel px-4 py-3">
       <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
       {hint ? <p className="mt-1 text-xs text-white/50">{hint}</p> : null}
@@ -187,7 +186,7 @@ function LineChart({ title, data = [], color = "#22d3ee", yLabel = "" }) {
                 y1={y}
                 x2={padLeft + plotW}
                 y2={y}
-                stroke="rgba(255,255,255,0.1)"
+                stroke="var(--analytics-grid)"
                 strokeDasharray="4 6"
               />
             );
@@ -204,7 +203,7 @@ function LineChart({ title, data = [], color = "#22d3ee", yLabel = "" }) {
               x={point.x}
               y={height - 12}
               textAnchor="middle"
-              fill="rgba(255,255,255,0.65)"
+              fill="var(--analytics-muted)"
               fontSize="10"
               fontFamily="var(--font-geist-mono)"
             >
@@ -378,7 +377,7 @@ function ContributionHeatmap({ days = [] }) {
                   key={`cell-${weekIndex}-${cellIndex}`}
                   className="h-[10px] w-[10px] rounded-[2px]"
                   style={{
-                    backgroundColor: cell.hidden ? "rgba(255,255,255,0.04)" : cell.color,
+                    backgroundColor: cell.hidden ? "var(--analytics-heatmap-empty)" : cell.color,
                   }}
                   title={`${cell.iso}: ${cell.count} contributions`}
                 />
@@ -398,7 +397,7 @@ function ContributionHeatmap({ days = [] }) {
   );
 }
 
-export default function ProfileAnalyticsDashboard({ data }) {
+export default function ProfileAnalyticsDashboard({ data, activeTab = "overview" }) {
   const dashboard = data || {};
   const profile = dashboard?.profile || {};
   const overview = dashboard?.overview || {};
@@ -419,7 +418,6 @@ export default function ProfileAnalyticsDashboard({ data }) {
     ? structured.improvement_suggestions
     : [];
   const developerScore = structured?.developer_score || {};
-  const [activeTab, setActiveTab] = useState("overview");
   const router = useRouter();
 
   const monthlyTrend = Array.isArray(activityInsights?.monthlyContributionTrends)
@@ -663,27 +661,6 @@ export default function ProfileAnalyticsDashboard({ data }) {
           </div>
         </div>
       </div>
-
-      <div className={`${CARD} sticky top-3 z-10 backdrop-blur`}>
-        <div className="flex flex-wrap gap-2">
-          {DASHBOARD_TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={`tab-${tab.id}`}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
-                  isActive
-                    ? "border-cyan-300/60 bg-cyan-400/15 text-cyan-100"
-                    : "border-white/15 bg-white/5 text-white/60 hover:bg-white/10"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {activeTab === "overview" && (
@@ -1294,3 +1271,7 @@ export default function ProfileAnalyticsDashboard({ data }) {
     </div>
   );
 }
+
+
+
+

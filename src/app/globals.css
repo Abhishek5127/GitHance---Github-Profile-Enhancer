@@ -114,3 +114,177 @@
   margin-top: 0.3em;
   margin-bottom: 0.3em;
 }
+
+/* Analytics shell theming */
+.analytics-shell {
+  --analytics-bg: #f6f8f3;
+  --analytics-surface: #ffffff;
+  --analytics-surface-soft: #f1f5ef;
+  --analytics-surface-contrast: #e7efe5;
+  --analytics-border: #d7e0d4;
+  --analytics-border-strong: #c6d1c5;
+  --analytics-text: #1c2c23;
+  --analytics-muted: #55645c;
+  --analytics-faint: #7c8a83;
+  --analytics-accent: #2f7d32;
+  --analytics-accent-soft: #d4edcd;
+  --analytics-accent-strong: #1f5a23;
+  --analytics-sidebar-bg: #0f2c1c;
+  --analytics-sidebar-text: #e4f2e7;
+  --analytics-sidebar-muted: #9cbfa8;
+  --analytics-sidebar-active-bg: rgba(147, 197, 114, 0.16);
+  --analytics-sidebar-active-text: #e9f7ec;
+  --analytics-shadow: 0 28px 60px -48px rgba(16, 62, 32, 0.5);
+  --analytics-panel-shadow: 0 18px 40px -34px rgba(16, 62, 32, 0.4);
+  --analytics-grid: rgba(28, 44, 35, 0.12);
+  --analytics-heatmap-empty: rgba(28, 44, 35, 0.06);
+  --analytics-input-bg: #f4f7f2;
+  --analytics-input-border: #d7e0d4;
+  --analytics-input-placeholder: #7c8a83;
+  background: var(--analytics-bg);
+  color: var(--analytics-text);
+}
+
+.analytics-shell[data-theme="dark"] {
+  --analytics-bg: #0b0d0f;
+  --analytics-surface: #13171d;
+  --analytics-surface-soft: #171d25;
+  --analytics-surface-contrast: #0f141a;
+  --analytics-border: #1f2937;
+  --analytics-border-strong: #2b3645;
+  --analytics-text: #f8fafc;
+  --analytics-muted: #94a3b8;
+  --analytics-faint: #64748b;
+  --analytics-accent: #22c55e;
+  --analytics-accent-soft: rgba(34, 197, 94, 0.18);
+  --analytics-accent-strong: #16a34a;
+  --analytics-sidebar-bg: #0a1411;
+  --analytics-sidebar-text: #e2f4e6;
+  --analytics-sidebar-muted: #7aa990;
+  --analytics-sidebar-active-bg: rgba(34, 197, 94, 0.2);
+  --analytics-sidebar-active-text: #eafff0;
+  --analytics-shadow: 0 28px 60px -48px rgba(6, 10, 16, 0.9);
+  --analytics-panel-shadow: 0 18px 40px -34px rgba(6, 10, 16, 0.85);
+  --analytics-grid: rgba(248, 250, 252, 0.12);
+  --analytics-heatmap-empty: rgba(248, 250, 252, 0.06);
+  --analytics-input-bg: #11151b;
+  --analytics-input-border: #233043;
+  --analytics-input-placeholder: #6b7a8f;
+}
+
+.analytics-card {
+  border-radius: 24px;
+  border: 1px solid var(--analytics-border);
+  background: var(--analytics-surface);
+  box-shadow: var(--analytics-shadow);
+}
+
+.analytics-panel {
+  border-radius: 20px;
+  border: 1px solid var(--analytics-border);
+  background: var(--analytics-surface-soft);
+  box-shadow: var(--analytics-panel-shadow);
+}
+
+.analytics-subtle {
+  border-radius: 16px;
+  border: 1px solid var(--analytics-border);
+  background: var(--analytics-surface-contrast);
+}
+
+.analytics-text {
+  color: var(--analytics-text);
+}
+
+.analytics-muted {
+  color: var(--analytics-muted);
+}
+
+.analytics-faint {
+  color: var(--analytics-faint);
+}
+
+.analytics-input {
+  background: var(--analytics-input-bg);
+  border: 1px solid var(--analytics-input-border);
+  color: var(--analytics-text);
+}
+
+.analytics-input::placeholder {
+  color: var(--analytics-input-placeholder);
+}
+
+.analytics-sidebar {
+  background: var(--analytics-sidebar-bg);
+  color: var(--analytics-sidebar-text);
+}
+
+.analytics-nav-item {
+  color: var(--analytics-sidebar-muted);
+}
+
+.analytics-nav-item[data-active="true"] {
+  background: var(--analytics-sidebar-active-bg);
+  color: var(--analytics-sidebar-active-text);
+}
+
+.analytics-shell .border-white\/10 {
+  border-color: var(--analytics-border) !important;
+}
+
+.analytics-shell .border-white\/15,
+.analytics-shell .border-white\/20 {
+  border-color: var(--analytics-border-strong) !important;
+}
+
+.analytics-shell .bg-white\/5 {
+  background-color: var(--analytics-surface) !important;
+}
+
+.analytics-shell .bg-white\/10 {
+  background-color: var(--analytics-surface-soft) !important;
+}
+
+.analytics-shell .bg-black\/20,
+.analytics-shell .bg-black\/35 {
+  background-color: var(--analytics-surface-contrast) !important;
+}
+
+.analytics-shell .bg-\[\#0b0d0f\] {
+  background-color: var(--analytics-bg) !important;
+}
+
+.analytics-shell .bg-\[\#0f1115\],
+.analytics-shell .bg-\[\#111418\],
+.analytics-shell .bg-\[\#12161c\] {
+  background-color: var(--analytics-surface-soft) !important;
+}
+
+.analytics-shell .text-white,
+.analytics-shell .text-white\/90,
+.analytics-shell .text-white\/80 {
+  color: var(--analytics-text) !important;
+}
+
+.analytics-shell .text-white\/75,
+.analytics-shell .text-white\/70,
+.analytics-shell .text-white\/65 {
+  color: var(--analytics-muted) !important;
+}
+
+.analytics-shell .text-white\/60,
+.analytics-shell .text-white\/55,
+.analytics-shell .text-white\/50,
+.analytics-shell .text-white\/45,
+.analytics-shell .text-white\/40 {
+  color: var(--analytics-faint) !important;
+}
+
+.analytics-shell .fill-white,
+.analytics-shell .fill-white\/80 {
+  fill: var(--analytics-text) !important;
+}
+
+.analytics-shell .fill-white\/60 {
+  fill: var(--analytics-muted) !important;
+}

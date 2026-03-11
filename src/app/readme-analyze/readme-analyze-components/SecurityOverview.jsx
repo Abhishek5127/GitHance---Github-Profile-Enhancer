@@ -769,10 +769,11 @@ export default function SecurityOverview({
   error = null,
   report = null,
   meta = null,
+  showHeader = true,
 }) {
   if (loading) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+      <div className="analytics-card p-6 text-sm text-white/70">
         Running repository security analysis...
       </div>
     );
@@ -805,29 +806,38 @@ export default function SecurityOverview({
 
   return (
     <section className="space-y-5">
-      <div className="rounded-3xl border border-white/10 bg-[linear-gradient(130deg,rgba(14,20,32,0.95),rgba(16,24,30,0.9),rgba(28,16,36,0.88))] p-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Repository Security Lab</p>
-        <h2 className="mt-3 text-3xl font-semibold text-white">Detailed vulnerability analytics</h2>
-        <p className="mt-2 max-w-3xl text-sm text-white/70">
-          This report explains what was detected, why it matters, and what to change next.
-        </p>
-      </div>
+      {showHeader ? (
+        <section
+          id="overview"
+          className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
+        >
+          <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-accent)]">
+            Repository Security Lab
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold text-white">Detailed vulnerability analytics</h2>
+          <p className="mt-2 max-w-3xl text-sm text-white/70">
+            This report explains what was detected, why it matters, and what to change next.
+          </p>
+        </section>
+      ) : null}
 
-      <SummaryCards report={report} meta={meta} />
-      <CleanReportPanel report={report} />
-      <ScopeAndClassification report={report} />
-      <ExclusionSummary summary={report?.exclusion_summary || {}} />
+      <section id="coverage" className="space-y-5">
+        <SummaryCards report={report} meta={meta} />
+        <CleanReportPanel report={report} />
+        <ScopeAndClassification report={report} />
+        <ExclusionSummary summary={report?.exclusion_summary || {}} />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <ScoreGauge
-          score={report.score}
-          rating={report.rating}
-          ratingLabel={report.ratingLabel}
-        />
-        <CoverageBar report={report} />
-      </div>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <ScoreGauge
+            score={report.score}
+            rating={report.rating}
+            ratingLabel={report.ratingLabel}
+          />
+          <CoverageBar report={report} />
+        </div>
+      </section>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <section id="severity" className="grid gap-4 xl:grid-cols-2">
         <DonutChart
           title="Severity Distribution"
           data={severityData}
@@ -842,17 +852,24 @@ export default function SecurityOverview({
           centerLabel={(categoryData || []).length}
           centerSubLabel="categories"
         />
-      </div>
+      </section>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <TopRiskFilesChart files={report?.topRiskFiles || []} />
-        <RuleFrequencyChart rules={report?.ruleBreakdown || []} />
-      </div>
+      <section id="hotspots" className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <TopRiskFilesChart files={report?.topRiskFiles || []} />
+          <RuleFrequencyChart rules={report?.ruleBreakdown || []} />
+        </div>
 
-      <InsightsPanel insights={report?.insights || []} />
+        <InsightsPanel insights={report?.insights || []} />
+      </section>
 
-      <FindingsPreview groupedIssues={report?.grouped_issues || report?.findings || []} />
-      <SuppressedFindingsSection suppressedIssues={report?.suppressed_issues || []} />
+      <section id="findings" className="space-y-5">
+        <FindingsPreview groupedIssues={report?.grouped_issues || report?.findings || []} />
+        <SuppressedFindingsSection suppressedIssues={report?.suppressed_issues || []} />
+      </section>
     </section>
   );
 }
+
+
+

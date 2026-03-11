@@ -19,7 +19,7 @@ const ReadmeBlock = ({ tree = [], loading = false }) => {
 
   if (loading) {
     return (
-      <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-sm text-white/80">
+      <section className="relative overflow-hidden analytics-card text-sm">
         <style jsx>{`
           @keyframes shimmerSweep {
             0% {
@@ -78,7 +78,7 @@ const ReadmeBlock = ({ tree = [], loading = false }) => {
   }
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/5 text-sm text-white/80">
+    <section className="analytics-card text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
         <h3 className="font-semibold text-white">Analyzed Repository Structure</h3>
         <div className="flex items-center gap-2 text-xs text-white/60">
@@ -111,3 +111,4 @@ const ReadmeBlock = ({ tree = [], loading = false }) => {
 };
 
 export default ReadmeBlock;
+

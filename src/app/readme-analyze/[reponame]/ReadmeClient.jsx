@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import AnalyticsShell from "@/app/components/analytics/AnalyticsShell";
 import ReadmeBlock from "../readme-analyze-components/ReadmeBlock";
 import SecurityOverview from "../readme-analyze-components/SecurityOverview";
 import Unauthorized from "@/app/statusCodePages/unauthorized";
@@ -19,6 +20,19 @@ async function fetchSecurityData({ username, reponame, token }) {
   }
   return data;
 }
+
+const NAV_SECTIONS = [
+  {
+    label: "Repository",
+    items: [
+      { id: "overview", label: "Overview", href: "#overview" },
+      { id: "coverage", label: "Coverage", href: "#coverage" },
+      { id: "severity", label: "Severity", href: "#severity" },
+      { id: "hotspots", label: "Hotspots", href: "#hotspots" },
+      { id: "findings", label: "Findings", href: "#findings" },
+    ],
+  },
+];
 
 export default function ReadmeClient({ reponame }) {
   const { data: session, status } = useSession();
@@ -76,9 +90,20 @@ export default function ReadmeClient({ reponame }) {
     };
   }, [status, session?.username, session?.accessToken, reponame]);
 
+  const user = session?.username
+    ? { name: session.username, subtitle: reponame ? `Repo: ${reponame}` : "" }
+    : null;
+
   if (status === "loading" || loading || securityLoading) {
     return (
-      <div className="min-h-screen bg-[#0b0d0f] text-white">
+      <AnalyticsShell
+        context="Repository"
+        title={reponame || "Repository analysis"}
+        subtitle="Parsing repository, mapping code surfaces, and running vulnerability analytics."
+        navSections={NAV_SECTIONS}
+        activeNavId="overview"
+        user={user}
+      >
         <style jsx>{`
           @keyframes pulseLine {
             0% {
@@ -107,19 +132,24 @@ export default function ReadmeClient({ reponame }) {
           }
         `}</style>
 
-        <div className="mx-auto w-full max-w-7xl space-y-6 p-6">
-          <header className="rounded-3xl border border-white/10 bg-[linear-gradient(140deg,rgba(20,20,28,0.95),rgba(14,26,36,0.88))] p-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-white/45">Repository Analysis</p>
-            <h1 className="mt-2 text-3xl font-semibold">{reponame}</h1>
-            <p className="mt-2 max-w-3xl text-sm text-white/65">
+        <div className="grid gap-6">
+          <section
+            id="overview"
+            className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
+          >
+            <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-faint)]">
+              Repository Analysis
+            </p>
+            <h2 className="mt-2 text-3xl font-semibold text-white">{reponame}</h2>
+            <p className="mt-2 max-w-3xl text-sm text-white/70">
               Parsing repository, mapping code surfaces, and running vulnerability analytics.
             </p>
-          </header>
+          </section>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <ReadmeBlock loading />
 
-            <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <section className="analytics-card p-5">
               <p className="text-xs uppercase tracking-[0.2em] text-white/50">Security Pipeline</p>
               <div className="mt-4 space-y-3">
                 {[
@@ -148,31 +178,45 @@ export default function ReadmeClient({ reponame }) {
             </section>
           </div>
         </div>
-      </div>
+      </AnalyticsShell>
     );
   }
+
   if (status !== "authenticated") {
     return <Unauthorized />;
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0d0f] text-white">
-      <div className="mx-auto w-full max-w-7xl space-y-6 p-6">
-        <header className="rounded-3xl border border-white/10 bg-[linear-gradient(140deg,rgba(20,20,28,0.95),rgba(14,26,36,0.88))] p-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/45">Repository Analysis</p>
-          <h1 className="mt-2 text-3xl font-semibold">{reponame}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-white/65">
+    <AnalyticsShell
+      context="Repository"
+      title={reponame || "Repository analysis"}
+      subtitle="Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository."
+      navSections={NAV_SECTIONS}
+      activeNavId="overview"
+      user={user}
+    >
+      <div className="grid gap-6">
+        <section
+          id="overview"
+          className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
+        >
+          <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-faint)]">
+            Repository Analysis
+          </p>
+          <h2 className="mt-2 text-3xl font-semibold text-white">{reponame}</h2>
+          <p className="mt-2 max-w-3xl text-sm text-white/70">
             Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository.
           </p>
-        </header>
+        </section>
 
         <SecurityOverview
           loading={securityLoading}
           error={securityError}
           report={securityReport}
           meta={securityMeta}
+          showHeader={false}
         />
       </div>
-    </div>
+    </AnalyticsShell>
   );
 }
