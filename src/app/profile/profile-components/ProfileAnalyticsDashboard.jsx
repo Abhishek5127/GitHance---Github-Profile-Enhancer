@@ -661,7 +661,7 @@ export default function ProfileAnalyticsDashboard({ data, activeTab = "overview"
           </div>
         </div>
       </div>
-      </div>
+      
 
       {activeTab === "overview" && (
       <div className={CARD}>
