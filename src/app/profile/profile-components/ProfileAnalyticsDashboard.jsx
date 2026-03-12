@@ -1259,6 +1259,7 @@ export default function ProfileAnalyticsDashboard({ data, activeTab = "overview"
                 unit="/100"
                 colorClass="from-cyan-400 to-emerald-400"
               />
+              <div></div>
             </div>
           </div>
         </div>
