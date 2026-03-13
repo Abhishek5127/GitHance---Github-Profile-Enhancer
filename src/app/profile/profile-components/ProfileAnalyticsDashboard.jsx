@@ -736,7 +736,7 @@ export default function ProfileAnalyticsDashboard({ data, activeTab = "overview"
       </div>
       )}
 
-      {activeTab === "projects" && (
+      {activeTab === "maintainence" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="3. Repository Health Insights"
@@ -854,7 +854,7 @@ export default function ProfileAnalyticsDashboard({ data, activeTab = "overview"
       </div>
       )}
 
-      {activeTab === "projects" && (
+      {activeTab === "maintainence" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="5. Technology Profile"
@@ -992,7 +992,7 @@ export default function ProfileAnalyticsDashboard({ data, activeTab = "overview"
       </div>
       )}
 
-      {activeTab === "quality" && (
+      {activeTab === "security" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="8. Security Analysis"
@@ -1170,7 +1170,7 @@ export default function ProfileAnalyticsDashboard({ data, activeTab = "overview"
       </div>
       )}
 
-      {activeTab === "quality" && (
+      {activeTab === "security" && (
       <div className={CARD}>
         <SectionTitle
           eyebrow="9. Improvement Suggestions"
@@ -1267,9 +1267,6 @@ export default function ProfileAnalyticsDashboard({ data, activeTab = "overview"
       </div>
       )}
 
-      {activeTab === "activity" && (
-        <ContributionHeatmap days={dashboard?.contributionHeatmap?.days || []} />
-      )}
     </div>
   );
 }

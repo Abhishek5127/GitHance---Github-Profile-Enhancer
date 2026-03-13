@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import {assets} from '@/app/assets/assets'
 
 const THEME_KEY = "analytics-theme";
 
@@ -11,20 +12,16 @@ function ThemeToggle({ theme, onToggle }) {
     <button
       type="button"
       onClick={onToggle}
-      className="flex items-center gap-3 rounded-full border border-[color:var(--analytics-border)] bg-[color:var(--analytics-surface-soft)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] transition"
+      className="flex items-center justify-center p-1 cursor-pointer rounded-full border border-[color:var(--analytics-border)] bg-[color:var(--analytics-surface-soft)] text-[11px] font-semibold uppercase tracking-[0.2em] transition"
       aria-pressed={isDark}
     >
-      <span className="analytics-faint">Day</span>
-      <span
-        className={`relative h-5 w-10 rounded-full transition ${isDark ? "bg-[color:var(--analytics-accent)]" : "bg-[color:var(--analytics-border)]"
-          }`}
-      >
-        <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-[color:var(--analytics-surface)] shadow transition ${isDark ? "translate-x-5" : "translate-x-1"
-            }`}
-        />
-      </span>
-      <span className="analytics-faint">Night</span>
+
+      <Image
+      src={isDark?assets.Sun:assets.Moon}
+      height={25}
+      width={25}
+      alt="themeLogo"/>
+      
     </button>
   );
 }
@@ -90,7 +87,7 @@ export default function AnalyticsShell({
   onNavSelect,
   children,
   user,
-  searchPlaceholder = "Search analytics...",
+ 
 }) {
   const [theme, setTheme] = useState("light");
 
@@ -116,9 +113,9 @@ export default function AnalyticsShell({
     <div className="analytics-shell min-h-screen" data-theme={theme} style={{ colorScheme: theme }}>
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside className="analytics-sidebar text- flex w-full flex-col gap-6 px-5 py-6 lg:min-h-screen lg:w-72">
-          <div>
+          <div className="flex justify-between">
             <p className="font-serif text-2xl text-[color:var(--analytics-sidebar-text)]">{brand}</p>
-            
+              <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
 
           <nav className="flex flex-1 flex-col gap-6">
@@ -163,18 +160,6 @@ export default function AnalyticsShell({
                 {title}
               </h1>
               {subtitle ? <p className="mt-2 font-normal max-w-2xl text-sm text-[color:var(--analytics-muted)]">{subtitle}</p> : null}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <input
-                  type="text"
-                  className="analytics-input h-10 w-56 rounded-full px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--analytics-ring,rgba(47,125,50,0.35))]"
-                  placeholder={searchPlaceholder}
-                  aria-label={searchPlaceholder}
-                />
-              </div>
-              <ThemeToggle theme={theme} onToggle={toggleTheme} />
             </div>
           </header>
 
