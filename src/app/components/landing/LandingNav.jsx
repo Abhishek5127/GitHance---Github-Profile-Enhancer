@@ -101,7 +101,7 @@ export default function LandingNav() {
           {isAuthenticated ? (
             <button
               onClick={handleLogout}
-              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
+              className="flex h-10 items-center cursor-pointer font-bold justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
             >
               Logout
             </button>

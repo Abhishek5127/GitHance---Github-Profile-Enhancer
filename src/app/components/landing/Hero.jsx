@@ -12,7 +12,7 @@ const modes = [
     detail: "Drag blocks, preview instantly, publish in one click.",
     blocklist: [
       { label: "Analyze Profile", path: "/profile" },
-      { label: "analyze", path: "/profile" },
+      { label: "Compare Profiles", path: "/profile-compare" },
       { label: "Analyze Repositories", path: "/analyze" },
     ],
     colorPalette: ['green', 'yellow', 'blue']
