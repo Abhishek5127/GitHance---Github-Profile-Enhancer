@@ -158,9 +158,9 @@
   --analytics-accent: #22c55e;
   --analytics-accent-soft: rgba(34, 197, 94, 0.18);
   --analytics-accent-strong: #16a34a;
-  --analytics-sidebar-bg: #0a1411;
+  --analytics-sidebar-bg: #235347;
   --analytics-sidebar-text: #e2f4e6;
-  --analytics-sidebar-muted: #7aa990;
+  --analytics-sidebar-muted: #ffffff;
   --analytics-sidebar-active-bg: rgba(34, 197, 94, 0.2);
   --analytics-sidebar-active-text: #eafff0;
   --analytics-shadow: 0 28px 60px -48px rgba(6, 10, 16, 0.9);
@@ -170,6 +170,7 @@
   --analytics-input-bg: #11151b;
   --analytics-input-border: #233043;
   --analytics-input-placeholder: #6b7a8f;
+  
 }
 
 .analytics-card {
@@ -287,4 +288,9 @@
 
 .analytics-shell .fill-white\/60 {
   fill: var(--analytics-muted) !important;
+}
+
+/* Invert icons in dark analytics theme for visibility */
+.analytics-shell[data-theme="dark"] .analytics-nav-item img {
+  filter: invert(1) brightness(1.5) saturate(1.2);
 }

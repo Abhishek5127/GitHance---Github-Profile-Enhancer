@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 const CARD = "analytics-card p-6";
 const PANEL = "analytics-panel p-4";
 const HEATMAP_COLORS = ["#e7f3e1", "#c9e7c4", "#97d892", "#60c06a", "#2f7d32"];
+import {assets} from "@/app/assets/assets"
 
 const PRIORITY_TONES = {
   high: "border-red-400/40 bg-red-500/10 text-red-200",
@@ -30,11 +31,11 @@ const LEVEL_TONES = {
 };
 
 export const DASHBOARD_TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "activity", label: "Activity" },
-  { id: "projects", label: "Projects" },
-  { id: "impact", label: "Impact" },
-  { id: "quality", label: "Quality" },
+  { id: "overview", label: "Overview",icon: assets.Analyze},
+  { id: "activity", label: "Activity", icon: assets.Activity },
+  { id: "maintainence", label: "Maintainence",icon: assets.Repair },
+  { id: "impact", label: "Impact", icon: assets.Impact },
+  { id: "security", label: "Security", icon: assets.Secure},
 ];
 
 function num(value, fallback = 0) {

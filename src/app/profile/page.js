@@ -9,9 +9,10 @@ import ProfileAnalyticsDashboard, {
 
 const NAV_SECTIONS = [
   {
-    label: "Menu",
+    label: "Profile Analytics",
     items: DASHBOARD_TABS.map((tab) => ({
       id: tab.id,
+      icon: tab.icon,
       label: tab.label,
     })),
   },
@@ -72,8 +73,8 @@ export default function Profile() {
 
   return (
     <AnalyticsShell
-      context="Profile"
-      title="GitHub profile intelligence"
+      context=""
+      title="Githance Profile Intelligence"
       subtitle="Analyze your repositories, contribution patterns, language usage, and collaboration trends in one dashboard."
       navSections={NAV_SECTIONS}
       activeNavId={activeTab}
