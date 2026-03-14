@@ -124,7 +124,6 @@ export default function AnalyticsShell({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     window.localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
@@ -133,16 +132,16 @@ export default function AnalyticsShell({
 
   return (
     <div
-      className="analytics-shell h-screen overflow-hidden"
+      className="analytics-shell min-h-screen"
       data-theme={theme}
       style={{ colorScheme: theme }}
     >
-      <div className="flex h-full">
+      <div className="flex min-h-screen">
 
         {/* Sidebar */}
-        <aside className="analytics-sidebar w-72 flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto">
+        <aside className="analytics-sidebar w-72 flex flex-col gap-6 px-5 py-6 sticky top-0 h-screen overflow-y-auto">
 
-          {/* Sidebar Header */}
+          {/* Logo + Theme */}
           <div className="flex justify-between items-center">
             <p className="font-serif text-2xl text-[color:var(--analytics-sidebar-text)]">
               {brand}
@@ -174,8 +173,8 @@ export default function AnalyticsShell({
           </nav>
         </aside>
 
-        {/* Main Area */}
-        <div className="flex flex-1 flex-col h-full overflow-hidden">
+        {/* Main Content */}
+        <div className="flex flex-1 flex-col">
 
           {/* Header */}
           <header className="analytics-card mx-4 mt-4 flex flex-col gap-4 px-6 py-4 lg:mx-6 lg:mt-6 lg:flex-row lg:items-center lg:justify-between">
@@ -196,8 +195,8 @@ export default function AnalyticsShell({
             </div>
           </header>
 
-          {/* Scrollable Content */}
-          <main className="flex-1 overflow-y-auto px-4 pb-12 pt-6 lg:px-6">
+          {/* Page Content */}
+          <main className="flex-1 px-4 pb-12 pt-6 lg:px-6">
             {children}
           </main>
 
