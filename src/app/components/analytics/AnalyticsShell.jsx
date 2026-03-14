@@ -110,7 +110,7 @@ export default function AnalyticsShell({
   const toggleTheme = () => setTheme((current) => (current === "dark" ? "light" : "dark"));
 
   return (
-    <div className="analytics-shell min-h-screen" data-theme={theme} style={{ colorScheme: theme }}>
+    <div className="analytics-shell h-[100%]" data-theme={theme} style={{ colorScheme: theme }}>
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside className="analytics-sidebar text- flex w-full flex-col gap-6 px-5 py-6 lg:min-h-screen lg:w-72">
           <div className="flex justify-between">
@@ -138,18 +138,6 @@ export default function AnalyticsShell({
               </div>
             ))}
           </nav>
-
-          {user ? (
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--analytics-sidebar-muted)]">Analyst</p>
-              <p className="mt-2 text-sm font-semibold text-[color:var(--analytics-sidebar-text)]">
-                {user.name}
-              </p>
-              {user.subtitle ? (
-                <p className="mt-1 text-xs text-[color:var(--analytics-sidebar-muted)]">{user.subtitle}</p>
-              ) : null}
-            </div>
-          ) : null}
         </aside>
 
         <div className="flex min-h-screen flex-1 flex-col">

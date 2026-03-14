@@ -200,13 +200,6 @@ export default function ReadmeClient({ reponame }) {
           id="overview"
           className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
         >
-          <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-faint)]">
-            Repository Analysis
-          </p>
-          <h2 className="mt-2 text-3xl font-semibold text-white">{reponame}</h2>
-          <p className="mt-2 max-w-3xl text-sm text-white/70">
-            Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository.
-          </p>
         </section>
 
         <SecurityOverview

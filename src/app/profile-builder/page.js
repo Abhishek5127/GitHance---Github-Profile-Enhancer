@@ -1671,11 +1671,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         >
           <div className="flex-1 overflow-y-auto p-6">
             <div className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40">Builder</p>
-              <h2 className="mt-2 text-2xl font-semibold">Profile README Builder</h2>
-              <p className="mt-2 text-sm text-white/60">
-                Compose sections, preview blocks, and publish to your profile with consistent visual style.
-              </p>
+
+              <h2 className="mt-2 font-serif text-2xl font-semibold">Profile README Builder</h2>
+             
             </div>
 
             <Canvas

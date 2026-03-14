@@ -103,10 +103,6 @@ export default function Hero() {
         </div>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-5">
-          <div className="flex items-center justify-between text-xs text-white/50">
-            <span>GitHance Studio</span>
-            <span>Live preview</span>
-          </div>
           <h3 className="mt-3 text-lg font-semibold text-white">{active.title}</h3>
           <p className="mt-2 text-sm text-white/60">{active.copy}</p>
           <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
