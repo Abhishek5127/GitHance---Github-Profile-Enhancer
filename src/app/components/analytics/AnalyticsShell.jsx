@@ -110,9 +110,9 @@ export default function AnalyticsShell({
   const toggleTheme = () => setTheme((current) => (current === "dark" ? "light" : "dark"));
 
   return (
-    <div className="analytics-shell h-[100%]" data-theme={theme} style={{ colorScheme: theme }}>
+    <div className="analytics-shell min-h-screen" data-theme={theme} style={{ colorScheme: theme }}>
       <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="analytics-sidebar text- flex w-full flex-col gap-6 px-5 py-6 lg:min-h-screen lg:w-72">
+        <aside className="analytics-sidebar flex w-full flex-col gap-6 px-5 py-6 lg:w-72 self-start">
           <div className="flex justify-between">
             <p className="font-serif text-2xl text-[color:var(--analytics-sidebar-text)]">{brand}</p>
               <ThemeToggle theme={theme} onToggle={toggleTheme} />
