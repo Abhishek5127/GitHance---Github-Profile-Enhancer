@@ -30,46 +30,17 @@ export function resolveContributionAssetPath(range = "yearly") {
 }
 
 export function buildContributionGraphWorkflow({
-  username = "",
-  yearlyVariant = "classic",
-  monthlyVariant = "classic",
-  yearlyAssetPath = CONTRIBUTION_GRAPH_ASSET_PATH,
-  monthlyAssetPath = CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
   configPath = CONTRIBUTION_GRAPH_CONFIG_PATH,
-  includeMonthly = true,
   scriptPath = CONTRIBUTION_GRAPH_SCRIPT_PATH,
 } = {}) {
-  const safeUsername = String(username || "").trim();
-  const safeYearlyVariant = normalizeVariant(yearlyVariant);
-  const safeMonthlyVariant = normalizeVariant(monthlyVariant);
-  const safeYearlyAssetPath = String(
-    yearlyAssetPath || CONTRIBUTION_GRAPH_ASSET_PATH
-  ).trim();
-  const safeMonthlyAssetPath = String(
-    monthlyAssetPath || CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH
-  ).trim();
   const safeConfigPath = String(
     configPath || CONTRIBUTION_GRAPH_CONFIG_PATH
   ).trim();
-  const safeIncludeMonthly = Boolean(includeMonthly);
   const safeScriptPath = String(scriptPath || CONTRIBUTION_GRAPH_SCRIPT_PATH).trim();
-  const statusTargetPaths = safeIncludeMonthly
-    ? `${safeYearlyAssetPath} ${safeMonthlyAssetPath} ${safeConfigPath}`
-    : `${safeYearlyAssetPath} ${safeConfigPath}`;
-  const gitAddPaths = statusTargetPaths;
-  const monthlyStep = safeIncludeMonthly
-    ? `
-      - name: Generate monthly contribution graph asset
-        env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-          GITHUB_USERNAME: ${safeUsername || "${{ github.repository_owner }}"}
-          GRAPH_VARIANT: ${safeMonthlyVariant}
-          GRAPH_RANGE: monthly
-          GRAPH_OUTPUT_PATH: ${safeMonthlyAssetPath}
-          GRAPH_CONFIG_PATH: ${safeConfigPath}
-        run: node ${safeScriptPath}
-`
-    : "";
+  const safeAssetRoot = safeConfigPath.includes("/")
+    ? safeConfigPath.slice(0, safeConfigPath.lastIndexOf("/"))
+    : safeConfigPath;
+  const statusTargetPaths = `${safeAssetRoot || safeConfigPath} ${safeScriptPath} ${CONTRIBUTION_GRAPH_WORKFLOW_PATH}`;
 
   return `name: Update Contribution Graph
 
@@ -93,16 +64,12 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Generate contribution graph asset
+      - name: Generate contribution graph assets
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-          GITHUB_USERNAME: ${safeUsername || "${{ github.repository_owner }}"}
-          GRAPH_VARIANT: ${safeYearlyVariant}
-          GRAPH_RANGE: yearly
-          GRAPH_OUTPUT_PATH: ${safeYearlyAssetPath}
+          GITHUB_USERNAME: \${{ github.repository_owner }}
           GRAPH_CONFIG_PATH: ${safeConfigPath}
         run: node ${safeScriptPath}
-${monthlyStep}
 
       - name: Commit and push changes
         run: |
@@ -113,7 +80,7 @@ ${monthlyStep}
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ${gitAddPaths}
+          git add ${statusTargetPaths}
           git commit -m "chore(readme): refresh contribution graph asset"
           git push
 `;
@@ -710,87 +677,193 @@ async function fetchContributionDays({ token, username }) {
     .filter((entry) => entry.date);
 }
 
-async function loadGraphConfigForRange({ configPath, range }) {
+async function loadGraphConfigs({
+  configPath,
+  fallbackUsername,
+  fallbackVariant,
+  fallbackRange,
+  fallbackOutputPath,
+} = {}) {
   const normalizedPath = String(configPath || "").trim();
-  if (!normalizedPath) return null;
+  const buildFallbackEntry = () =>
+    normalizeGraphEntry({
+      username: fallbackUsername,
+      variant: fallbackVariant,
+      range: fallbackRange,
+      outputPath: fallbackOutputPath,
+    });
+
+  if (!normalizedPath) {
+    return buildFallbackEntry() ? [buildFallbackEntry()] : [];
+  }
 
   try {
     const absoluteConfigPath = path.resolve(process.cwd(), normalizedPath);
     const raw = await fs.readFile(absoluteConfigPath, "utf8");
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const normalizedRange = normalizeRange(range);
-    const fromGraphs = parsed?.graphs?.[normalizedRange];
-    if (fromGraphs && typeof fromGraphs === "object") {
-      return fromGraphs;
+    if (!parsed || typeof parsed !== "object") {
+      return buildFallbackEntry() ? [buildFallbackEntry()] : [];
     }
 
-    const legacy = parsed?.[normalizedRange];
-    if (legacy && typeof legacy === "object") {
-      return legacy;
+    let graphs = [];
+
+    if (Array.isArray(parsed?.graphs)) {
+      graphs = parsed.graphs
+        .map((entry) =>
+          normalizeGraphEntry(entry, {
+            username: fallbackUsername,
+            variant: fallbackVariant,
+            range: fallbackRange,
+            outputPath: fallbackOutputPath,
+          })
+        )
+        .filter(Boolean);
+    } else if (parsed?.graphs && typeof parsed.graphs === "object") {
+      graphs = Object.entries(parsed.graphs)
+        .map(([rangeKey, entry]) =>
+          normalizeGraphEntry(entry, {
+            username: fallbackUsername,
+            variant: fallbackVariant,
+            range: rangeKey,
+            outputPath:
+              normalizeRange(rangeKey) === "monthly"
+                ? "assets/readme/contribution-graph-monthly.svg"
+                : "assets/readme/contribution-graph.svg",
+          })
+        )
+        .filter(Boolean);
     }
 
-    return null;
+    if (!graphs.length) {
+      graphs = ["yearly", "monthly"]
+        .map((rangeKey) =>
+          normalizeGraphEntry(parsed?.[rangeKey], {
+            username: fallbackUsername,
+            variant: fallbackVariant,
+            range: rangeKey,
+            outputPath:
+              normalizeRange(rangeKey) === "monthly"
+                ? "assets/readme/contribution-graph-monthly.svg"
+                : "assets/readme/contribution-graph.svg",
+          })
+        )
+        .filter(Boolean);
+    }
+
+    if (!graphs.length) {
+      const fallbackEntry = buildFallbackEntry();
+      return fallbackEntry ? [fallbackEntry] : [];
+    }
+
+    const deduped = new Map();
+    graphs.forEach((entry) => {
+      deduped.set(entry.outputPath, entry);
+    });
+    return [...deduped.values()];
   } catch {
-    return null;
+    const fallbackEntry = buildFallbackEntry();
+    return fallbackEntry ? [fallbackEntry] : [];
   }
+}
+
+function normalizeGraphEntry(entry, fallback = {}) {
+  if (!entry || typeof entry !== "object") return null;
+
+  const outputPath = String(
+    entry?.outputPath || entry?.assetPath || fallback.outputPath || ""
+  ).trim();
+  if (!outputPath) return null;
+
+  return {
+    id: String(entry?.id || outputPath).trim() || outputPath,
+    username: normalizeUsername(entry?.username || fallback.username),
+    variant: normalizeVariant(entry?.variant || fallback.variant),
+    range: normalizeRange(entry?.range || fallback.range),
+    outputPath,
+    stickers: normalizeStickerAssignments(entry?.stickers || fallback.stickers),
+    stickerLayers: normalizeStickerLayers(
+      entry?.stickerLayers || fallback.stickerLayers
+    ),
+    stickerHrefs:
+      entry?.stickerHrefs && typeof entry.stickerHrefs === "object"
+        ? entry.stickerHrefs
+        : fallback?.stickerHrefs && typeof fallback.stickerHrefs === "object"
+          ? fallback.stickerHrefs
+          : {},
+  };
+}
+
+function normalizeUsername(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 async function main() {
   const token = String(process.env.GITHUB_TOKEN || "").trim();
-  const username = String(
+  const fallbackUsername = normalizeUsername(
     process.env.GITHUB_USERNAME ||
       process.env.GITHUB_REPOSITORY_OWNER ||
       process.env.GITHUB_ACTOR ||
       ""
-  )
-    .trim()
-    .toLowerCase();
-  const variant = normalizeVariant(process.env.GRAPH_VARIANT || "classic");
-  const range = normalizeRange(process.env.GRAPH_RANGE || "yearly");
-  const outputPath = String(process.env.GRAPH_OUTPUT_PATH || "${safeOutputPath}").trim();
+  );
+  const fallbackVariant = normalizeVariant(process.env.GRAPH_VARIANT || "classic");
+  const fallbackRange = normalizeRange(process.env.GRAPH_RANGE || "yearly");
+  const fallbackOutputPath = String(
+    process.env.GRAPH_OUTPUT_PATH || "${safeOutputPath}"
+  ).trim();
   const configPath = String(process.env.GRAPH_CONFIG_PATH || "${safeConfigPath}").trim();
 
   if (!token) {
     throw new Error("GITHUB_TOKEN is required");
   }
-  if (!username) {
-    throw new Error("GITHUB_USERNAME (or repository owner) is required");
+
+  const graphConfigs = await loadGraphConfigs({
+    configPath,
+    fallbackUsername,
+    fallbackVariant,
+    fallbackRange,
+    fallbackOutputPath,
+  });
+
+  if (!graphConfigs.length) {
+    throw new Error("No contribution graph entries configured");
   }
 
-  const graphConfig = await loadGraphConfigForRange({
-    configPath,
-    range,
-  });
-  const resolvedVariant = normalizeVariant(graphConfig?.variant || variant);
-  const stickers = normalizeStickerAssignments(graphConfig?.stickers);
-  const stickerLayers = normalizeStickerLayers(graphConfig?.stickerLayers);
-  const stickerHrefs =
-    graphConfig?.stickerHrefs && typeof graphConfig.stickerHrefs === "object"
-      ? graphConfig.stickerHrefs
-      : {};
+  const daysByUsername = new Map();
+  const updatedOutputs = [];
 
-  const days = await fetchContributionDays({ token, username });
-  const svg = renderHeatmapSvg({
-    username,
-    days,
-    variant: resolvedVariant,
-    range,
-    stickers,
-    stickerLayers,
-    stickerHrefs,
-  });
+  for (const graphConfig of graphConfigs) {
+    const graphUsername = normalizeUsername(graphConfig.username || fallbackUsername);
+    if (!graphUsername) {
+      throw new Error("Missing GitHub username for " + graphConfig.outputPath);
+    }
 
-  const absoluteOutputPath = path.resolve(process.cwd(), outputPath);
-  await fs.mkdir(path.dirname(absoluteOutputPath), { recursive: true });
-  await fs.writeFile(absoluteOutputPath, svg + "\\n", "utf8");
-  console.log(\`Contribution graph updated at \${outputPath}\`);
+    let days = daysByUsername.get(graphUsername);
+    if (!days) {
+      days = await fetchContributionDays({ token, username: graphUsername });
+      daysByUsername.set(graphUsername, days);
+    }
+
+    const svg = renderHeatmapSvg({
+      username: graphUsername,
+      days,
+      variant: graphConfig.variant,
+      range: graphConfig.range,
+      stickers: graphConfig.stickers,
+      stickerLayers: graphConfig.stickerLayers,
+      stickerHrefs: graphConfig.stickerHrefs,
+    });
+
+    const absoluteOutputPath = path.resolve(process.cwd(), graphConfig.outputPath);
+    await fs.mkdir(path.dirname(absoluteOutputPath), { recursive: true });
+    await fs.writeFile(absoluteOutputPath, svg + "\n", "utf8");
+    updatedOutputs.push(graphConfig.outputPath);
+  }
+
+  console.log("Contribution graphs updated: " + updatedOutputs.join(", "));
 }
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
-});
-`;
+});`;
 }

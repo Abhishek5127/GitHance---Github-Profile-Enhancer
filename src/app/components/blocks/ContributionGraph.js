@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useDroppable } from "@dnd-kit/core";
 import Image from "next/image";
+import { resolveProfileBuilderUsername } from "@/app/lib/profileComponents";
 import {
   normalizeContributionRange,
   normalizeContributionVariant,
@@ -50,9 +51,10 @@ export default function ContributionGraph({
   showStickerDropSlots = false,
 }) {
   const { data: session } = useSession();
-  const username = String(item?.data?.username || session?.username || "")
-    .trim()
-    .toLowerCase();
+  const username = resolveProfileBuilderUsername(
+    item?.data?.username,
+    session?.username
+  );
   const variant = normalizeContributionVariant(item?.data?.variant);
   const range = normalizeContributionRange(item?.data?.range);
   const persistedSnapshot = item?.data?.contributionSnapshot || null;

@@ -8,6 +8,7 @@ import {
 import { getRepoCommitStatItemById } from "./repoCommitCatalog";
 import { getSectionVariantById } from "./sectionCatalog";
 import { CONTRIBUTION_GRAPH_ASSET_PATH } from "./contributionGraphAssets";
+import { resolveProfileBuilderUsername } from "./profileComponents";
 import { normalizeStickerAssignments } from "./stickerCatalog";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
@@ -363,7 +364,7 @@ ${content || "&nbsp;"}
 
     if (item.type === "commitStat" || block === "commitstat") {
       const baseUrl = resolveBaseUrl();
-      const username = String(item.data?.username || "").trim();
+      const username = resolveProfileBuilderUsername(item.data?.username);
       const installationId = Number(item.data?.installationId || 0) || null;
       const statId = String(item.data?.statId || "contribution")
         .trim()
@@ -410,7 +411,7 @@ ${content || "&nbsp;"}
 
     if (block === "commits") {
       const baseUrl = resolveBaseUrl();
-      const username = String(item.data?.username || "").trim();
+      const username = resolveProfileBuilderUsername(item.data?.username);
       const installationId = Number(item.data?.installationId || 0) || null;
       const stickersParam = encodeStickersParam(item?.data?.stickers);
 

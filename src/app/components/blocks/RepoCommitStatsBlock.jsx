@@ -7,6 +7,7 @@ import {
   REPO_COMMIT_STAT_ITEMS,
   getRepoCommitStatItemById,
 } from "@/app/lib/repoCommitCatalog";
+import { resolveProfileBuilderUsername } from "@/app/lib/profileComponents";
 import {
   STICKER_SLOT_PRESETS,
   buildStickerDropId,
@@ -134,16 +135,16 @@ export default function RepoCommitStatsBlock({
   showStickerDropSlots = false,
 }) {
   const { data: session } = useSession();
-  const username = (item?.data?.username || session?.username || "").trim();
+  const username = resolveProfileBuilderUsername(
+    item?.data?.username,
+    session?.username
+  );
   const token = session?.accessToken || "";
   const requestedInstallationId = Number(item?.data?.installationId || 0) || null;
   const persistedSnapshot = item?.data?.statsSnapshot || null;
   const hasPersistedSnapshot = Boolean(
     persistedSnapshot && typeof persistedSnapshot === "object"
   );
-  const selectedTheme = String(item?.data?.theme || "neon")
-    .trim()
-    .toLowerCase();
   const requestedStatIds = useMemo(
     () => resolveRequestedStatIds(item),
     [item]
@@ -334,14 +335,8 @@ export default function RepoCommitStatsBlock({
     );
   }
 
-  const isNeonTheme = selectedTheme === "neon";
-
-  const cardClass = isNeonTheme
-    ? "rounded-lg p-1.5 "
-    : "rounded-lg p-1.5";
-  const labelClass = isNeonTheme
-    ? "mb-1 text-[10px] text-cyan-100/80"
-    : "mb-1 text-[10px] text-white/60";
+  const cardClass = "rounded-lg p-1.5";
+  const labelClass = "mb-1 text-[10px] text-cyan-100/80";
 
   return (
     <div className="w-full min-w-0">

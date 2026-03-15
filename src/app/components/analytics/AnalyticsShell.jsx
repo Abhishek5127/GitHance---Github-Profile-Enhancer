@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { assets } from "@/app/assets/assets";
+import { useRouter } from "next/navigation";
+
 
 const THEME_KEY = "analytics-theme";
 
@@ -25,6 +27,7 @@ function ThemeToggle({ theme, onToggle }) {
     </button>
   );
 }
+
 
 function NavItem({ item, isActive, onSelect }) {
   const baseClasses =
@@ -104,6 +107,7 @@ export default function AnalyticsShell({
   user,
 }) {
   const [theme, setTheme] = useState("light");
+  const router = useRouter();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -143,7 +147,7 @@ export default function AnalyticsShell({
 
           {/* Logo + Theme */}
           <div className="flex justify-between items-center">
-            <p className="font-serif text-2xl text-[color:var(--analytics-sidebar-text)]">
+            <p onClick={()=>router.push('/')} className="font-serif cursor-pointer text-2xl text-[color:var(--analytics-sidebar-text)]">
               {brand}
             </p>
 

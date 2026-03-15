@@ -1,4 +1,3 @@
-import TypingHeaderPreview from "../previews/headers/TypingHeaderPreview";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
 import SignatureHeaderPreview from "../previews/headers/SignatureHeaderPreview";
 import AchievementHeaderPreview from "../previews/headers/AchievementHeaderPreview";

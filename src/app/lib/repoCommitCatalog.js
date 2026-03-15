@@ -1,17 +1,3 @@
-export const REPO_COMMIT_THEMES = [
-  {
-    id: "neon",
-    title: "Neon",
-    description: "Electric neon glow with deep midnight panels.",
-  },
-
-  {
-    id:"minecraft",
-    title:"Minecraft",
-    description:"get minecraft theme"
-  }
-];
-
 export const REPO_COMMIT_STAT_ITEMS = [
   {
     id: "contribution",

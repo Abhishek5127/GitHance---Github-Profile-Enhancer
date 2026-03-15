@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import TypingHeaderPreview from "../previews/headers/TypingHeaderPreview";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
 import SignatureHeaderPreview from "../previews/headers/SignatureHeaderPreview";
 import AchievementHeaderPreview from "../previews/headers/AchievementHeaderPreview";
@@ -40,7 +39,6 @@ const VARIANTS = [
   { id: "signal", title: "Signal Wave" },
   { id: "terminal", title: "Terminal" },
   { id: "stacked", title: "Stacked Panels" },
-  { id: "typingHeader", title: "Typing Header" },
   { id: "image", title: "Image Banner" },
 ];
 

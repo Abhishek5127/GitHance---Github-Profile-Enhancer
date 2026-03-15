@@ -26,6 +26,7 @@ import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
 import { buildTechStackPayload } from "../lib/techStackCatalog";
 import { REPO_COMMIT_STAT_ITEMS } from "../lib/repoCommitCatalog";
+import { resolveProfileBuilderUsername } from "../lib/profileComponents";
 import {
   getSectionVariantById,
   parseSectionSlotDropId,
@@ -155,10 +156,13 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     pickerKey: 0,
   });
   const token = session?.accessToken;
+  const sessionUsername = resolveProfileBuilderUsername(session?.username);
+  const resolveCanvasUsername = (value = "") =>
+    resolveProfileBuilderUsername(value, sessionUsername);
   const [markdown, setMarkdown] = useState([]);
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
   const isAuthenticated =
-    status === "authenticated" && Boolean(session?.username) && Boolean(token);
+    status === "authenticated" && Boolean(sessionUsername) && Boolean(token);
 
   const bootstrapCommitStatsSnapshot = async (username, installationId = null) => {
     if (!username || !token) return null;
@@ -337,7 +341,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     await Promise.all(
       commitBlocks.map(async (item) => {
-        const username = String(item?.data?.username || session?.username || "").trim();
+        const username = resolveCanvasUsername(item?.data?.username);
         const installationId = Number(item?.data?.installationId || 0) || null;
         const identityKey = `${username}:${installationId ?? "auto"}`;
         if (!username || statsByIdentity.has(identityKey)) return;
@@ -352,7 +356,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     return mapCanvasItemsDeep(items, (entry) => {
       if (entry.type !== "commitStat" && entry.type !== "commits") return entry;
 
-      const username = String(entry?.data?.username || session?.username || "").trim();
+      const username = resolveCanvasUsername(entry?.data?.username);
       const installationId = Number(entry?.data?.installationId || 0) || null;
       const identityKey = `${username}:${installationId ?? "auto"}`;
       const snapshot = statsByIdentity.get(identityKey);
@@ -495,9 +499,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     await Promise.all(
       contributionBlocks.map(async (item) => {
-        const username = String(item?.data?.username || session?.username || "")
-          .trim()
-          .toLowerCase();
+        const username = resolveCanvasUsername(item?.data?.username);
         if (!username || snapshotsByUser.has(username)) return;
 
         const existingSnapshot = item?.data?.contributionSnapshot || null;
@@ -516,9 +518,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     return mapCanvasItemsDeep(items, (entry) => {
       if (entry.type !== "contribution") return entry;
 
-      const username = String(entry?.data?.username || session?.username || "")
-        .trim()
-        .toLowerCase();
+      const username = resolveCanvasUsername(entry?.data?.username);
       const existingSnapshot = entry?.data?.contributionSnapshot || null;
       const contributionSnapshot = hasContributionSnapshot(existingSnapshot)
         ? existingSnapshot
@@ -543,7 +543,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   };
 
   const updateProfileReadme = async () => {
-    if (status !== "authenticated" || !session?.username || !token) {
+    if (status !== "authenticated" || !sessionUsername || !token) {
       await signIn("github", { callbackUrl: "/profile-builder" });
       return;
     }
@@ -561,16 +561,10 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       (item) => item.type === "contribution"
     );
     const contributionFileMap = new Map();
-    const workflowDefaults = {
-      username: String(session?.username || "").trim().toLowerCase(),
-      yearlyVariant: CONTRIBUTION_DEFAULT_VARIANT,
-      monthlyVariant: CONTRIBUTION_DEFAULT_VARIANT,
-      includeMonthly: false,
-    };
     const contributionGraphConfig = {
-      version: 1,
+      version: 2,
       updatedAt: new Date().toISOString(),
-      graphs: {},
+      graphs: [],
     };
 
     const upsertContributionFile = (entry) => {
@@ -579,11 +573,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     };
 
     for (const contributionBlock of contributionBlocks) {
-      const contributionUsername = String(
-        contributionBlock?.data?.username || session?.username || ""
-      )
-        .trim()
-        .toLowerCase();
+      const contributionUsername = resolveCanvasUsername(
+        contributionBlock?.data?.username
+      );
       const contributionVariant = normalizeContributionVariant(
         contributionBlock?.data?.variant || CONTRIBUTION_DEFAULT_VARIANT
       );
@@ -633,20 +625,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         message: `chore(readme): refresh ${contributionRange} contribution graph asset`,
       });
 
-      contributionGraphConfig.graphs[contributionRange] = {
+      contributionGraphConfig.graphs.push({
+        id: String(contributionBlock?.id || "").trim() || contributionAssetPath,
+        username: contributionUsername,
         variant: contributionVariant,
+        range: contributionRange,
+        outputPath: contributionAssetPath,
         stickers: contributionStickers,
         stickerLayers: contributionStickerLayers,
         stickerHrefs,
-      };
-
-      workflowDefaults.username = workflowDefaults.username || contributionUsername;
-      if (contributionRange === "monthly") {
-        workflowDefaults.includeMonthly = true;
-        workflowDefaults.monthlyVariant = contributionVariant;
-      } else {
-        workflowDefaults.yearlyVariant = contributionVariant;
-      }
+      });
     }
 
     if (contributionBlocks.length) {
@@ -659,13 +647,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       upsertContributionFile({
         path: CONTRIBUTION_GRAPH_WORKFLOW_PATH,
         content: buildContributionGraphWorkflow({
-          username: workflowDefaults.username,
-          yearlyVariant: workflowDefaults.yearlyVariant,
-          monthlyVariant: workflowDefaults.monthlyVariant,
-          yearlyAssetPath: CONTRIBUTION_GRAPH_ASSET_PATH,
-          monthlyAssetPath: CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
           configPath: CONTRIBUTION_GRAPH_CONFIG_PATH,
-          includeMonthly: workflowDefaults.includeMonthly,
           scriptPath: CONTRIBUTION_GRAPH_SCRIPT_PATH,
         }),
         message: "chore(readme): configure contribution graph workflow",
@@ -674,7 +656,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       upsertContributionFile({
         path: CONTRIBUTION_GRAPH_SCRIPT_PATH,
         content: buildContributionGraphUpdaterScript({
-          outputPath: CONTRIBUTION_GRAPH_ASSET_PATH,
           configPath: CONTRIBUTION_GRAPH_CONFIG_PATH,
         }),
         message: "chore(readme): add contribution graph generator script",
@@ -1056,13 +1037,12 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           slots: [null, null],
         },
         commits: {
-          username: session?.username || "your-github-username",
+          username: sessionUsername,
           installationId: null,
           statId: "contribution",
-          theme: "neon",
         },
         contribution: {
-          username: session?.username || "your-github-username",
+          username: sessionUsername,
           variant: CONTRIBUTION_DEFAULT_VARIANT,
           range: CONTRIBUTION_DEFAULT_RANGE,
         },
@@ -1192,10 +1172,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   };
 
   const addCommitStatsItemsToCanvas = async ({
-    theme = "neon",
     itemIds = [],
   } = {}) => {
-    const username = String(session?.username || "your-github-username").trim();
+    const username = sessionUsername;
     const selectedIds = (Array.isArray(itemIds) ? itemIds : [])
       .map((value) => String(value || "").trim().toLowerCase())
       .filter(Boolean);
@@ -1215,7 +1194,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         username,
         installationId,
         statId,
-        theme: String(theme || "neon").trim().toLowerCase() || "neon",
         ...(snapshot ? { statsSnapshot: snapshot } : {}),
       },
     }));
@@ -1227,9 +1205,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     variant = CONTRIBUTION_DEFAULT_VARIANT,
     range = CONTRIBUTION_DEFAULT_RANGE,
   } = {}) => {
-    const username = String(session?.username || "your-github-username")
-      .trim()
-      .toLowerCase();
+    const username = sessionUsername;
     const normalizedVariant = normalizeContributionVariant(variant);
     const normalizedRange = normalizeContributionRange(range);
     const snapshot = await bootstrapContributionSnapshot(username);
@@ -1543,9 +1519,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     closeSectionPicker();
   };
 
-  const handleRepoCommitSelection = async ({ theme, itemIds }) => {
+  const handleRepoCommitSelection = async ({ itemIds }) => {
     await addCommitStatsItemsToCanvas({
-      theme,
       itemIds,
     });
   };
@@ -1559,9 +1534,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         ...entry,
         data: {
           ...entry.data,
-          username: String(entry?.data?.username || session?.username || "")
-            .trim()
-            .toLowerCase(),
+          username: resolveCanvasUsername(entry?.data?.username),
           variant: normalizedVariant,
           range: normalizedRange,
           assetPath: buildContributionAssetPath(entry.id, normalizedRange, 0),

@@ -196,12 +196,6 @@ export default function ReadmeClient({ reponame }) {
       user={user}
     >
       <div className="grid gap-6">
-        <section
-          id="overview"
-          className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
-        >
-        </section>
-
         <SecurityOverview
           loading={securityLoading}
           error={securityError}

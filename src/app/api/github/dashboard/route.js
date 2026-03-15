@@ -2399,10 +2399,18 @@ export async function POST(req) {
           htmlUrl: String(profile?.html_url || ""),
         },
         overview: {
-          totalRepositories: Math.max(
-            0,
-            Math.floor(safeNumber(profile?.public_repos, repos.length))
-          ),
+          totalRepositories: reposResponse.ok
+            ? repos.length
+            : Math.max(
+                0,
+                Math.floor(
+                  safeNumber(
+                    safeNumber(profile?.public_repos, 0) +
+                      safeNumber(profile?.total_private_repos, 0),
+                    0
+                  )
+                )
+              ),
           totalStars,
           totalForks,
           followers: Math.max(0, Math.floor(safeNumber(profile?.followers, 0))),
