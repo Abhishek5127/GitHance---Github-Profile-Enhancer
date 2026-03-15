@@ -8,7 +8,6 @@ import {
   FINAL_SCORE_WEIGHTS,
   SCORE_DIMENSIONS,
   SCORE_LABELS,
-  compareProfiles,
   type ComparedProfile,
   type ComparedRepository,
   type ProfileComparisonResult,
@@ -49,6 +48,49 @@ function formatGeneratedAt(value: string) {
 
 function displayHandle(profile: ComparedProfile) {
   return `@${profile.basic.username}`;
+}
+
+function normalizeUsernameInput(value: string) {
+  return String(value || "").trim().toLowerCase();
+}
+
+async function requestProfileComparison(
+  leftUsernameInput: string,
+  rightUsernameInput: string
+): Promise<ProfileComparisonResult> {
+  const leftUsername = normalizeUsernameInput(leftUsernameInput);
+  const rightUsername = normalizeUsernameInput(rightUsernameInput);
+
+  if (!leftUsername || !rightUsername) {
+    throw new Error("Both GitHub usernames are required.");
+  }
+
+  if (leftUsername === rightUsername) {
+    throw new Error("Enter two different GitHub usernames to compare.");
+  }
+
+  const response = await fetch("/api/profile-compare", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      leftUsername,
+      rightUsername,
+    }),
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.comparison) {
+    throw new Error(
+      payload && typeof payload === "object" && "error" in payload
+        ? String(payload.error || "Unable to compare these GitHub profiles right now.")
+        : "Unable to compare these GitHub profiles right now."
+    );
+  }
+
+  return payload.comparison as ProfileComparisonResult;
 }
 
 function winnerLabel(winner: string, left: ComparedProfile, right: ComparedProfile) {
@@ -627,7 +669,7 @@ export default function ProfileCompareClient() {
     setIsLoading(true);
 
     try {
-      const nextComparison = await compareProfiles(leftUsername, rightUsername);
+      const nextComparison = await requestProfileComparison(leftUsername, rightUsername);
       setComparison(nextComparison);
     } catch (compareError) {
       setError(

@@ -27,7 +27,7 @@ function ThemeToggle({ theme, onToggle }) {
     </button>
   );
 }
-
+ 
 
 function NavItem({ item, isActive, onSelect }) {
   const baseClasses =
