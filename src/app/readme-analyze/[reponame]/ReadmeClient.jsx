@@ -1,181 +1,637 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import AnalyticsShell from "@/app/components/analytics/AnalyticsShell";
-import ReadmeBlock from "../readme-analyze-components/ReadmeBlock";
-import SecurityOverview from "../readme-analyze-components/SecurityOverview";
+import ReadmeRenderer from "@/app/components/blocks/ReadmeRenderer";
 import Unauthorized from "@/app/statusCodePages/unauthorized";
+import ReadmeBlock from "../readme-analyze-components/ReadmeBlock";
+import { analyzeReadme, README_SECTION_DEFINITIONS } from "@/app/lib/readme/analyzeReadme";
 
-async function fetchSecurityData({ username, reponame, token }) {
-  const res = await fetch("/api/repo-security", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, reponame, token }),
-  });
+const DEFAULT_SECTIONS = README_SECTION_DEFINITIONS.reduce((result, section) => {
+  result[section.key] = section.key === "roadmap" ? false : true;
+  return result;
+}, {});
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data?.error || "Failed to run security analysis");
-  }
-  return data;
+const DEFAULT_OPTIONS = {
+  title: "",
+  tone: "developer-friendly",
+  targetAudience: "",
+  customNotes: "",
+  sections: DEFAULT_SECTIONS,
+};
+
+const TONE_OPTIONS = [
+  { value: "developer-friendly", label: "Developer Friendly" },
+  { value: "technical", label: "Technical" },
+  { value: "product-polished", label: "Product Polished" },
+  { value: "concise", label: "Concise" },
+];
+
+function buildNavSections(reponame) {
+  return [
+    {
+      label: "README Lab",
+      items: [
+        { id: "overview", label: "Overview", href: "#overview" },
+        { id: "insights", label: "Insights", href: "#insights" },
+        { id: "builder", label: "Builder", href: "#builder" },
+        { id: "editor", label: "Editor", href: "#editor" },
+        { id: "preview", label: "Preview", href: "#preview" },
+        {
+          id: "security",
+          label: "Security View",
+          href: `/repository-security/${encodeURIComponent(reponame || "")}`,
+        },
+      ],
+    },
+  ];
 }
 
-const NAV_SECTIONS = [
-  {
-    label: "Repository",
-    items: [
-      { id: "overview", label: "Overview", href: "#overview" },
-      { id: "coverage", label: "Coverage", href: "#coverage" },
-      { id: "severity", label: "Severity", href: "#severity" },
-      { id: "hotspots", label: "Hotspots", href: "#hotspots" },
-      { id: "findings", label: "Findings", href: "#findings" },
-    ],
-  },
-];
+function buildInitialOptions(data, currentReadme) {
+  const analysis = analyzeReadme(currentReadme, {
+    repoName: data?.repository?.name,
+    repoDescription: data?.repository?.description,
+  });
+  const licenseDetected = Boolean(data?.repository?.license?.name) || analysis.sectionCoverage.some(
+    (section) => section.key === "license" && section.found
+  );
+
+  return {
+    ...DEFAULT_OPTIONS,
+    title: analysis.title || data?.repository?.name || "",
+    targetAudience: data?.repository?.private
+      ? "Internal collaborators and maintainers"
+      : "Open-source contributors and developers",
+    sections: {
+      ...DEFAULT_SECTIONS,
+      license: licenseDetected,
+    },
+  };
+}
+
+function MetricCard({ label, value, hint = "" }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-white/45">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+      {hint ? <p className="mt-2 text-xs text-white/55">{hint}</p> : null}
+    </div>
+  );
+}
+
+function StatusBadge({ active, activeLabel, inactiveLabel }) {
+  return (
+    <span
+      className={`rounded-full border px-3 py-1 text-xs uppercase tracking-[0.16em] ${
+        active
+          ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+          : "border-amber-400/30 bg-amber-500/10 text-amber-100"
+      }`}
+    >
+      {active ? activeLabel : inactiveLabel}
+    </span>
+  );
+}
+
+function FeedbackBanner({ feedback }) {
+  if (!feedback?.message) return null;
+
+  const toneClass =
+    feedback.tone === "error"
+      ? "border-red-500/30 bg-red-500/10 text-red-100"
+      : feedback.tone === "success"
+        ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+        : "border-cyan-400/30 bg-cyan-500/10 text-cyan-100";
+
+  return <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>{feedback.message}</div>;
+}
+
+function SectionCoverageCard({ analysis }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Section Coverage</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">README structure map</h3>
+        </div>
+        <span className="rounded-full border border-white/15 bg-black/20 px-3 py-1 text-xs text-white/70">
+          {analysis.sectionCoverage.filter((section) => section.found).length}/{analysis.sectionCoverage.length}
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {analysis.sectionCoverage.map((section) => (
+          <span
+            key={section.key}
+            className={`rounded-full border px-3 py-1 text-xs ${
+              section.found
+                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+                : "border-white/10 bg-black/20 text-white/55"
+            }`}
+          >
+            {section.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InsightPanel({ title, items, emptyText, tone = "default" }) {
+  const toneClass =
+    tone === "warn"
+      ? "border-amber-400/20 bg-amber-500/5"
+      : tone === "good"
+        ? "border-emerald-400/20 bg-emerald-500/5"
+        : "border-white/10 bg-white/5";
+
+  return (
+    <div className={`rounded-2xl border p-5 ${toneClass}`}>
+      <p className="text-xs uppercase tracking-[0.2em] text-white/45">{title}</p>
+      <div className="mt-3 space-y-2 text-sm text-white/80">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <p key={item} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+              {item}
+            </p>
+          ))
+        ) : (
+          <p className="text-white/55">{emptyText}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RelevantFilesCard({ files = [] }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Relevant Files</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">Best source files for README generation</h3>
+        </div>
+        <span className="rounded-full border border-white/15 bg-black/20 px-3 py-1 text-xs text-white/70">
+          {files.length} files
+        </span>
+      </div>
+
+      <div className="mt-4 max-h-[340px] space-y-2 overflow-y-auto pr-1">
+        {files.length > 0 ? (
+          files.map((file) => (
+            <div key={file.path} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/75">
+              {file.path}
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-white/55">GitHance could not find strong source files for summarization.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RepoSnapshotCard({ repository, readme, branch, hiddenTreeCount = 0 }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/45">Repository Snapshot</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <MetricCard label="Branch" value={branch || "main"} />
+        <MetricCard label="Primary Language" value={repository?.language || "Unknown"} />
+        <MetricCard label="Stars" value={repository?.stars ?? 0} />
+        <MetricCard label="Forks" value={repository?.forks ?? 0} />
+      </div>
+
+      <div className="mt-4 space-y-3 text-sm text-white/75">
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+          <p className="text-xs uppercase tracking-[0.16em] text-white/45">Description</p>
+          <p className="mt-2">{repository?.description || "No repository description provided on GitHub yet."}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+          <p className="text-xs uppercase tracking-[0.16em] text-white/45">README Path</p>
+          <p className="mt-2">{readme?.exists ? readme.path : "README not found"}</p>
+        </div>
+        {hiddenTreeCount > 0 ? (
+          <p className="text-xs text-white/50">Showing the first 400 tree entries in the structure viewer. {hiddenTreeCount} additional items are hidden for readability.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+function BuilderControls({ options, onChange, isGenerating, onGenerate, generateLabel }) {
+  const toggleSection = (key) => {
+    onChange({
+      ...options,
+      sections: {
+        ...options.sections,
+        [key]: !options.sections[key],
+      },
+    });
+  };
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">User Editable Features</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">Guide the README before generation</h3>
+        </div>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={isGenerating}
+          className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {isGenerating ? "Working..." : generateLabel}
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <label className="space-y-2">
+          <span className="text-sm text-white/75">README title</span>
+          <input
+            value={options.title}
+            onChange={(event) => onChange({ ...options, title: event.target.value })}
+            placeholder="Project title"
+            className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none"
+          />
+        </label>
+
+        <label className="space-y-2">
+          <span className="text-sm text-white/75">Tone</span>
+          <select
+            value={options.tone}
+            onChange={(event) => onChange({ ...options, tone: event.target.value })}
+            className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none"
+          >
+            {TONE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <label className="space-y-2">
+          <span className="text-sm text-white/75">Target audience</span>
+          <input
+            value={options.targetAudience}
+            onChange={(event) => onChange({ ...options, targetAudience: event.target.value })}
+            placeholder="Who should this README speak to?"
+            className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none"
+          />
+        </label>
+
+        <label className="space-y-2 md:col-span-1">
+          <span className="text-sm text-white/75">Custom notes for GitHance</span>
+          <textarea
+            value={options.customNotes}
+            onChange={(event) => onChange({ ...options, customNotes: event.target.value })}
+            placeholder="Examples: emphasize setup simplicity, keep roadmap short, mention deployment, add contributor guidance"
+            className="min-h-[112px] w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none"
+          />
+        </label>
+      </div>
+
+      <div className="mt-5">
+        <p className="text-sm text-white/75">Sections to include</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {README_SECTION_DEFINITIONS.map((section) => (
+            <button
+              key={section.key}
+              type="button"
+              onClick={() => toggleSection(section.key)}
+              className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                options.sections[section.key]
+                  ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-100"
+                  : "border-white/10 bg-black/20 text-white/55"
+              }`}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditorPane({
+  value,
+  onChange,
+  onReset,
+  onCopy,
+  onPublish,
+  isPublishing,
+  canReset,
+  canCopy,
+  canPublish,
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Markdown Editor</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">Edit the README directly</h3>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={!canReset}
+            className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white/75 transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Reset to Original
+          </button>
+          <button
+            type="button"
+            onClick={onCopy}
+            disabled={!canCopy}
+            className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white/75 transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Copy Markdown
+          </button>
+          <button
+            type="button"
+            onClick={onPublish}
+            disabled={!canPublish || isPublishing}
+            className="rounded-xl bg-cyan-300 px-3 py-2 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isPublishing ? "Publishing..." : "Publish README"}
+          </button>
+        </div>
+      </div>
+
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Generate a README with GitHance or start writing here."
+        className="mt-4 min-h-[640px] w-full rounded-2xl border border-white/10 bg-[#0c1016] p-4 font-mono text-sm text-white outline-none"
+      />
+    </div>
+  );
+}
+
+function PreviewPane({ value }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Live Preview</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">Rendered markdown</h3>
+        </div>
+      </div>
+
+      <div className="mt-4 min-h-[640px] overflow-auto rounded-2xl border border-white/10 bg-[#0c1016] p-4">
+        {value.trim() ? (
+          <ReadmeRenderer readme={value} className="text-white" />
+        ) : (
+          <div className="flex min-h-[600px] items-center justify-center text-sm text-white/45">
+            README preview appears here once content exists.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ReadmeClient({ reponame }) {
   const { data: session, status } = useSession();
-  const [loading, setLoading] = useState(false);
-  const [securityLoading, setSecurityLoading] = useState(false);
-  const [securityError, setSecurityError] = useState(null);
-  const [securityReport, setSecurityReport] = useState(null);
-  const [securityMeta, setSecurityMeta] = useState(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [workspaceData, setWorkspaceData] = useState(null);
+  const [originalReadme, setOriginalReadme] = useState("");
+  const [editorValue, setEditorValue] = useState("");
+  const [options, setOptions] = useState(DEFAULT_OPTIONS);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [generationInfo, setGenerationInfo] = useState(null);
+  const [feedback, setFeedback] = useState({ tone: "info", message: "" });
 
   useEffect(() => {
-    if (
-      status !== "authenticated" ||
-      !session?.username ||
-      !session?.accessToken ||
-      !reponame
-    ) {
+    if (status !== "authenticated" || !session?.username || !reponame) {
       return;
     }
 
     let isCancelled = false;
 
-    const runAnalysis = async () => {
-      setLoading(true);
-      setSecurityLoading(true);
-      setSecurityError(null);
-
-      const username = session.username;
-      const token = session.accessToken;
-
+    const loadWorkspace = async () => {
       try {
-        const securityResult = await fetchSecurityData({ username, reponame, token });
+        setWorkspaceLoading(true);
+        setWorkspaceError("");
+        setFeedback({ tone: "info", message: "" });
+
+        const response = await fetch("/api/repository-readme", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ owner: session.username, repo: reponame }),
+        });
+
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error || "Failed to load README workspace");
+        }
+
         if (isCancelled) return;
 
-        setSecurityReport(securityResult?.report || null);
-        setSecurityMeta(securityResult?.analysisMeta || null);
+        const nextReadme = String(payload?.readme?.content || "");
+        setWorkspaceData(payload);
+        setOriginalReadme(nextReadme);
+        setEditorValue(nextReadme);
+        setOptions(buildInitialOptions(payload, nextReadme));
+        setGenerationInfo(null);
       } catch (error) {
         if (isCancelled) return;
-
-        setSecurityReport(null);
-        setSecurityMeta(null);
-        setSecurityError(
-          error?.message || "Security analysis failed for this repository."
-        );
+        setWorkspaceError(error?.message || "Failed to load README workspace");
       } finally {
-        if (isCancelled) return;
-        setLoading(false);
-        setSecurityLoading(false);
+        if (!isCancelled) {
+          setWorkspaceLoading(false);
+        }
       }
     };
 
-    runAnalysis();
+    loadWorkspace();
 
     return () => {
       isCancelled = true;
     };
-  }, [status, session?.username, session?.accessToken, reponame]);
+  }, [status, session?.username, reponame]);
+  const readmeExists = Boolean(workspaceData?.readme?.exists);
+  const hasEditorContent = Boolean(editorValue.trim());
+  const generationMode = readmeExists || hasEditorContent ? "improve" : "create";
+  const generateLabel = generationMode === "create" ? "Build with GitHance" : "Refine with GitHance";
+
+  const analysis = useMemo(
+    () =>
+      analyzeReadme(editorValue, {
+        repoName: workspaceData?.repository?.name,
+        repoDescription: workspaceData?.repository?.description,
+      }),
+    [editorValue, workspaceData?.repository?.name, workspaceData?.repository?.description]
+  );
+
+  const treePreview = useMemo(
+    () => (Array.isArray(workspaceData?.tree) ? workspaceData.tree.slice(0, 400) : []),
+    [workspaceData?.tree]
+  );
+
+  const hiddenTreeCount = Math.max(0, Number(workspaceData?.tree?.length || 0) - treePreview.length);
 
   const user = session?.username
     ? { name: session.username, subtitle: reponame ? `Repo: ${reponame}` : "" }
     : null;
 
-  if (status === "loading" || loading || securityLoading) {
+  const handleGenerate = async () => {
+    if (!session?.username || !reponame) return;
+
+    try {
+      setIsGenerating(true);
+      setFeedback({ tone: "info", message: "" });
+
+      const response = await fetch("/api/ai/repo-readme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner: session.username,
+          repo: reponame,
+          mode: generationMode,
+          currentReadme: editorValue,
+          options,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.success || typeof payload?.readme !== "string") {
+        throw new Error(payload?.error || "Failed to generate README");
+      }
+
+      setEditorValue(payload.readme);
+      setGenerationInfo({
+        mode: payload.mode,
+        usedFiles: Array.isArray(payload.usedFiles) ? payload.usedFiles : [],
+      });
+      setFeedback({
+        tone: "success",
+        message:
+          generationMode === "create"
+            ? "GitHance built a fresh README draft from the repository context."
+            : "GitHance refreshed the README using the current repository context and your edits.",
+      });
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        message: error?.message || "Failed to generate README",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!editorValue.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(editorValue);
+      setFeedback({ tone: "success", message: "README markdown copied to your clipboard." });
+    } catch {
+      setFeedback({ tone: "error", message: "Clipboard copy failed in this browser." });
+    }
+  };
+
+  const handleReset = () => {
+    setEditorValue(originalReadme || "");
+    setFeedback({ tone: "info", message: "Editor reset to the repository's current README state." });
+  };
+
+  const handlePublish = async () => {
+    if (!session?.username || !editorValue.trim()) return;
+
+    try {
+      setIsPublishing(true);
+      setFeedback({ tone: "info", message: "" });
+
+      const response = await fetch("/api/publish-readme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner: session.username,
+          repo: reponame,
+          readmeContent: editorValue,
+          readmeMessage: readmeExists
+            ? "Update README via GitHance README Lab"
+            : "Create README via GitHance README Lab",
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "Failed to publish README");
+      }
+
+      setOriginalReadme(editorValue);
+      setWorkspaceData((current) =>
+        current
+          ? {
+              ...current,
+              readme: {
+                ...(current.readme || {}),
+                exists: true,
+                content: editorValue,
+                path: current?.readme?.path || "README.md",
+              },
+            }
+          : current
+      );
+      setFeedback({ tone: "success", message: "README published to GitHub successfully." });
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        message: error?.message || "Failed to publish README",
+      });
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  if (status === "loading" || workspaceLoading) {
     return (
       <AnalyticsShell
-        context="Repository"
-        title={reponame || "Repository analysis"}
-        subtitle="Parsing repository, mapping code surfaces, and running vulnerability analytics."
-        navSections={NAV_SECTIONS}
+        context="README"
+        title={reponame || "README Lab"}
+        subtitle="Inspecting repository structure, reading README content, and preparing the editor workspace."
+        navSections={buildNavSections(reponame)}
         activeNavId="overview"
         user={user}
       >
-        <style jsx>{`
-          @keyframes pulseLine {
-            0% {
-              opacity: 0.38;
-              transform: scaleX(0.82);
-            }
-            50% {
-              opacity: 0.95;
-              transform: scaleX(1);
-            }
-            100% {
-              opacity: 0.38;
-              transform: scaleX(0.82);
-            }
-          }
-          @keyframes orbit {
-            0% {
-              transform: translateX(0);
-            }
-            50% {
-              transform: translateX(8px);
-            }
-            100% {
-              transform: translateX(0);
-            }
-          }
-        `}</style>
-
         <div className="grid gap-6">
           <section
             id="overview"
             className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
           >
             <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-faint)]">
-              Repository Analysis
+              README Lab
             </p>
-            <h2 className="mt-2 text-3xl font-semibold text-white">{reponame}</h2>
+            <h2 className="mt-2 text-3xl font-semibold text-white">{reponame || "Repository"}</h2>
             <p className="mt-2 max-w-3xl text-sm text-white/70">
-              Parsing repository, mapping code surfaces, and running vulnerability analytics.
+              Reading repository metadata, locating the current README, and setting up the editor.
             </p>
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <ReadmeBlock loading />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="README Score" value="--" hint="Waiting for analysis" />
+            <MetricCard label="Words" value="--" />
+            <MetricCard label="Headings" value="--" />
+            <MetricCard label="Code Blocks" value="--" />
+          </div>
 
-            <section className="analytics-card p-5">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Security Pipeline</p>
-              <div className="mt-4 space-y-3">
-                {[
-                  "Identifying developer-owned source files",
-                  "Excluding dependencies and generated artifacts",
-                  "Running AST-based semantic vulnerability analysis",
-                  "Grouping issues and computing security score",
-                ].map((step, index) => (
-                  <div key={step} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span
-                        className="inline-block h-2 w-2 rounded-full bg-cyan-300"
-                        style={{ animation: `orbit 900ms ease-in-out ${index * 120}ms infinite` }}
-                      />
-                      <span className="text-sm text-white/80">{step}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-cyan-400"
-                        style={{ animation: `pulseLine 1300ms ease-in-out ${index * 180}ms infinite` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+            <ReadmeBlock loading />
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+              GitHance is preparing insights, relevant files, and an editable README workspace.
+            </div>
           </div>
         </div>
       </AnalyticsShell>
@@ -185,24 +641,187 @@ export default function ReadmeClient({ reponame }) {
   if (status !== "authenticated") {
     return <Unauthorized />;
   }
-
   return (
     <AnalyticsShell
-      context="Repository"
-      title={reponame || "Repository analysis"}
-      subtitle="Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository."
-      navSections={NAV_SECTIONS}
+      context="README"
+      title={reponame || "README Lab"}
+      subtitle="Analyze the repository README, generate a missing one with GitHance, and refine the markdown before publishing."
+      navSections={buildNavSections(reponame)}
       activeNavId="overview"
       user={user}
     >
       <div className="grid gap-6">
-        <SecurityOverview
-          loading={securityLoading}
-          error={securityError}
-          report={securityReport}
-          meta={securityMeta}
-          showHeader={false}
-        />
+        <section
+          id="overview"
+          className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-faint)]">README Lab</p>
+              <h2 className="mt-2 text-3xl font-semibold text-white">{reponame}</h2>
+              <p className="mt-2 max-w-3xl text-sm text-white/70">
+                {readmeExists
+                  ? "The repository already has a README. You can inspect the structure, edit it directly, or let GitHance refine it from the repo context."
+                  : "No README was found. GitHance can inspect the repository, draft one for you, and keep the result fully editable before you publish it."}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge active={readmeExists} activeLabel="README Present" inactiveLabel="README Missing" />
+              <StatusBadge active={analysis.score >= 70} activeLabel={`${analysis.qualityLabel} (${analysis.score})`} inactiveLabel={`${analysis.qualityLabel} (${analysis.score})`} />
+              <span className="rounded-full border border-white/15 bg-black/20 px-3 py-1 text-xs uppercase tracking-[0.16em] text-white/70">
+                {workspaceData?.branch || "main"}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isGenerating || !workspaceData}
+              className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isGenerating ? "GitHance is thinking..." : generateLabel}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={!editorValue.trim()}
+              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Copy Markdown
+            </button>
+            <button
+              type="button"
+              onClick={handlePublish}
+              disabled={!editorValue.trim() || isPublishing}
+              className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPublishing ? "Publishing..." : "Publish README"}
+            </button>
+            <a
+              href={`/repository-security/${encodeURIComponent(reponame || "")}`}
+              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
+            >
+              Open Security View
+            </a>
+          </div>
+        </section>
+
+        <FeedbackBanner feedback={feedback} />
+
+        {workspaceError ? (
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-100">{workspaceError}</div>
+        ) : null}
+
+        {!workspaceError && workspaceData ? (
+          <>
+            <section id="insights" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="README Score" value={analysis.score} hint={analysis.qualityLabel} />
+              <MetricCard label="Words" value={analysis.stats.words} />
+              <MetricCard label="Headings" value={analysis.stats.headings} />
+              <MetricCard label="Code Blocks" value={analysis.stats.codeBlocks} />
+            </section>
+
+            <SectionCoverageCard analysis={analysis} />
+
+            <section className="grid gap-4 xl:grid-cols-3">
+              <InsightPanel
+                title="What Already Works"
+                items={analysis.strengths}
+                emptyText="No strong README signals yet. GitHance can help draft them."
+                tone="good"
+              />
+              <InsightPanel
+                title="Gaps To Fix"
+                items={analysis.gaps}
+                emptyText="No major README gaps detected from the current markdown."
+                tone="warn"
+              />
+              <InsightPanel
+                title="GitHance Suggestions"
+                items={analysis.recommendations}
+                emptyText="The README is already in solid shape. Minor polish is enough."
+              />
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+              <ReadmeBlock tree={treePreview} />
+              <div className="space-y-4">
+                <RelevantFilesCard files={workspaceData.relevantFiles || []} />
+                <RepoSnapshotCard
+                  repository={workspaceData.repository}
+                  readme={workspaceData.readme}
+                  branch={workspaceData.branch}
+                  hiddenTreeCount={hiddenTreeCount}
+                />
+              </div>
+            </section>
+
+            <section id="builder" className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+              <BuilderControls
+                options={options}
+                onChange={setOptions}
+                isGenerating={isGenerating}
+                onGenerate={handleGenerate}
+                generateLabel={generateLabel}
+              />
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/45">Generation Context</p>
+                <div className="mt-4 space-y-3 text-sm text-white/75">
+                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/45">Current State</p>
+                    <p className="mt-2">
+                      {readmeExists
+                        ? "GitHance can revise the existing README while keeping repository facts grounded in the codebase."
+                        : "GitHance will build the first README draft from repository structure, relevant files, and source evidence."}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/45">Prompt Controls</p>
+                    <p className="mt-2">
+                      Title, tone, target audience, custom notes, and section toggles are all editable before generation.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/45">Last Generation</p>
+                    {generationInfo?.usedFiles?.length ? (
+                      <div className="mt-2 space-y-2">
+                        <p>GitHance used {generationInfo.usedFiles.length} repository files in the latest {generationInfo.mode} pass.</p>
+                        <div className="max-h-[180px] overflow-y-auto space-y-1 pr-1 text-xs text-white/60">
+                          {generationInfo.usedFiles.map((file) => (
+                            <p key={file} className="rounded-lg border border-white/10 bg-[#0c1016] px-2 py-1">{file}</p>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-white/55">No AI generation has been run yet in this session.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section id="editor" className="grid gap-4 xl:grid-cols-2">
+              <EditorPane
+                value={editorValue}
+                onChange={setEditorValue}
+                onReset={handleReset}
+                onCopy={handleCopy}
+                onPublish={handlePublish}
+                isPublishing={isPublishing}
+                canReset={editorValue !== originalReadme}
+                canCopy={Boolean(editorValue.trim())}
+                canPublish={Boolean(editorValue.trim())}
+              />
+              <div id="preview">
+                <PreviewPane value={editorValue} />
+              </div>
+            </section>
+          </>
+        ) : null}
       </div>
     </AnalyticsShell>
   );

@@ -23,7 +23,7 @@ function ThemeToggle({ theme, onToggle }) {
         height={25}
         width={25}
         alt="themeLogo"
-        className="hover:rotate-180 duration-500"
+        className="hover:rotate-180 duration-600"
       />
     </button>
   );
