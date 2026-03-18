@@ -107,37 +107,6 @@ function FeedbackBanner({ feedback }) {
   return <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>{feedback.message}</div>;
 }
 
-function SectionCoverageCard({ analysis }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Section Coverage</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">README structure map</h3>
-        </div>
-        <span className="rounded-full border border-white/15 bg-black/20 px-3 py-1 text-xs text-white/70">
-          {analysis.sectionCoverage.filter((section) => section.found).length}/{analysis.sectionCoverage.length}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {analysis.sectionCoverage.map((section) => (
-          <span
-            key={section.key}
-            className={`rounded-full border px-3 py-1 text-xs ${
-              section.found
-                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
-                : "border-white/10 bg-black/20 text-white/55"
-            }`}
-          >
-            {section.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function InsightPanel({ title, items, emptyText, tone = "default" }) {
   const toneClass =
     tone === "warn"
@@ -164,61 +133,6 @@ function InsightPanel({ title, items, emptyText, tone = "default" }) {
   );
 }
 
-function RelevantFilesCard({ files = [] }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Relevant Files</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">Best source files for README generation</h3>
-        </div>
-        <span className="rounded-full border border-white/15 bg-black/20 px-3 py-1 text-xs text-white/70">
-          {files.length} files
-        </span>
-      </div>
-
-      <div className="mt-4 max-h-[340px] space-y-2 overflow-y-auto pr-1">
-        {files.length > 0 ? (
-          files.map((file) => (
-            <div key={file.path} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/75">
-              {file.path}
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-white/55">GitHance could not find strong source files for summarization.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RepoSnapshotCard({ repository, readme, branch, hiddenTreeCount = 0 }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <p className="text-xs uppercase tracking-[0.2em] text-white/45">Repository Snapshot</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <MetricCard label="Branch" value={branch || "main"} />
-        <MetricCard label="Primary Language" value={repository?.language || "Unknown"} />
-        <MetricCard label="Stars" value={repository?.stars ?? 0} />
-        <MetricCard label="Forks" value={repository?.forks ?? 0} />
-      </div>
-
-      <div className="mt-4 space-y-3 text-sm text-white/75">
-        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-white/45">Description</p>
-          <p className="mt-2">{repository?.description || "No repository description provided on GitHub yet."}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-white/45">README Path</p>
-          <p className="mt-2">{readme?.exists ? readme.path : "README not found"}</p>
-        </div>
-        {hiddenTreeCount > 0 ? (
-          <p className="text-xs text-white/50">Showing the first 400 tree entries in the structure viewer. {hiddenTreeCount} additional items are hidden for readability.</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
 function BuilderControls({ options, onChange, isGenerating, onGenerate, generateLabel }) {
   const toggleSection = (key) => {
     onChange({
@@ -408,7 +322,6 @@ export default function ReadmeClient({ reponame }) {
   const [options, setOptions] = useState(DEFAULT_OPTIONS);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [generationInfo, setGenerationInfo] = useState(null);
   const [feedback, setFeedback] = useState({ tone: "info", message: "" });
 
   useEffect(() => {
@@ -442,7 +355,6 @@ export default function ReadmeClient({ reponame }) {
         setOriginalReadme(nextReadme);
         setEditorValue(nextReadme);
         setOptions(buildInitialOptions(payload, nextReadme));
-        setGenerationInfo(null);
       } catch (error) {
         if (isCancelled) return;
         setWorkspaceError(error?.message || "Failed to load README workspace");
@@ -473,12 +385,6 @@ export default function ReadmeClient({ reponame }) {
     [editorValue, workspaceData?.repository?.name, workspaceData?.repository?.description]
   );
 
-  const treePreview = useMemo(
-    () => (Array.isArray(workspaceData?.tree) ? workspaceData.tree.slice(0, 400) : []),
-    [workspaceData?.tree]
-  );
-
-  const hiddenTreeCount = Math.max(0, Number(workspaceData?.tree?.length || 0) - treePreview.length);
 
   const user = session?.username
     ? { name: session.username, subtitle: reponame ? `Repo: ${reponame}` : "" }
@@ -509,10 +415,6 @@ export default function ReadmeClient({ reponame }) {
       }
 
       setEditorValue(payload.readme);
-      setGenerationInfo({
-        mode: payload.mode,
-        usedFiles: Array.isArray(payload.usedFiles) ? payload.usedFiles : [],
-      });
       setFeedback({
         tone: "success",
         message:
@@ -627,12 +529,7 @@ export default function ReadmeClient({ reponame }) {
             <MetricCard label="Code Blocks" value="--" />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            <ReadmeBlock loading />
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
-              GitHance is preparing insights, relevant files, and an editable README workspace.
-            </div>
-          </div>
+          <ReadmeBlock loading />
         </div>
       </AnalyticsShell>
     );
@@ -724,41 +621,6 @@ export default function ReadmeClient({ reponame }) {
               <MetricCard label="Code Blocks" value={analysis.stats.codeBlocks} />
             </section>
 
-            <SectionCoverageCard analysis={analysis} />
-
-            <section className="grid gap-4 xl:grid-cols-3">
-              <InsightPanel
-                title="What Already Works"
-                items={analysis.strengths}
-                emptyText="No strong README signals yet. GitHance can help draft them."
-                tone="good"
-              />
-              <InsightPanel
-                title="Gaps To Fix"
-                items={analysis.gaps}
-                emptyText="No major README gaps detected from the current markdown."
-                tone="warn"
-              />
-              <InsightPanel
-                title="GitHance Suggestions"
-                items={analysis.recommendations}
-                emptyText="The README is already in solid shape. Minor polish is enough."
-              />
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-              <ReadmeBlock tree={treePreview} />
-              <div className="space-y-4">
-                <RelevantFilesCard files={workspaceData.relevantFiles || []} />
-                <RepoSnapshotCard
-                  repository={workspaceData.repository}
-                  readme={workspaceData.readme}
-                  branch={workspaceData.branch}
-                  hiddenTreeCount={hiddenTreeCount}
-                />
-              </div>
-            </section>
-
             <section id="builder" className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
               <BuilderControls
                 options={options}
@@ -768,40 +630,11 @@ export default function ReadmeClient({ reponame }) {
                 generateLabel={generateLabel}
               />
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="text-xs uppercase tracking-[0.2em] text-white/45">Generation Context</p>
-                <div className="mt-4 space-y-3 text-sm text-white/75">
-                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/45">Current State</p>
-                    <p className="mt-2">
-                      {readmeExists
-                        ? "GitHance can revise the existing README while keeping repository facts grounded in the codebase."
-                        : "GitHance will build the first README draft from repository structure, relevant files, and source evidence."}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/45">Prompt Controls</p>
-                    <p className="mt-2">
-                      Title, tone, target audience, custom notes, and section toggles are all editable before generation.
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/45">Last Generation</p>
-                    {generationInfo?.usedFiles?.length ? (
-                      <div className="mt-2 space-y-2">
-                        <p>GitHance used {generationInfo.usedFiles.length} repository files in the latest {generationInfo.mode} pass.</p>
-                        <div className="max-h-[180px] overflow-y-auto space-y-1 pr-1 text-xs text-white/60">
-                          {generationInfo.usedFiles.map((file) => (
-                            <p key={file} className="rounded-lg border border-white/10 bg-[#0c1016] px-2 py-1">{file}</p>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-white/55">No AI generation has been run yet in this session.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <InsightPanel
+                title="GitHance Suggestions"
+                items={analysis.recommendations}
+                emptyText="The README is already in solid shape. Minor polish is enough."
+              />
             </section>
 
             <section id="editor" className="grid gap-4 xl:grid-cols-2">
