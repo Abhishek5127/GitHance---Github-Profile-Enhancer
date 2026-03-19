@@ -5,6 +5,7 @@ import FeatureGrid from "./components/landing/FeatureGrid";
 import Workflow from "./components/landing/Workflow";
 import Footer from "./components/landing/Footer";
 import Pricing from "./components/landing/Pricing";
+import HowItWorks from "./components/landing/HowItWorks";
 
 export default function Home() {
   return (
@@ -16,7 +17,7 @@ export default function Home() {
         <LandingNav />
         <Hero />
       </div>
-
+      <HowItWorks/>
       <Highlights />
       <FeatureGrid />
       <Workflow />

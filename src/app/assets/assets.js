@@ -8,6 +8,11 @@ import Analyze from './navSection/analyze.svg'
 import Repair from './navSection/repair.svg'
 import Secure from './navSection/secure.svg'
 import Impact from './navSection/impact.svg'
+import GithubProfile from './sectionImages/githubProfiles.jpg'
+import ProfileAnalytics from './sectionImages/profileAnalytics.jpg'
+import ReadmeEditor from './sectionImages/readmeEditor.jpg'
+import ReadmeBuilder from './sectionImages/readmeBuilder.jpg'
+import Star from './sectionImages/star.svg'
 
 //toggle theme
 import Sun from './button-svg/toggle-theme/sun.svg'
@@ -27,5 +32,10 @@ export const assets = {
     Secure,
     Impact,
     Sun,
-    Moon
+    Moon,
+    ReadmeBuilder,
+    ReadmeEditor,
+    GithubProfile,
+    ProfileAnalytics,
+    Star
 }
