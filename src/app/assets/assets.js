@@ -13,6 +13,7 @@ import ProfileAnalytics from './sectionImages/profileAnalytics.jpg'
 import ReadmeEditor from './sectionImages/readmeEditor.jpg'
 import ReadmeBuilder from './sectionImages/readmeBuilder.jpg'
 import Star from './sectionImages/star.svg'
+import Highlights from './highlights.png'
 
 //toggle theme
 import Sun from './button-svg/toggle-theme/sun.svg'
@@ -37,5 +38,6 @@ export const assets = {
     ReadmeEditor,
     GithubProfile,
     ProfileAnalytics,
-    Star
+    Star,
+    Highlights
 }

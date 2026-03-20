@@ -59,6 +59,7 @@ export default function Hero() {
   return (
     <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-20 pt-16 text-white lg:grid-cols-[1.1fr_0.9fr]">
       <div>
+        
 
         <h1 className="mt-6 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
           Build a GitHub presence
