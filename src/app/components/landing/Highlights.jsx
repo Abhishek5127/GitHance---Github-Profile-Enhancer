@@ -24,9 +24,11 @@ const VISIBLE = 3;
 const ANGLE_SPAN = 150;
 const ARC_RX = 720;
 const ARC_RY = 650;
+const FEATURE_STEP = ANGLE_SPAN / (VISIBLE - 1);
 const CYCLE_MS = 3000;
 const HOLD_MS = 1000;
 const MOVE_MS = CYCLE_MS - HOLD_MS;
+const RESUME_AUTOPLAY_MS = 3000;
 const LABEL_FONT_SIZE = 24;
 const LETTER_SPACING_EM = 0.13;
 const ARC_RADIUS_ESTIMATE = (ARC_RX + ARC_RY) / 2;
@@ -35,6 +37,16 @@ const EDGE_FADE_START = 0.62;
 
 function easeInOutSine(value) {
   return -(Math.cos(Math.PI * value) - 1) / 2;
+}
+
+function getAutoplayDelta(elapsed) {
+  const cycle = Math.floor(elapsed / CYCLE_MS);
+  const phase = elapsed % CYCLE_MS;
+  const moveProgress = phase <= HOLD_MS
+    ? 0
+    : easeInOutSine((phase - HOLD_MS) / MOVE_MS);
+
+  return cycle + moveProgress;
 }
 
 function getEdgeOpacity(absAngle, halfSpan) {
@@ -74,44 +86,160 @@ function getFeatureSpan(label) {
   return Math.min(44, Math.max(20, estimatedAngle));
 }
 
+function getWheelAngle(event, svgElement) {
+  const rect = svgElement.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + ((ARC_OFFSET_Y + ARC_RY) / VIEWBOX_HEIGHT) * rect.height;
+
+  return Math.atan2(event.clientY - centerY, event.clientX - centerX);
+}
+
+function normalizeAngleDelta(delta) {
+  let nextDelta = delta;
+
+  while (nextDelta > Math.PI) {
+    nextDelta -= Math.PI * 2;
+  }
+
+  while (nextDelta < -Math.PI) {
+    nextDelta += Math.PI * 2;
+  }
+
+  return nextDelta;
+}
+
 export default function Highlights() {
   const [progress, setProgress] = useState(0);
   const frameRef = useRef(null);
-  const startRef = useRef(null);
+  const lastFrameRef = useRef(null);
+  const svgRef = useRef(null);
+  const progressRef = useRef(0);
+  const manualProgressRef = useRef(0);
+  const velocityRef = useRef(0);
+  const isDraggingRef = useRef(false);
+  const dragAngleRef = useRef(null);
+  const dragTimeRef = useRef(null);
+  const autoplayEnabledRef = useRef(true);
+  const autoplayStartTimeRef = useRef(null);
+  const autoplayBaseProgressRef = useRef(0);
+  const resumeAutoplayAtRef = useRef(null);
 
   useEffect(() => {
     function animate(timestamp) {
-      if (startRef.current === null) {
-        startRef.current = timestamp;
+      if (lastFrameRef.current === null) {
+        lastFrameRef.current = timestamp;
       }
 
-      const elapsed = timestamp - startRef.current;
-      const cycle = Math.floor(elapsed / CYCLE_MS);
-      const phase = elapsed % CYCLE_MS;
-      const moveProgress = phase <= HOLD_MS
-        ? 0
-        : easeInOutSine((phase - HOLD_MS) / MOVE_MS);
+      const deltaMs = timestamp - lastFrameRef.current;
+      lastFrameRef.current = timestamp;
+      let nextProgress = progressRef.current;
 
-      setProgress((cycle + moveProgress) % features.length);
+      if (autoplayEnabledRef.current && !isDraggingRef.current) {
+        if (autoplayStartTimeRef.current === null) {
+          autoplayStartTimeRef.current = timestamp;
+        }
+
+        const elapsed = timestamp - autoplayStartTimeRef.current;
+        nextProgress = autoplayBaseProgressRef.current + getAutoplayDelta(elapsed);
+        manualProgressRef.current = nextProgress;
+      } else if (!isDraggingRef.current) {
+        if (Math.abs(velocityRef.current) > 0.00008) {
+          manualProgressRef.current += velocityRef.current * deltaMs;
+          velocityRef.current *= Math.pow(0.92, deltaMs / 16.67);
+        } else {
+          velocityRef.current = 0;
+          const snapTarget = Math.round(manualProgressRef.current);
+          const snapStrength = Math.min(1, deltaMs * 0.012);
+          manualProgressRef.current += (snapTarget - manualProgressRef.current) * snapStrength;
+
+          if (Math.abs(snapTarget - manualProgressRef.current) < 0.001) {
+            manualProgressRef.current = snapTarget;
+          }
+        }
+
+        if (resumeAutoplayAtRef.current !== null && timestamp >= resumeAutoplayAtRef.current) {
+          autoplayEnabledRef.current = true;
+          autoplayBaseProgressRef.current = manualProgressRef.current;
+          autoplayStartTimeRef.current = timestamp;
+          resumeAutoplayAtRef.current = null;
+          velocityRef.current = 0;
+        }
+
+        nextProgress = manualProgressRef.current;
+      }
+
+      progressRef.current = nextProgress;
+      setProgress(nextProgress);
       frameRef.current = window.requestAnimationFrame(animate);
     }
 
     frameRef.current = window.requestAnimationFrame(animate);
 
     return () => {
+      lastFrameRef.current = null;
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
       }
     };
   }, []);
 
+  function handlePointerDown(event) {
+    if (!svgRef.current) {
+      return;
+    }
+
+    autoplayEnabledRef.current = false;
+    autoplayStartTimeRef.current = null;
+    resumeAutoplayAtRef.current = null;
+    isDraggingRef.current = true;
+    manualProgressRef.current = progressRef.current;
+    velocityRef.current = 0;
+    dragAngleRef.current = getWheelAngle(event, svgRef.current);
+    dragTimeRef.current = performance.now();
+    svgRef.current.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event) {
+    if (!isDraggingRef.current || !svgRef.current || dragAngleRef.current === null) {
+      return;
+    }
+
+    const angle = getWheelAngle(event, svgRef.current);
+    const deltaAngle = normalizeAngleDelta(angle - dragAngleRef.current);
+    const now = performance.now();
+    const deltaMs = Math.max(1, now - (dragTimeRef.current ?? now));
+    const deltaProgress = -((deltaAngle * 180) / Math.PI) / FEATURE_STEP;
+
+    dragAngleRef.current = angle;
+    dragTimeRef.current = now;
+    manualProgressRef.current += deltaProgress;
+    progressRef.current = manualProgressRef.current;
+    velocityRef.current = deltaProgress / deltaMs;
+
+    setProgress(manualProgressRef.current);
+  }
+
+  function handlePointerUp(event) {
+    if (!svgRef.current) {
+      return;
+    }
+
+    isDraggingRef.current = false;
+    dragAngleRef.current = null;
+    dragTimeRef.current = null;
+    resumeAutoplayAtRef.current = performance.now() + RESUME_AUTOPLAY_MS;
+
+    if (svgRef.current.hasPointerCapture(event.pointerId)) {
+      svgRef.current.releasePointerCapture(event.pointerId);
+    }
+  }
+
   const baseIndex = Math.floor(progress);
   const cycleProgress = progress - baseIndex;
 
   const pills = Array.from({ length: VISIBLE }, (_, i) => {
     const offset = i - (VISIBLE - 1) / 2;
-    const step = ANGLE_SPAN / (VISIBLE - 1);
-    const angleDeg = offset * step - cycleProgress * step;
+    const angleDeg = offset * FEATURE_STEP - cycleProgress * FEATURE_STEP;
     const featureIdx = ((baseIndex + i) % features.length + features.length) % features.length;
     const label = `"${features[featureIdx]}"`;
     const pathD = getArcSegmentPath(angleDeg, getFeatureSpan(label));
@@ -138,7 +266,7 @@ export default function Highlights() {
       </div>
 
       <div
-        className="relative flex w-full justify-center overflow-hidden select-none"
+        className="relative flex w-full cursor-grab justify-center overflow-hidden select-none touch-none active:cursor-grabbing"
         style={{
           height: VIEWBOX_HEIGHT,
           WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
@@ -146,10 +274,15 @@ export default function Highlights() {
         }}
       >
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
           xmlns="http://www.w3.org/2000/svg"
           className="w-full max-w-6xl overflow-visible"
           style={{ overflow: "visible" }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         >
           <defs>
             <filter id="pill-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -204,6 +337,7 @@ export default function Highlights() {
             src={assets.Highlights}
             alt="Githance highlights preview"
             className="h-auto w-full"
+            draggable="false"
             priority
           />
           <div className="pointer-events-none absolute inset-x-[10%] bottom-0 h-px bg-gradient-to-r from-transparent via-[#4ade80] to-transparent" />
@@ -213,4 +347,3 @@ export default function Highlights() {
     </section>
   );
 }
-
