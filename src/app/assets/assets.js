@@ -19,9 +19,6 @@ import Highlights from './highlights.png'
 import Sun from './button-svg/toggle-theme/sun.svg'
 import Moon from './button-svg/toggle-theme/moon.svg'
 
-//Feature Grid Readme Images
-import ProfileImg1 from './FeatureGridImages/readme1/profileImg1.jpeg'
-import BannerImg1 from './FeatureGridImages/readme1/BannerImg1.jpeg'
 
 
 
@@ -44,7 +41,5 @@ export const assets = {
     ProfileAnalytics,
     Star,
     Highlights,
-    ProfileImg1,
-    BannerImg1
     
 }

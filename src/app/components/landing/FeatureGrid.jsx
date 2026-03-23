@@ -19,7 +19,7 @@ export default function FeatureGrid() {
     const slider = sliderRef.current;
 
     function animate() {
-      angle.current -=0.10;
+      angle.current -=0.70;
       slider.style.setProperty("--rotate", angle.current + "deg");
       requestAnimationFrame(animate);
     }
