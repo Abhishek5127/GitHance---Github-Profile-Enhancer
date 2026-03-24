@@ -20,6 +20,13 @@ import Sun from './button-svg/toggle-theme/sun.svg'
 import Moon from './button-svg/toggle-theme/moon.svg'
 
 
+//feature grid
+
+import AI from './FeatureGridImages/aiChip.svg'
+import Eye from './FeatureGridImages/eye.svg'
+import AutoUpdate from './FeatureGridImages/autoUpdate.svg'
+import AnalyzeGraph from './FeatureGridImages/analyseGraph.png'
+
 
 
 export const assets = {
@@ -41,5 +48,8 @@ export const assets = {
     ProfileAnalytics,
     Star,
     Highlights,
-    
+    AI,
+    Eye,
+    AutoUpdate,
+    AnalyzeGraph
 }

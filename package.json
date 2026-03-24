@@ -29,10 +29,12 @@
     "@tailwindcss/postcss": "^4",
     "@types/node": "25.0.3",
     "@types/react": "19.2.7",
+    "autoprefixer": "^10.4.27",
     "babel-plugin-react-compiler": "1.0.0",
     "baseline-browser-mapping": "^2.9.19",
     "eslint": "^9",
     "eslint-config-next": "16.0.6",
-    "tailwindcss": "^4"
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2"
   }
 }
