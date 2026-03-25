@@ -337,7 +337,7 @@ export default function TechStackVariantPicker({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-y-0 left-72 right-0 z-50 bg-black/65 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm lg:inset-y-0 lg:left-72 lg:right-0">
       <div className="h-full p-3 sm:p-5">
         <div className="flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b0f14]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">

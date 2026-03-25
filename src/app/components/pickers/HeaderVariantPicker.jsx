@@ -414,10 +414,10 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
 
   return (
     <div
-      className="fixed inset-y-0 left-72 right-0 z-50 flex justify-start bg-black/55"
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm lg:inset-y-0 lg:left-72 lg:right-0"
     >
       <div
-        className="relative h-full w-[820px] overflow-hidden border-r border-white/10 bg-[#0d1117] p-4"
+        className="relative h-full w-full overflow-hidden bg-[#0d1117] p-3 sm:p-4 lg:w-[820px] lg:border-r lg:border-white/10"
       >
         <div className="h-full overflow-y-auto pr-1">
           <div className="mb-4 flex items-center justify-between">
@@ -427,7 +427,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             {VARIANTS.map((variant) => (
               <button
                 key={variant.id}
@@ -442,7 +442,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
         </div>
 
         <div
-          className={`absolute right-0 top-0 h-full w-[440px] border-l border-white/10 bg-[#0b1018] p-4 transition-transform duration-300 ease-out ${
+          className={`absolute inset-y-0 right-0 h-full w-full border-l border-white/10 bg-[#0b1018] p-3 transition-transform duration-300 ease-out sm:w-[440px] sm:p-4 ${
             selectedVariant ? "translate-x-0" : "pointer-events-none translate-x-full"
           }`}
         >

@@ -36,8 +36,8 @@ export default function SectionVariantPicker({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-y-0 left-72 right-0 z-50 flex justify-start bg-black/55">
-      <div className="relative h-full w-[560px] overflow-scroll border-r border-white/10 bg-[#0d1117] p-4">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm lg:inset-y-0 lg:left-72 lg:right-0">
+      <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#0d1117] p-3 sm:p-4 lg:w-[560px] lg:border-r lg:border-white/10">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-white/40">Sections</p>
@@ -51,7 +51,7 @@ export default function SectionVariantPicker({
           </button>
         </div>
 
-        <div className="space-y-3 overflow-y-auto pr-1">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {README_SECTION_VARIANTS.map((variant) => {
             const active = selectedVariantId === variant.id;
             return (

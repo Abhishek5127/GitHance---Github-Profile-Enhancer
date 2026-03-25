@@ -58,8 +58,8 @@ export default function RepoCommitVariantPicker({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-y-0 left-72 right-0 z-50 flex justify-start bg-black/55">
-      <div className="relative h-full w-[640px] overflow-scroll border-r border-white/10 bg-[#0d1117] p-4">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm lg:inset-y-0 lg:left-72 lg:right-0">
+      <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#0d1117] p-3 sm:p-4 lg:w-[640px] lg:border-r lg:border-white/10">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-white/40">Repo Commit Stats</p>
@@ -73,7 +73,7 @@ export default function RepoCommitVariantPicker({
           </button>
         </div>
 
-        <div className="rounded-2xl border border-cyan-300/35 bg-[#081224]/90 p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-cyan-300/35 bg-[#081224]/90 p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/80">

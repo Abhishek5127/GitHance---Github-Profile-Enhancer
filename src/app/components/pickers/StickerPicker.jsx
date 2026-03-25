@@ -23,7 +23,7 @@ function StickerCard({ sticker }) {
       style={style}
       {...attributes}
       {...listeners}
-      className={`group flex h-40 w-40 shrink-0 cursor-grab items-center justify-center rounded-lg border bg-[#0a1017] transition active:cursor-grabbing ${
+      className={`group flex h-28 w-28 shrink-0 cursor-grab items-center justify-center rounded-lg border bg-[#0a1017] transition active:cursor-grabbing sm:h-36 sm:w-36 md:h-40 md:w-40 ${
         isDragging
           ? "border-cyan-300/70 ring-2 ring-cyan-300/55"
           : "border-white/10 hover:border-cyan-300/45 hover:bg-[#101b2a]"
@@ -47,8 +47,8 @@ export default function StickerPicker({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-y-0 left-72 right-0 z-50 pointer-events-none">
-      <div className="pointer-events-auto h-full w-[580px] overflow-y-auto border-r border-white/10 bg-[#0d1117] p-4 shadow-[24px_0_48px_rgba(0,0,0,0.45)]">
+    <div className="fixed inset-0 z-50 pointer-events-none lg:inset-y-0 lg:left-72 lg:right-0">
+      <div className="pointer-events-auto h-full w-full overflow-y-auto bg-[#0d1117] p-3 shadow-[24px_0_48px_rgba(0,0,0,0.45)] sm:p-4 lg:w-[580px] lg:border-r lg:border-white/10">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-white/40">Stickers</p>
@@ -62,7 +62,7 @@ export default function StickerPicker({
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {stickers.map((sticker) => (
             <StickerCard
               key={sticker.id}

@@ -939,8 +939,8 @@ export default function BioVariantPicker({
   ];
 
   return (
-    <div className="fixed inset-y-0 left-72 right-0 z-50 flex justify-start bg-black/55">
-      <div className="relative h-full w-[900px] overflow-hidden border-r border-white/10 bg-[#0d1117] p-4">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm lg:inset-y-0 lg:left-72 lg:right-0">
+      <div className="relative h-full w-full overflow-hidden bg-[#0d1117] p-3 sm:p-4 lg:w-[900px] lg:border-r lg:border-white/10">
         <div className="h-full overflow-y-auto pr-1">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white">Compose Bio</h3>
@@ -982,7 +982,7 @@ export default function BioVariantPicker({
             contentEditable
             onInput={markEditorDirty}
             suppressContentEditableWarning
-            className="markdown-body bio-editor min-h-[520px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none"
+            className="markdown-body bio-editor min-h-[360px] rounded-xl border border-white/10 bg-white p-4 text-black focus:outline-none sm:min-h-[520px]"
             style={editorThemeStyle}
           />
 
