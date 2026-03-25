@@ -6,6 +6,7 @@ const GITHUB_API = "https://api.github.com";
 const GITHUB_ACCEPT = "application/vnd.github+json";
 const ID_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const FILE_PATH_PATTERN = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._\-\/]+$/;
+const WORKFLOW_DIRECTORY_PREFIX = ".github/workflows/";
 const MAX_FILE_COUNT = 12;
 const MAX_FILE_BYTES = 1_500_000;
 const PROFILE_ONLY =
@@ -148,6 +149,71 @@ async function upsertRepositoryFile({
 
 function hasOwn(target, key) {
   return Object.prototype.hasOwnProperty.call(target, key);
+}
+
+function isWorkflowFilePath(path) {
+  return normalizePath(path).toLowerCase().startsWith(WORKFLOW_DIRECTORY_PREFIX);
+}
+
+function parseScopeSet(value) {
+  return new Set(
+    String(value || "")
+      .split(/[\s,]+/)
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function hasWorkflowScope(scopeValue) {
+  return parseScopeSet(scopeValue).has("workflow");
+}
+
+async function fetchGithubTokenScopes(token) {
+  const response = await fetch(`${GITHUB_API}/user`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: GITHUB_ACCEPT,
+    },
+    cache: "no-store",
+  });
+
+  await response.text().catch(() => "");
+
+  if (!response.ok) {
+    return "";
+  }
+
+  return String(response.headers.get("x-oauth-scopes") || "").trim();
+}
+
+function buildWorkflowScopeWarning(path) {
+  return {
+    path,
+    code: "github_workflow_scope_required",
+    message:
+      "Skipped publishing this workflow file because the current GitHub token does not include the workflow scope. Reconnect GitHub and publish again to enable automatic contribution graph refreshes.",
+  };
+}
+
+function isWorkflowScopeWriteFailure(path, result) {
+  if (!isWorkflowFilePath(path)) return false;
+
+  const status = Number(result?.status || 0);
+  if (status !== 403 && status !== 404) return false;
+
+  const errorText = String(result?.error || "").toLowerCase();
+  const detailsText =
+    typeof result?.details === "string"
+      ? result.details.toLowerCase()
+      : JSON.stringify(result?.details || {}).toLowerCase();
+
+  return (
+    errorText.includes("not found") ||
+    detailsText.includes("not found") ||
+    errorText.includes("resource not accessible") ||
+    detailsText.includes("resource not accessible")
+  );
 }
 
 function normalizeWriteTargets(body) {
@@ -328,8 +394,30 @@ export async function POST(req) {
     }
 
     const writeResults = [];
+    const warnings = [];
+    const containsWorkflowFiles = writeTargets.files.some((file) =>
+      isWorkflowFilePath(file.path)
+    );
+    let githubScope = String(session?.oauthScope || "").trim();
+    let canPublishWorkflowFiles = true;
+
+    if (containsWorkflowFiles) {
+      if (githubScope) {
+        canPublishWorkflowFiles = hasWorkflowScope(githubScope);
+      } else {
+        githubScope = await fetchGithubTokenScopes(accessToken);
+        if (githubScope) {
+          canPublishWorkflowFiles = hasWorkflowScope(githubScope);
+        }
+      }
+    }
 
     for (const file of writeTargets.files) {
+      if (isWorkflowFilePath(file.path) && !canPublishWorkflowFiles) {
+        warnings.push(buildWorkflowScopeWarning(file.path));
+        continue;
+      }
+
       const result = await upsertRepositoryFile({
         owner,
         repo,
@@ -340,6 +428,11 @@ export async function POST(req) {
       });
 
       if (!result.ok) {
+        if (isWorkflowScopeWriteFailure(file.path, result)) {
+          warnings.push(buildWorkflowScopeWarning(file.path));
+          continue;
+        }
+
         return jsonError(
           result.status || 502,
           `Failed to publish ${file.path}`,
@@ -356,6 +449,7 @@ export async function POST(req) {
         owner,
         repo,
         results: writeResults,
+        ...(warnings.length ? { warnings } : {}),
       },
       { status: 200 }
     );

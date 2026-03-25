@@ -10,7 +10,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: "read:user user:email repo admin:repo_hook",
+          scope: "read:user user:email repo admin:repo_hook workflow",
         },
       },
     }),
@@ -20,6 +20,10 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account, profile }) {
       if (account) {
         token.accessToken = account.access_token;
+        token.oauthScope =
+          typeof account.scope === "string" && account.scope.trim()
+            ? account.scope.trim()
+            : undefined;
         const githubProfile = profile as
           | {
               login?: string;
@@ -59,6 +63,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.accessToken = token.accessToken as string;
       session.username = token.username as string;
+      session.oauthScope = token.oauthScope as string | undefined;
       return session;
     },
   },

@@ -681,6 +681,10 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       return;
     }
 
+    if (Array.isArray(data?.warnings) && data.warnings.length) {
+      console.warn("Publish completed with warnings:", data.warnings);
+    }
+
     console.log("Publish result:", data);
     console.log(latestMarkdown);
   };
