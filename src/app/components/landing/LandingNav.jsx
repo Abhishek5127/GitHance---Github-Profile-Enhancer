@@ -8,6 +8,7 @@ import { assets } from "@/app/assets/assets";
 import { usePathname, useRouter } from "next/navigation";
 
 const links = [
+  { label: "Home", href: "/" },
   { label: "Product", href: "/product" },
   { label: "Solutions", href: "/solutions" },
   { label: "Process", href: "/process" },

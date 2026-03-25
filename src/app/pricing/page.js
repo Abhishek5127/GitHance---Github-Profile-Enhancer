@@ -5,7 +5,7 @@ import Footer from "../components/landing/Footer";
 const plans = [
   {
     name: "Starter",
-    price: "$10",
+    price: "$0",
     cadence: "/month",
     summary: "For solo developers polishing profile and README flow.",
     features: [
@@ -19,7 +19,7 @@ const plans = [
   },
   {
     name: "Pro",
-    price: "$24",
+    price: "$5",
     cadence: "/month",
     summary: "For maintainers shipping docs across multiple repositories.",
     features: [
@@ -34,7 +34,7 @@ const plans = [
   },
   {
     name: "Team",
-    price: "$79",
+    price: "$15",
     cadence: "/month",
     summary: "For teams standardizing GitHub quality and visibility.",
     features: [
