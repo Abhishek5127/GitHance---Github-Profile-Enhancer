@@ -23,28 +23,14 @@ const plans = [
     cadence: "/month",
     summary: "For maintainers shipping docs across multiple repositories.",
     features: [
-      "Advanced repository analysis",
-      "Cross-repo documentation patterns",
-      "Expanded profile analytics",
-      "Priority workspace updates",
+      "Advanced vulnerability repository analysis",
+      "Auto Updates elements in intervals",
+      "Compare Profiles",
+      "Early Beta-Feature access",
     ],
     cta: "Choose Pro",
     accent: "border-[#ff7a1a]/40 bg-[linear-gradient(180deg,rgba(255,122,26,0.14),rgba(18,22,28,1))]",
     featured: true,
-  },
-  {
-    name: "Team",
-    price: "$15",
-    cadence: "/month",
-    summary: "For teams standardizing GitHub quality and visibility.",
-    features: [
-      "Shared documentation workflow",
-      "Team-ready templates and governance",
-      "Repository health dashboards",
-      "Onboarding and support channel",
-    ],
-    cta: "Talk to Sales",
-    accent: "border-cyan-400/35 bg-[#101924]",
   },
 ];
 
@@ -134,6 +120,7 @@ export default function PricingPage() {
                 <p className="mt-2 text-sm leading-6 text-white/65">{item.a}</p>
               </article>
             ))}
+            <div></div>
           </div>
         </section>
       </main>
