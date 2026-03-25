@@ -4,7 +4,7 @@ import { PROFILE_TEMPLATES } from "../../lib/profileTemplates";
 
 export default function Sidebar({ onSelectBlock }) {
   return (
-    <aside className="w-72 border-r border-white/10 bg-[#0d1117] p-4 text-white">
+    <aside className="w-full max-w-full overflow-x-hidden p-4 text-white lg:w-72">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
         <p className="text-xs uppercase tracking-[0.25em] text-white/40">Blocks</p>
         <h3 className="mt-2 text-lg font-semibold">Components</h3>

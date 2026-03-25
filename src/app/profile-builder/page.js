@@ -150,6 +150,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const [showContributionPicker, setShowContributionPicker] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [activeStickerId, setActiveStickerId] = useState("");
+  const [showMobileLibrary, setShowMobileLibrary] = useState(false);
   const [contributionPickerContext, setContributionPickerContext] = useState({
     itemId: null,
     initialData: null,
@@ -1574,6 +1575,29 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       openContributionPickerForEdit(item);
     }
   };
+
+  const handleSelectSidebarBlock = (blockId) => {
+    if (blockId === "header") {
+      openHeaderPickerForAdd();
+    } else if (blockId === "bio") {
+      openBioPickerForAdd();
+    } else if (blockId === "skills") {
+      openTechStackPickerForAdd();
+    } else if (blockId === "stickers") {
+      openStickerPicker();
+    } else if (blockId === "sections") {
+      openSectionPickerForAdd();
+    } else if (blockId === "commits") {
+      openRepoCommitPickerForAdd();
+    } else if (blockId === "contribution") {
+      openContributionPickerForAdd();
+    } else {
+      setActiveBlock(blockId);
+    }
+
+    setShowMobileLibrary(false);
+  };
+
   const activeSticker = getStickerById(activeStickerId);
 
   return (
@@ -1581,61 +1605,48 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       <div className="pointer-events-none absolute -left-40 top-8 h-80 w-80 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.24),_transparent_60%)] blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(48,214,255,0.18),_transparent_60%)] blur-3xl" />
 
-      <div className="flex h-screen">
-        <div className="z-10 flex flex-col">
-          <Sidebar
-            onSelectBlock={(blockId) => {
-              if (blockId === "header") {
-                openHeaderPickerForAdd();
-                return;
-              }
+      <div className="sticky top-0 z-30 border-b border-white/10 bg-[#0d1117]/95 p-3 backdrop-blur lg:hidden">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowMobileLibrary((prev) => !prev)}
+            className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-white/85 transition hover:bg-white/10"
+          >
+            {showMobileLibrary ? "Hide Blocks" : "Show Blocks"}
+          </button>
+          <button
+            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+              isAuthenticated
+                ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
+                : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
+            }`}
+            aria-disabled={!isAuthenticated}
+            title={isAuthenticated ? "Update README" : "Sign in required to update README"}
+            onClick={updateProfileReadme}
+          >
+            {isAuthenticated ? "Update README" : "Sign in to Update README"}
+          </button>
+        </div>
+      </div>
 
-              if (blockId === "bio") {
-                openBioPickerForAdd();
-                return;
-              }
-
-              if (blockId === "skills") {
-                openTechStackPickerForAdd();
-                return;
-              }
-
-              if (blockId === "stickers") {
-                openStickerPicker();
-                return;
-              }
-
-              if (blockId === "sections") {
-                openSectionPickerForAdd();
-                return;
-              }
-
-              if (blockId === "commits") {
-                openRepoCommitPickerForAdd();
-                return;
-              }
-
-              if (blockId === "contribution") {
-                openContributionPickerForAdd();
-                return;
-              }
-
-              setActiveBlock(blockId);
-            }}
-          />
-          <div className="border-r border-white/10 bg-[#0d1117] p-4">
-            <button
-              className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
-                isAuthenticated
-                  ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
-                  : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
-              }`}
-              aria-disabled={!isAuthenticated}
-              title={isAuthenticated ? "Update README" : "Sign in required to update README"}
-              onClick={updateProfileReadme}
-            >
-              {isAuthenticated ? "Update README" : "Sign in to Update README"}
-            </button>
+      <div className="flex min-h-[calc(100vh-64px)] flex-col lg:h-screen lg:min-h-screen lg:flex-row">
+        <div className={`${showMobileLibrary ? "block" : "hidden"} border-b border-white/10 lg:block lg:border-b-0 lg:border-r`}>
+          <div className="z-10 flex flex-col bg-[#0d1117] lg:h-screen">
+            <Sidebar onSelectBlock={handleSelectSidebarBlock} />
+            <div className="hidden border-t border-white/10 p-4 lg:block">
+              <button
+                className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+                  isAuthenticated
+                    ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
+                    : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
+                }`}
+                aria-disabled={!isAuthenticated}
+                title={isAuthenticated ? "Update README" : "Sign in required to update README"}
+                onClick={updateProfileReadme}
+              >
+                {isAuthenticated ? "Update README" : "Sign in to Update README"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1646,10 +1657,10 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           onDragCancel={onDragCancel}
           onDragEnd={onDragEnd}
         >
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6">
             <div className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-5">
 
-              <h2 className="mt-2 font-serif text-2xl font-semibold">Profile README Builder</h2>
+              <h2 className="mt-2 text-xl font-semibold sm:text-2xl">Profile README Builder</h2>
              
             </div>
 

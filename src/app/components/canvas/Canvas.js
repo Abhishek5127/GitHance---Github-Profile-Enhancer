@@ -97,12 +97,12 @@ export default function Canvas({
   return (
     <div
       ref={setNodeRef}
-      className={`relative min-h-[600px] rounded-2xl border border-dashed p-1.5 ${
+      className={`relative min-h-[480px] overflow-x-hidden rounded-2xl border border-dashed p-1.5 sm:min-h-[600px] ${
         isOver ? "border-cyan-400 bg-[#101722]" : "border-white/15 bg-[#0d1117]"
       }`}
     >
-      <div className="h-14">
-        <div className="absolute right-3 top-3 mb-3 flex gap-2">
+      <div className="h-16 sm:h-14">
+        <div className="absolute left-3 right-3 top-3 mb-3 flex flex-wrap justify-end gap-2">
           {readmeDataContent ? (
             <div className="flex gap-2">
               <button
@@ -133,10 +133,12 @@ export default function Canvas({
       </div>
 
       {readmeDataContent ? (
-        <article
-          className="markdown-body"
-          dangerouslySetInnerHTML={{ __html: readmeDataContent }}
-        />
+        <div className="overflow-x-auto">
+          <article
+            className="markdown-body min-w-0 break-words"
+            dangerouslySetInnerHTML={{ __html: readmeDataContent }}
+          />
+        </div>
       ) : sortableCanvasItems.length === 0 ? (
         <div className="py-14 text-center text-sm text-white/50">
           Create Readme
