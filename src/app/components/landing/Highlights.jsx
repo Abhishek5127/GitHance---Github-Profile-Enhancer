@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { assets } from "@/app/assets/assets";
@@ -254,10 +254,10 @@ export default function Highlights() {
   return (
     <section
       id="product"
-      className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-6 py-24"
+      className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-4 py-20 sm:gap-16 sm:px-6 sm:py-24"
     >
       <div className="text-center">
-        <h1 className="text-5xl font-bold tracking-tight text-white md:text-6xl">
+        <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl">
           Why <span className="text-neutral-400">Githance?</span>
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-neutral-500">
@@ -266,9 +266,8 @@ export default function Highlights() {
       </div>
 
       <div
-        className="relative flex w-full cursor-grab justify-center overflow-hidden select-none touch-none active:cursor-grabbing"
+        className="relative flex h-[180px] w-full cursor-grab justify-center overflow-hidden select-none touch-pan-y active:cursor-grabbing sm:h-[220px]"
         style={{
-          height: VIEWBOX_HEIGHT,
           WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
           maskImage: "linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
         }}
@@ -331,7 +330,7 @@ export default function Highlights() {
         </svg>
       </div>
 
-      <div className="-mt-16 flex items-center justify-center md:-mt-54 md:mr-20">
+      <div className="-mt-4 flex items-center justify-center sm:-mt-8 md:-mt-12 md:mr-8 lg:-mt-20 lg:mr-20">
         <div className="relative w-full max-w-5xl">
           <Image
             src={assets.Highlights}
@@ -347,3 +346,5 @@ export default function Highlights() {
     </section>
   );
 }
+
+

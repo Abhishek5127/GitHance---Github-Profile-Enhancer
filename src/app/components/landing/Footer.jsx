@@ -1,4 +1,4 @@
-
+﻿
 const columns = [
   {
     title: "Product",
@@ -30,7 +30,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="grid flex-1 grid-cols-2 gap-6 md:grid-cols-3">
+        <div className="grid flex-1 grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
           {columns.map((column) => (
             <div key={column.title}>
               <div className="text-sm font-semibold text-white">{column.title}</div>
@@ -48,7 +48,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="border-t border-white/10 py-4 text-center text-xs text-white/50">
-        © 2026 GitHance. Crafted for developers.
+        (c) 2026 GitHance. Crafted for developers.
       </div>
     </footer>
   );

@@ -1,11 +1,10 @@
-"use client";
-import Image from "next/image";
+﻿"use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { assets } from "@/app/assets/assets";
 import { useRouter } from "next/navigation";
-
 
 const links = [
   { label: "Product", href: "#product" },
@@ -15,11 +14,11 @@ const links = [
   { label: "Changelog", href: "#changelog" },
 ];
 
-
-
 export default function LandingNav() {
   const [open, setOpen] = useState(false);
   const { data: session, status } = useSession();
+  const router = useRouter();
+  const isAuthenticated = status === "authenticated" && Boolean(session);
 
   const handleGitHubSignIn = () => {
     signIn("github", { callbackUrl: "/profile" });
@@ -28,71 +27,30 @@ export default function LandingNav() {
   const handleLogout = () => {
     signOut({ callbackUrl: "/" });
   };
-  const Router = useRouter();
-  const isAuthenticated = status === "authenticated" && Boolean(session);
 
   return (
     <header className="relative z-30 w-full">
-      <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 pt-6">
-        <div onClick={() => { Router.push('/') }} className="flex items-center cursor-pointer gap-3">
+      <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 pt-4 sm:gap-4 sm:pt-6">
+        <div onClick={() => router.push("/")} className="flex cursor-pointer items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-            <span className="text-sm font-semibold text-white">
-              <Image
-                src={assets.Logo}
-                height={100}
-                width={100}
-                alt="Logo" />
-            </span>
+            <Image src={assets.Logo} height={100} width={100} alt="Logo" />
           </div>
-          <div className="text-xl font-bold text-white">GitHance</div>
+          <div className="text-lg font-bold text-white sm:text-xl">GitHance</div>
         </div>
 
         <div
           className="
-  hidden md:flex items-center gap-8 text-sm
-  relative
-  px-6 py-4
-  rounded-3xl
-  text-white/80
-
-  bg-white/10
-  backdrop-blur-xl
-  border border-white/20
-  shadow-lg shadow-black/20
-
-  before:content-['']
-  before:absolute
-  before:inset-0
-  before:rounded-3xl
-  before:bg-gradient-to-b
-  before:from-white/20
-  before:to-transparent
-  before:opacity-40
-  before:pointer-events-none
-"
+            relative hidden items-center gap-8 rounded-3xl border border-white/20 bg-white/10 px-6 py-4 text-sm text-white/80 backdrop-blur-xl shadow-lg shadow-black/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-white/20 before:to-transparent before:opacity-40 md:flex
+          "
         >
           {links.map((item) => (
             <a
               key={item.label}
               href={item.href}
-              className="
-      relative pb-1
-      transition-all duration-300
-      hover:text-white
-      group
-      "
+              className="group relative pb-1 transition-all duration-300 hover:text-white"
             >
               {item.label}
-
-              <span
-                className="
-        absolute inset-x-0 -bottom-1 h-px
-        bg-white/70
-        scale-x-0
-        transition-transform duration-300
-        group-hover:scale-x-100
-        "
-              />
+              <span className="absolute inset-x-0 -bottom-1 h-px scale-x-0 bg-white/70 transition-transform duration-300 group-hover:scale-x-100" />
             </a>
           ))}
         </div>
@@ -101,14 +59,14 @@ export default function LandingNav() {
           {isAuthenticated ? (
             <button
               onClick={handleLogout}
-              className="flex h-10 items-center cursor-pointer font-bold justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
+              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs font-bold text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
             >
               Logout
             </button>
           ) : (
             <button
               onClick={handleGitHubSignIn}
-              className="flex h-10 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
+              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
             >
               <Image
                 src={assets.Github}
@@ -121,17 +79,17 @@ export default function LandingNav() {
             </button>
           )}
           <button
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/20 md:hidden"
+            className="flex h-10 min-w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/80 transition hover:bg-white/20 md:hidden"
             aria-label="Toggle menu"
             onClick={() => setOpen((prev) => !prev)}
           >
-            {open ? "X" : "Menu"}
+            {open ? "Close" : "Menu"}
           </button>
         </div>
       </nav>
 
       {open && (
-        <div className="mx-auto mt-4 w-full max-w-6xl px-4 md:hidden">
+        <div className="mx-auto mt-4 w-full max-w-7xl px-4 md:hidden">
           <div className="rounded-3xl border border-white/10 bg-[#0b0d0f]/90 p-4 text-white/80 shadow-[0_30px_80px_rgba(0,0,0,0.4)] backdrop-blur">
             <div className="flex flex-col gap-2">
               {links.map((item) => (
@@ -139,12 +97,13 @@ export default function LandingNav() {
                   key={item.label}
                   href={item.href}
                   className="rounded-xl px-4 py-2 transition hover:bg-white/10 hover:text-white"
+                  onClick={() => setOpen(false)}
                 >
                   {item.label}
                 </a>
               ))}
             </div>
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               {isAuthenticated ? (
                 <button
                   onClick={handleLogout}
@@ -160,7 +119,10 @@ export default function LandingNav() {
                   Sign in
                 </button>
               )}
-              <button className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90">
+              <button
+                onClick={() => router.push("/profile-builder")}
+                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
+              >
                 Start free
               </button>
             </div>

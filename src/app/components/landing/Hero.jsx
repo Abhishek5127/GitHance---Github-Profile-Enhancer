@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -15,7 +15,7 @@ const modes = [
       { label: "Compare Profiles", path: "/profile-compare" },
       { label: "Analyze Repositories", path: "/analyze" },
     ],
-    colorPalette: ['green', 'yellow', 'blue']
+    colorPalette: ["green", "yellow", "blue"],
   },
   {
     id: "readme",
@@ -28,7 +28,7 @@ const modes = [
       { label: "Repository Readme", path: "/repo-builder" },
       { label: "Analyze Repositories", path: "/analyze" },
     ],
-    colorPalette: ['green', 'yellow', 'blue']
+    colorPalette: ["green", "yellow", "blue"],
   },
   {
     id: "insights",
@@ -41,7 +41,7 @@ const modes = [
       { label: "Get Profile data", path: "/profile" },
       { label: "Analyze Repository", path: "/analyze" },
     ],
-    colorPalette: ['green', 'yellow', 'blue']
+    colorPalette: ["green", "yellow", "blue"],
   },
 ];
 
@@ -51,31 +51,33 @@ const colorMap = {
   blue: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
 };
 
-
 export default function Hero() {
   const [active, setActive] = useState(modes[0]);
   const router = useRouter();
 
   return (
-    <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-20 pt-16 text-white lg:grid-cols-[1.1fr_0.9fr]">
-      <div>
-        
-
-        <h1 className="mt-6 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
+    <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-4 pb-16 pt-12 text-white sm:px-6 sm:pb-20 sm:pt-16 lg:grid-cols-[1.1fr_0.9fr] lg:px-4">
+      <div className="max-w-2xl">
+        <h1 className="mt-4 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
           Build a GitHub presence
           <span className="block text-white/80">that ships with confidence.</span>
         </h1>
 
-        <p className="mt-5 max-w-xl text-base text-white/70">
+        <p className="mt-5 max-w-xl text-base leading-7 text-white/70">
           A new workflow for developer branding. Create profile READMEs, analyze repos, and keep everything consistent
           without the chaos.
         </p>
 
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <button onClick={() => { router.push('/profile-builder') }} className="rounded-full cursor-pointer bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <button
+            onClick={() => {
+              router.push("/profile-builder");
+            }}
+            className="rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]"
+          >
             Start building
           </button>
-          <button className="rounded-full border cursor-pointer border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
+          <button className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
             Watch demo
           </button>
         </div>
@@ -87,47 +89,49 @@ export default function Hero() {
         </div>
       </div>
 
-      <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_40px_120px_rgba(0,0,0,0.5)]">
+      <div className="w-full max-w-xl justify-self-end rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.5)] sm:p-5">
         <div className="flex flex-wrap items-center gap-3">
           {modes.map((mode) => (
             <button
               key={mode.id}
               onClick={() => setActive(mode)}
-              className={`rounded-full px-4 py-2 text-xs cursor-pointer font-semibold transition ${active.id === mode.id
-                ? "bg-white text-black"
-                : "border border-white/15 text-white/70 hover:bg-white/10"
-                }`}
+              className={`rounded-full px-4 py-2 text-[11px] font-semibold transition sm:text-xs ${
+                active.id === mode.id
+                  ? "bg-white text-black"
+                  : "border border-white/15 text-white/70 hover:bg-white/10"
+              }`}
             >
               {mode.label}
             </button>
           ))}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-5">
+        <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-4 sm:p-5">
           <h3 className="mt-3 text-lg font-semibold text-white">{active.title}</h3>
-          <p className="mt-2 text-sm text-white/60">{active.copy}</p>
-          <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
+          <p className="mt-2 text-sm leading-6 text-white/60">{active.copy}</p>
+          <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-xs leading-5 text-white/60">
             {active.detail}
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
             {active.blocklist?.map((item, index) => {
               const colorKey = active.colorPalette?.[index] || "blue";
 
               return (
-                <div
+                <button
+                  type="button"
                   onClick={() => {
-                    if (item.path) router.push(item.path);
+                    if (item.path) {
+                      router.push(item.path);
+                    }
                   }}
                   key={index}
-                  className={`h-10 flex items-center justify-center rounded-lg text-xs font-semibold cursor-pointer transition hover:scale-[1.02]
-        ${colorMap[colorKey]}`}
+                  className={`min-h-12 rounded-lg px-3 py-3 text-left text-xs font-semibold transition hover:scale-[1.02] sm:text-center ${colorMap[colorKey]}`}
                 >
                   {item.label}
-                </div>
+                </button>
               );
             })}
           </div>
-
         </div>
       </div>
     </section>
