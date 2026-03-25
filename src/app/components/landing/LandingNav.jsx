@@ -1,24 +1,28 @@
 ﻿"use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { assets } from "@/app/assets/assets";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const links = [
-  { label: "Product", href: "#product" },
-  { label: "Solutions", href: "#solutions" },
-  { label: "Process", href: "#process" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Changelog", href: "#changelog" },
+  { label: "Product", href: "/product" },
+  { label: "Solutions", href: "/solutions" },
+  { label: "Process", href: "/process" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "Changelog", href: "/changelog" },
 ];
 
 export default function LandingNav() {
   const [open, setOpen] = useState(false);
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const isAuthenticated = status === "authenticated" && Boolean(session);
+
+  const isActiveRoute = (href) => pathname === href || pathname?.startsWith(`${href}/`);
 
   const handleGitHubSignIn = () => {
     signIn("github", { callbackUrl: "/profile" });
@@ -43,16 +47,25 @@ export default function LandingNav() {
             relative hidden items-center gap-8 rounded-3xl border border-white/20 bg-white/10 px-6 py-4 text-sm text-white/80 backdrop-blur-xl shadow-lg shadow-black/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-white/20 before:to-transparent before:opacity-40 md:flex
           "
         >
-          {links.map((item) => (
-            <a
-              key={item.label}
-              href={item.href}
-              className="group relative pb-1 transition-all duration-300 hover:text-white"
-            >
-              {item.label}
-              <span className="absolute inset-x-0 -bottom-1 h-px scale-x-0 bg-white/70 transition-transform duration-300 group-hover:scale-x-100" />
-            </a>
-          ))}
+          {links.map((item) => {
+            const isActive = isActiveRoute(item.href);
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`group relative pb-1 transition-all duration-300 ${
+                  isActive ? "text-white" : "text-white/80 hover:text-white"
+                }`}
+              >
+                {item.label}
+                <span
+                  className={`absolute inset-x-0 -bottom-1 h-px bg-white/70 transition-transform duration-300 ${
+                    isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                  }`}
+                />
+              </Link>
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
@@ -93,14 +106,16 @@ export default function LandingNav() {
           <div className="rounded-3xl border border-white/10 bg-[#0b0d0f]/90 p-4 text-white/80 shadow-[0_30px_80px_rgba(0,0,0,0.4)] backdrop-blur">
             <div className="flex flex-col gap-2">
               {links.map((item) => (
-                <a
+                <Link
                   key={item.label}
                   href={item.href}
-                  className="rounded-xl px-4 py-2 transition hover:bg-white/10 hover:text-white"
+                  className={`rounded-xl px-4 py-2 transition hover:bg-white/10 hover:text-white ${
+                    isActiveRoute(item.href) ? "bg-white/10 text-white" : ""
+                  }`}
                   onClick={() => setOpen(false)}
                 >
                   {item.label}
-                </a>
+                </Link>
               ))}
             </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">

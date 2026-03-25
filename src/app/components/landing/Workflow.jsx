@@ -50,7 +50,7 @@ const summary = [
 
 export default function Workflow() {
   return (
-    <section id="process" className="mx-auto w-full max-w-7xl px-4 pb-24">
+    <section id="process" className="mx-auto w-full max-w-[95%] px-4 pb-24">
       <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-[#0f1115]/95 p-6 text-white shadow-[0_40px_120px_rgba(0,0,0,0.45)] sm:p-8 lg:p-10">
         <div className="pointer-events-none absolute -left-16 top-0 h-56 w-56 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.2),_transparent_68%)] blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-8 h-64 w-64 rounded-full bg-[radial-gradient(circle,_rgba(74,222,128,0.14),_transparent_70%)] blur-3xl" />
