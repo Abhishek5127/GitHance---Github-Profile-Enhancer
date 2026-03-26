@@ -604,38 +604,7 @@ export default function ReadmeClient({ reponame }) {
     >
       <div className="grid gap-6">
         <section id="overview" className="analytics-card p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/45">README Workspace</p>
-              <h2 className="mt-1 text-2xl font-semibold text-white">Status and guided workflow</h2>
-              <p className="mt-2 max-w-3xl text-sm text-white/70">
-                {readmeExists
-                  ? "Your repository already has a README. Review insights, tweak generation settings, then edit and publish with confidence."
-                  : "No README was found. Start with generation settings, create a draft, and publish when the preview looks right."}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <StatusBadge active={readmeExists} activeLabel="README Present" inactiveLabel="README Missing" />
-              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs uppercase tracking-[0.16em] text-cyan-100">
-                {analysis.qualityLabel} ({analysis.score})
-              </span>
-              <span className="rounded-full border border-white/15 bg-black/20 px-3 py-1 text-xs uppercase tracking-[0.16em] text-white/70">
-                {workspaceData?.branch || "main"}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="README Score" value={analysis.score} hint={analysis.qualityLabel} />
-            <MetricCard
-              label="Sections"
-              value={`${coveredSections}/${totalSections}`}
-              hint="Detected in current markdown"
-            />
-            <MetricCard label="Words" value={analysis.stats.words.toLocaleString()} />
-            <MetricCard label="Code Blocks" value={analysis.stats.codeBlocks} hint={`${analysis.stats.links} links`} />
-          </div>
+          
 
           <div className="mt-5 flex flex-wrap gap-2">
             <a
@@ -679,32 +648,6 @@ export default function ReadmeClient({ reponame }) {
 
         {!workspaceError && workspaceData ? (
           <>
-            <section id="insights" className="space-y-4">
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
-                <SectionCoverageCard sectionCoverage={analysis.sectionCoverage} />
-                <ReadmeBlock tree={repositoryTreePreview} />
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-3">
-                <InsightPanel
-                  title="Strengths"
-                  items={analysis.strengths}
-                  emptyText="No standout strengths yet. Generate or expand the README to improve the structure signal."
-                  tone="good"
-                />
-                <InsightPanel
-                  title="Gaps to Fix"
-                  items={analysis.gaps}
-                  emptyText="No urgent structural gaps detected from the current markdown."
-                  tone="warn"
-                />
-                <InsightPanel
-                  title="Recommended Next Steps"
-                  items={analysis.recommendations}
-                  emptyText="No additional recommendations right now."
-                />
-              </div>
-            </section>
 
             <section id="builder" className="grid gap-4">
               <BuilderControls
