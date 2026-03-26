@@ -110,6 +110,7 @@ export async function createCashfreeOrder({
       },
       order_meta: {
         return_url: buildBillingReturnUrl(normalizedOrderId),
+        notify_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/billing/webhook`,
       },
       order_note: String(orderNote || "GitHance Pro subscription").trim(),
       order_tags: {
