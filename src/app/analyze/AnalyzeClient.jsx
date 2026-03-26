@@ -1,9 +1,11 @@
-﻿"use client";
+"use client";
 
 import { startTransition, useCallback, useDeferredValue, useEffect, useState } from "react";
 import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
 import LandingNav from "@/app/components/landing/LandingNav";
+import LockIcon from "@/app/components/billing/LockIcon";
+import { useBilling } from "@/app/components/billing/BillingProvider";
 
 const REPOS_PER_PAGE = 18;
 const FILTER_OPTIONS = [
@@ -168,7 +170,7 @@ function RepoSkeletonCard() {
   );
 }
 
-function QuickLaunchItem({ repo }) {
+function QuickLaunchItem({ repo, isSecurityLocked }) {
   const readmeHref = `/readme-analyze/${encodeURIComponent(repo.name || "")}`;
   const securityHref = `/repository-security/${encodeURIComponent(repo.name || "")}`;
   const readmePresentation = getReadmePresentation(repo);
@@ -194,18 +196,30 @@ function QuickLaunchItem({ repo }) {
         >
           {readmePresentation.compactActionLabel}
         </Link>
-        <Link
-          href={securityHref}
-          className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
-        >
-          Security
-        </Link>
+        {isSecurityLocked ? (
+          <Link
+            href="/pricing#pro"
+            className="rounded-full border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-3 py-1.5 text-xs font-semibold text-[#ffd6b7] transition hover:bg-[#ff7a1a]/20"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <LockIcon className="h-3.5 w-3.5" />
+              Security Pro
+            </span>
+          </Link>
+        ) : (
+          <Link
+            href={securityHref}
+            className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
+          >
+            Security Analysis
+          </Link>
+        )}
       </div>
     </div>
   );
 }
 
-function RepositoryCard({ repo }) {
+function RepositoryCard({ repo, isSecurityLocked }) {
   const readmeHref = `/readme-analyze/${encodeURIComponent(repo.name || "")}`;
   const securityHref = `/repository-security/${encodeURIComponent(repo.name || "")}`;
   const topics = Array.isArray(repo.topics) ? repo.topics.slice(0, 3) : [];
@@ -267,12 +281,24 @@ function RepositoryCard({ repo }) {
           >
             {readmePresentation.actionLabel}
           </Link>
-          <Link
-            href={securityHref}
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-          >
-            Run Security Analysis
-          </Link>
+          {isSecurityLocked ? (
+            <Link
+              href="/pricing#pro"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-4 py-2 text-sm font-semibold text-[#ffd6b7] transition hover:bg-[#ff7a1a]/20"
+            >
+              <span className="inline-flex items-center gap-2">
+                <LockIcon className="h-4 w-4" />
+                Security Analysis Pro
+              </span>
+            </Link>
+          ) : (
+            <Link
+              href={securityHref}
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+            >
+              Run Security Analysis
+            </Link>
+          )}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-white/50">
@@ -293,6 +319,7 @@ function RepositoryCard({ repo }) {
 
 export default function AnalyzePage() {
   const { data: session, status } = useSession();
+  const { isPro, loading: billingLoading } = useBilling();
   const [repositories, setRepositories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -303,6 +330,7 @@ export default function AnalyzePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const deferredSearchQuery = useDeferredValue(searchQuery);
+  const isSecurityLocked = status === "authenticated" && !billingLoading && !isPro;
 
   const requestRepositories = useCallback(async (nextPage, append = false) => {
     if (!session?.username) return;
@@ -644,4 +672,6 @@ export default function AnalyzePage() {
     </div>
   );
 }
+
+
 

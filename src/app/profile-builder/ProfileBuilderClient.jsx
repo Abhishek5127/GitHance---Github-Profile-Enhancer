@@ -1,7 +1,10 @@
-﻿"use client";
+"use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
+import LockIcon from "@/app/components/billing/LockIcon";
+import { useBilling } from "@/app/components/billing/BillingProvider";
 import generateMarkdown from "../lib/genrateMarkdown";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
@@ -97,6 +100,7 @@ const collisionDetectionStrategy = (args) => {
 
 export default function Page() {
   const { data: session, status } = useSession();
+  const { isPro, loading: billingLoading, refreshBilling, subscription } = useBilling();
   const bioDefaults = {
     content: `## About Me
 
@@ -152,6 +156,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [activeStickerId, setActiveStickerId] = useState("");
   const [showMobileLibrary, setShowMobileLibrary] = useState(false);
+  const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(false);
   const [contributionPickerContext, setContributionPickerContext] = useState({
     itemId: null,
     initialData: null,
@@ -163,8 +168,19 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     resolveProfileBuilderUsername(value, sessionUsername);
   const [markdown, setMarkdown] = useState([]);
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
+  const [publishFeedback, setPublishFeedback] = useState({ tone: "info", message: "" });
   const isAuthenticated =
     status === "authenticated" && Boolean(sessionUsername) && Boolean(token);
+
+  useEffect(() => {
+    if (billingLoading) return;
+    if (!isPro) {
+      setAutoUpdateEnabled(false);
+      return;
+    }
+
+    setAutoUpdateEnabled(Boolean(subscription?.autoUpdateEnabled));
+  }, [billingLoading, isPro, subscription?.autoUpdateEnabled]);
 
   const bootstrapCommitStatsSnapshot = async (username, installationId = null) => {
     if (!username || !token) return null;
@@ -545,6 +561,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   };
 
   const updateProfileReadme = async () => {
+    setPublishFeedback({ tone: "info", message: "" });
+
     if (status !== "authenticated" || !sessionUsername || !token) {
       await signIn("github", { callbackUrl: "/profile-builder" });
       return;
@@ -561,6 +579,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     const contributionBlocks = collectCanvasItemsDeep(
       enrichedItems,
       (item) => item.type === "contribution"
+    );
+    const shouldEnableAutoUpdate = Boolean(
+      autoUpdateEnabled && isPro && contributionBlocks.length
     );
     const contributionFileMap = new Map();
     const contributionGraphConfig = {
@@ -639,7 +660,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       });
     }
 
-    if (contributionBlocks.length) {
+    if (contributionBlocks.length && shouldEnableAutoUpdate) {
       upsertContributionFile({
         path: CONTRIBUTION_GRAPH_CONFIG_PATH,
         content: `${JSON.stringify(contributionGraphConfig, null, 2)}\n`,
@@ -674,21 +695,45 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         repo: session.username,
         readmeContent: latestMarkdown,
         files: contributionFiles,
+        autoUpdateEnabled: shouldEnableAutoUpdate,
       }),
     });
 
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      console.error("Publish failed:", data);
+      setPublishFeedback({
+        tone: "error",
+        message: data?.error || "Failed to publish README.",
+      });
       return;
     }
 
+    await refreshBilling();
+
     if (Array.isArray(data?.warnings) && data.warnings.length) {
-      console.warn("Publish completed with warnings:", data.warnings);
+      setPublishFeedback({
+        tone: "info",
+        message:
+          "README published, but the auto-update workflow needs the GitHub workflow scope before it can run automatically.",
+      });
+      return;
     }
 
-    console.log("Publish result:", data);
-    console.log(latestMarkdown);
+    if (autoUpdateEnabled && !contributionBlocks.length) {
+      setPublishFeedback({
+        tone: "info",
+        message:
+          "README published successfully. Add a contribution graph block if you want to enable auto-update workflows.",
+      });
+      return;
+    }
+
+    setPublishFeedback({
+      tone: "success",
+      message: shouldEnableAutoUpdate
+        ? "README published and auto-update workflow configured."
+        : "README published to GitHub successfully.",
+    });
   };
 
   useEffect(() => {
@@ -1660,9 +1705,65 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         >
           <div className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6">
             <div className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#ffb37f]">
+                    Profile Builder
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold sm:text-2xl">Profile README Builder</h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68">
+                    Manual README publishing stays free. Githance Pro unlocks GitHub Actions based auto-update for contribution graph assets and recurring README refresh workflows.
+                  </p>
+                </div>
 
-              <h2 className="mt-2 text-xl font-semibold sm:text-2xl">Profile README Builder</h2>
-             
+                <div className="rounded-3xl border border-white/10 bg-[#0d1117] p-4 xl:max-w-md">
+                  <div className="flex items-start gap-3">
+                    <label className="mt-1 inline-flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={autoUpdateEnabled && isPro}
+                        onChange={(event) => setAutoUpdateEnabled(event.target.checked)}
+                        disabled={!isPro || billingLoading}
+                        className="h-4 w-4 rounded border border-white/20 bg-black/20 accent-[#ff7a1a]"
+                      />
+                    </label>
+                    <div>
+                      <div className="inline-flex items-center gap-2 text-sm font-semibold text-white">
+                        <LockIcon className="h-4 w-4 text-[#ffd6b7]" />
+                        Auto-update README assets
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-white/62">
+                        Publish the contribution graph workflow, generator script, and config so GitHub Actions can keep your README visuals fresh.
+                      </p>
+                      {!isPro ? (
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          <Link
+                            href="/pricing#pro"
+                            className="rounded-full border border-[#ff7a1a]/35 bg-[#ff7a1a]/15 px-4 py-2 text-sm font-semibold text-[#ffd6b7] transition hover:bg-[#ff7a1a]/25"
+                          >
+                            Upgrade for auto-update
+                          </Link>
+                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
+                            Manual publish stays free
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {publishFeedback.message ? (
+                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                  publishFeedback.tone === "success"
+                    ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
+                    : publishFeedback.tone === "error"
+                      ? "border-red-500/25 bg-red-500/10 text-red-100"
+                      : "border-amber-400/25 bg-amber-500/10 text-amber-100"
+                }`}>
+                  {publishFeedback.message}
+                </div>
+              ) : null}
             </div>
 
             <Canvas
@@ -1750,5 +1851,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
+
+
+
+
 
 

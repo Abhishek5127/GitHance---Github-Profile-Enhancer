@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -6,6 +6,8 @@ import { useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { assets } from "@/app/assets/assets";
 import { usePathname } from "next/navigation";
+import ProBadge from "@/app/components/billing/ProBadge";
+import { useBilling } from "@/app/components/billing/BillingProvider";
 
 const links = [
   { label: "Home", href: "/" },
@@ -19,6 +21,7 @@ const links = [
 export default function LandingNav({ signInCallbackUrl = "/profile" }) {
   const [open, setOpen] = useState(false);
   const { data: session, status } = useSession();
+  const { isPro, loading: billingLoading } = useBilling();
   const pathname = usePathname();
   const isAuthenticated = status === "authenticated" && Boolean(session);
 
@@ -68,6 +71,19 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
+          {isAuthenticated && !billingLoading ? (
+            isPro ? (
+              <ProBadge className="hidden sm:inline-flex" />
+            ) : (
+              <Link
+                href="/pricing#pro"
+                className="hidden rounded-full border border-[#ff7a1a]/35 bg-[#ff7a1a]/15 px-4 py-2 text-xs font-semibold text-[#ffd6b7] transition hover:bg-[#ff7a1a]/25 sm:inline-flex"
+              >
+                Upgrade
+              </Link>
+            )
+          ) : null}
+
           {isAuthenticated ? (
             <button
               onClick={handleLogout}
@@ -113,6 +129,19 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
               ))}
             </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              {isAuthenticated && !billingLoading ? (
+                isPro ? (
+                  <ProBadge className="self-start" />
+                ) : (
+                  <Link
+                    href="/pricing#pro"
+                    onClick={() => setOpen(false)}
+                    className="self-start rounded-full border border-[#ff7a1a]/35 bg-[#ff7a1a]/15 px-4 py-2 text-sm font-semibold text-[#ffd6b7]"
+                  >
+                    Upgrade
+                  </Link>
+                )
+              ) : null}
               {isAuthenticated ? (
                 <button
                   onClick={handleLogout}
@@ -142,4 +171,3 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
     </header>
   );
 }
-

@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import {
+  CONTRIBUTION_GRAPH_CONFIG_PATH,
+  CONTRIBUTION_GRAPH_SCRIPT_PATH,
+  CONTRIBUTION_GRAPH_WORKFLOW_PATH,
+} from "@/app/lib/contributionGraphAssets";
+import { BILLING_FEATURES } from "@/app/lib/billing/plans";
+import { BillingAccessError, requirePro } from "@/app/lib/billing/entitlements";
+import { setAutoUpdatePreference } from "@/app/lib/billing/subscriptions";
 
 const GITHUB_API = "https://api.github.com";
 const GITHUB_ACCEPT = "application/vnd.github+json";
@@ -11,6 +19,11 @@ const MAX_FILE_COUNT = 12;
 const MAX_FILE_BYTES = 1_500_000;
 const PROFILE_ONLY =
   String(process.env.PUBLISH_README_PROFILE_ONLY || "").toLowerCase() === "true";
+const AUTO_UPDATE_MANAGED_PATHS = new Set([
+  CONTRIBUTION_GRAPH_CONFIG_PATH,
+  CONTRIBUTION_GRAPH_SCRIPT_PATH,
+  CONTRIBUTION_GRAPH_WORKFLOW_PATH,
+].map((path) => String(path || "").trim().toLowerCase()));
 
 function normalizeId(value) {
   return String(value || "").trim();
@@ -153,6 +166,18 @@ function hasOwn(target, key) {
 
 function isWorkflowFilePath(path) {
   return normalizePath(path).toLowerCase().startsWith(WORKFLOW_DIRECTORY_PREFIX);
+}
+
+function isAutoUpdateManagedFilePath(path) {
+  return AUTO_UPDATE_MANAGED_PATHS.has(normalizePath(path).toLowerCase());
+}
+
+function isAutoUpdateRequested(body, files = []) {
+  if (body?.autoUpdateEnabled === true) {
+    return true;
+  }
+
+  return files.some((file) => isAutoUpdateManagedFilePath(file.path));
 }
 
 function parseScopeSet(value) {
@@ -376,6 +401,11 @@ export async function POST(req) {
       return jsonError(writeTargets.status || 400, writeTargets.error);
     }
 
+    const autoUpdateRequested = isAutoUpdateRequested(body, writeTargets.files);
+    if (autoUpdateRequested) {
+      await requirePro(session, BILLING_FEATURES.README_AUTO_UPDATE);
+    }
+
     const sessionOwnerCandidates = [
       normalizeOwner(session?.user?.name),
       normalizeOwner(session?.username),
@@ -443,17 +473,38 @@ export async function POST(req) {
       writeResults.push(result);
     }
 
+    const autoUpdateActivated =
+      autoUpdateRequested &&
+      writeResults.some(
+        (result) =>
+          normalizePath(result?.path).toLowerCase() ===
+          String(CONTRIBUTION_GRAPH_WORKFLOW_PATH || "").trim().toLowerCase()
+      );
+
+    await setAutoUpdatePreference({
+      userId: session.username,
+      enabled: autoUpdateActivated,
+      repository: autoUpdateActivated ? repo : "",
+    });
+
     return NextResponse.json(
       {
         success: true,
         owner,
         repo,
         results: writeResults,
+        autoUpdateEnabled: autoUpdateActivated,
         ...(warnings.length ? { warnings } : {}),
       },
       { status: 200 }
     );
   } catch (error) {
+    if (error instanceof BillingAccessError) {
+      return jsonError(error.status || 403, error.message, error.code);
+    }
+
     return jsonError(500, error?.message || "Failed to publish repository files");
   }
 }
+
+

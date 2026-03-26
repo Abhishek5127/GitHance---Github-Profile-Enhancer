@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import LockIcon from "@/app/components/billing/LockIcon";
+import { useBilling } from "@/app/components/billing/BillingProvider";
 import AnalyticsShell from "@/app/components/analytics/AnalyticsShell";
 import ReadmeRenderer from "@/app/components/blocks/ReadmeRenderer";
 import Unauthorized from "@/app/statusCodePages/unauthorized";
@@ -364,6 +367,7 @@ function PreviewPane({ value }) {
 
 export default function ReadmeClient({ reponame }) {
   const { data: session, status } = useSession();
+  const { isPro, loading: billingLoading } = useBilling();
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState("");
   const [workspaceData, setWorkspaceData] = useState(null);
@@ -444,6 +448,8 @@ export default function ReadmeClient({ reponame }) {
       : Array.isArray(workspaceData?.tree)
         ? workspaceData.tree.slice(0, 80)
         : [];
+
+  const isSecurityLocked = status === "authenticated" && !billingLoading && !isPro;
 
   const user = session?.username
     ? { name: session.username, subtitle: reponame ? `Repo: ${reponame}` : "" }
@@ -631,12 +637,24 @@ export default function ReadmeClient({ reponame }) {
             >
               4. Preview + Publish
             </a>
-            <a
-              href={`/repository-security/${encodeURIComponent(reponame || "")}`}
-              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
-            >
-              Open Security View
-            </a>
+            {isSecurityLocked ? (
+              <Link
+                href="/pricing#pro"
+                className="rounded-xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-4 py-2 text-sm text-[#ffd6b7] transition hover:bg-[#ff7a1a]/20"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <LockIcon className="h-4 w-4" />
+                  Security View Pro
+                </span>
+              </Link>
+            ) : (
+              <Link
+                href={`/repository-security/${encodeURIComponent(reponame || "")}`}
+                className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
+              >
+                Open Security View
+              </Link>
+            )}
           </div>
         </section>
 
@@ -681,4 +699,6 @@ export default function ReadmeClient({ reponame }) {
     </AnalyticsShell>
   );
 }
+
+
 

@@ -2,6 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { signIn, useSession } from "next-auth/react";
+import FeaturePaywallCard from "@/app/components/billing/FeaturePaywallCard";
+import ProBadge from "@/app/components/billing/ProBadge";
+import { useBilling } from "@/app/components/billing/BillingProvider";
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import {
@@ -656,14 +660,28 @@ function EmptyState() {
 }
 
 export default function ProfileCompareClient() {
+  const { status } = useSession();
+  const { isPro, loading: billingLoading } = useBilling();
   const [leftUsername, setLeftUsername] = useState("");
   const [rightUsername, setRightUsername] = useState("");
   const [comparison, setComparison] = useState<ProfileComparisonResult | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const isLocked = status === "authenticated" && !billingLoading && !isPro;
 
   async function handleCompare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (status !== "authenticated") {
+      await signIn("github", { callbackUrl: "/profile-compare" });
+      return;
+    }
+
+    if (!isPro) {
+      setError("This feature requires Githance Pro");
+      return;
+    }
+
     setError("");
     setComparison(null);
     setIsLoading(true);
@@ -700,7 +718,10 @@ export default function ProfileCompareClient() {
             <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/20 font-mono text-xs font-semibold">GH</span>
             GitHance
           </Link>
-          <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.24em] text-white/42">Profile Compare</div>
+          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.24em] text-white/42">
+            Profile Compare
+            {isPro ? <ProBadge className="font-sans tracking-[0.12em]" /> : null}
+          </div>
         </header>
 
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col py-10">
@@ -717,17 +738,27 @@ export default function ProfileCompareClient() {
               <span className="rounded-full border border-white/10 bg-black/20 px-4 py-2">Weighted final developer score</span>
             </div>
 
-            <form onSubmit={handleCompare} className="mx-auto mt-10 max-w-5xl">
-              <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
-                <InputField label="GitHub Username 1" value={leftUsername} onChange={setLeftUsername} placeholder="e.g. torvalds" />
-                <InputField label="GitHub Username 2" value={rightUsername} onChange={setRightUsername} placeholder="e.g. gaearon" />
-                <div className="flex items-end">
-                  <button type="submit" disabled={isLoading} className="h-14 w-full rounded-[24px] bg-[#ff7a1a] px-6 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70 lg:w-auto">
-                    {isLoading ? "Comparing..." : "Compare Profiles"}
-                  </button>
-                </div>
+            {status !== "authenticated" || isLocked ? (
+              <div className="mx-auto mt-10 max-w-5xl">
+                <FeaturePaywallCard
+                  title="Profile Compare is a Githance Pro feature."
+                  description="Upgrade to compare two GitHub profiles across activity, quality, diversity, impact, and popularity with the full multi-factor scoring engine."
+                  source="profile_compare_gate"
+                />
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleCompare} className="mx-auto mt-10 max-w-5xl">
+                <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+                  <InputField label="GitHub Username 1" value={leftUsername} onChange={setLeftUsername} placeholder="e.g. torvalds" />
+                  <InputField label="GitHub Username 2" value={rightUsername} onChange={setRightUsername} placeholder="e.g. gaearon" />
+                  <div className="flex items-end">
+                    <button type="submit" disabled={isLoading} className="h-14 w-full rounded-[24px] bg-[#ff7a1a] px-6 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70 lg:w-auto">
+                      {isLoading ? "Comparing..." : "Compare Profiles"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
           </section>
           <section className="mt-8 space-y-8">
             {isLoading ? <LoadingState /> : null}
@@ -784,5 +815,3 @@ export default function ProfileCompareClient() {
     </div>
   );
 }
-
-

@@ -1,4 +1,8 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import getRelevantFiles from "@/app/lib/repo/getRelevantFiles";
+import { BILLING_FEATURES } from "@/app/lib/billing/plans";
+import { BillingAccessError, requirePro } from "@/app/lib/billing/entitlements";
 import { analyzeDeveloperSecurity } from "@/app/lib/security/analyzeDeveloperSecurity";
 import { classifyRepository } from "@/app/lib/security/classifyRepository";
 import {
@@ -12,6 +16,8 @@ import {
 } from "@/app/lib/security/config";
 import { filterDeveloperFiles } from "@/app/lib/security/filterDeveloperFiles";
 
+export const runtime = "nodejs";
+
 function parsePositiveInt(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
@@ -22,6 +28,12 @@ function toRelativePath(pathValue) {
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
+}
+
+function normalizeUsername(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 async function runWithConcurrency(items, concurrency, worker) {
@@ -133,7 +145,14 @@ function initializeFetchSkippedSummary() {
 
 export async function POST(req) {
   try {
-    const { username, reponame, token } = await req.json();
+    const session = await getServerSession(authOptions);
+    if (!session?.username) {
+      return Response.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    await requirePro(session, BILLING_FEATURES.REPOSITORY_SECURITY);
+
+    const { username, reponame } = await req.json();
     if (!username || !reponame) {
       return Response.json(
         { error: "Username and repository name are required" },
@@ -141,6 +160,17 @@ export async function POST(req) {
       );
     }
 
+    const sessionUsername = normalizeUsername(session.username);
+    const requestedUsername = normalizeUsername(username);
+
+    if (!requestedUsername || requestedUsername !== sessionUsername) {
+      return Response.json(
+        { error: "Repository owner must match the authenticated GitHub user" },
+        { status: 403 }
+      );
+    }
+
+    const token = String(session?.accessToken || "").trim();
     if (!token) {
       return Response.json({ error: "Auth token missing, login again" }, { status: 401 });
     }
@@ -172,7 +202,7 @@ export async function POST(req) {
     };
 
     const repoData = await fetchRepoInfoAndTree({
-      username,
+      username: requestedUsername,
       reponame,
       headers,
       maxTreeItems: maxRepoTreeItems,
@@ -198,7 +228,7 @@ export async function POST(req) {
     const sourceFiles = [];
     await runWithConcurrency(developerFiles, fetchConcurrency, async (file) => {
       const fetched = await fetchFileContent({
-        username,
+        username: requestedUsername,
         reponame,
         branch,
         headers,
@@ -250,6 +280,13 @@ export async function POST(req) {
       report,
     });
   } catch (error) {
+    if (error instanceof BillingAccessError) {
+      return Response.json(
+        { error: error.message, code: error.code },
+        { status: error.status || 403 }
+      );
+    }
+
     return Response.json(
       { error: error?.message || "Internal server error" },
       { status: 500 }

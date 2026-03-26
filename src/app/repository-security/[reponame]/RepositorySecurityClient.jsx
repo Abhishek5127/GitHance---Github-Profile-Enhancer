@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import AnalyticsShell from "@/app/components/analytics/AnalyticsShell";
+import FeaturePaywallCard from "@/app/components/billing/FeaturePaywallCard";
+import { useBilling } from "@/app/components/billing/BillingProvider";
 import ReadmeBlock from "@/app/readme-analyze/readme-analyze-components/ReadmeBlock";
 import SecurityOverview from "@/app/readme-analyze/readme-analyze-components/SecurityOverview";
 import Unauthorized from "@/app/statusCodePages/unauthorized";
@@ -43,25 +45,37 @@ function buildNavSections(reponame) {
 
 export default function RepositorySecurityClient({ reponame }) {
   const { data: session, status } = useSession();
+  const { isPro, loading: billingLoading } = useBilling();
   const [loading, setLoading] = useState(false);
   const [securityLoading, setSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState(null);
   const [securityReport, setSecurityReport] = useState(null);
   const [securityMeta, setSecurityMeta] = useState(null);
+  const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
-    if (
-      status !== "authenticated" ||
-      !session?.username ||
-      !session?.accessToken ||
-      !reponame
-    ) {
+    if (status !== "authenticated" || !session?.username || !reponame) {
+      return;
+    }
+
+    if (!billingLoading && !isPro) {
+      setIsLocked(true);
+      setLoading(false);
+      setSecurityLoading(false);
+      setSecurityError("This feature requires Githance Pro");
+      setSecurityReport(null);
+      setSecurityMeta(null);
+      return;
+    }
+
+    if (billingLoading || !session?.accessToken) {
       return;
     }
 
     let isCancelled = false;
 
     const runAnalysis = async () => {
+      setIsLocked(false);
       setLoading(true);
       setSecurityLoading(true);
       setSecurityError(null);
@@ -78,11 +92,12 @@ export default function RepositorySecurityClient({ reponame }) {
       } catch (error) {
         if (isCancelled) return;
 
+        const errorMessage =
+          error?.message || "Security analysis failed for this repository.";
         setSecurityReport(null);
         setSecurityMeta(null);
-        setSecurityError(
-          error?.message || "Security analysis failed for this repository."
-        );
+        setIsLocked(errorMessage === "This feature requires Githance Pro");
+        setSecurityError(errorMessage);
       } finally {
         if (isCancelled) return;
         setLoading(false);
@@ -95,13 +110,18 @@ export default function RepositorySecurityClient({ reponame }) {
     return () => {
       isCancelled = true;
     };
-  }, [status, session?.username, session?.accessToken, reponame]);
+  }, [billingLoading, isPro, reponame, session?.accessToken, session?.username, status]);
 
   const user = session?.username
     ? { name: session.username, subtitle: reponame ? `Repo: ${reponame}` : "" }
     : null;
 
-  if (status === "loading" || loading || securityLoading) {
+  if (
+    status === "loading" ||
+    (status === "authenticated" && billingLoading) ||
+    loading ||
+    securityLoading
+  ) {
     return (
       <AnalyticsShell
         context="Repository"
@@ -191,6 +211,25 @@ export default function RepositorySecurityClient({ reponame }) {
 
   if (status !== "authenticated") {
     return <Unauthorized />;
+  }
+
+  if (isLocked) {
+    return (
+      <AnalyticsShell
+        context="Repository"
+        title={reponame || "Repository security"}
+        subtitle="Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository."
+        navSections={buildNavSections(reponame)}
+        activeNavId="overview"
+        user={user}
+      >
+        <FeaturePaywallCard
+          title="Repository Security Analysis is a Githance Pro feature."
+          description="Upgrade to unlock deep repository vulnerability analysis, severity breakdowns, hotspots, and grouped findings for your GitHub projects."
+          source="repository_security_gate"
+        />
+      </AnalyticsShell>
+    );
   }
 
   return (
