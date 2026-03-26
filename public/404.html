@@ -1,33 +1,250 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Page Not Found</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>404 | GitHance</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
 
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px 16px; border-radius: 3px; }
-      #message h3 { color: #888; font-weight: normal; font-size: 16px; margin: 16px 0 12px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+        color: #f8fafc;
+        background: radial-gradient(circle at 12% 8%, rgba(255, 122, 26, 0.24), transparent 42%),
+          radial-gradient(circle at 85% 0%, rgba(48, 214, 255, 0.18), transparent 40%),
+          #0b0d0f;
+      }
+
+      .container {
+        width: min(1080px, 92vw);
+        margin: 0 auto;
+      }
+
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(14px);
+        background: rgba(11, 13, 15, 0.7);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .header-inner {
+        min-height: 76px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+
+      .brand-badge {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: linear-gradient(160deg, rgba(255, 122, 26, 0.34), rgba(48, 214, 255, 0.2));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+      }
+
+      .nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .nav a {
+        text-decoration: none;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.88rem;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .nav a:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .content {
+        padding: 56px 0 72px;
+      }
+
+      .card {
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: linear-gradient(180deg, rgba(20, 23, 28, 0.92), rgba(12, 14, 18, 0.96));
+        box-shadow: 0 26px 90px rgba(0, 0, 0, 0.35);
+        padding: 28px;
+      }
+
+      .eyebrow {
+        margin: 0;
+        font-size: 0.74rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgba(255, 179, 127, 0.9);
+      }
+
+      h1 {
+        margin: 10px 0 0;
+        font-size: clamp(1.9rem, 4vw, 2.6rem);
+        line-height: 1.18;
+      }
+
+      p {
+        margin: 14px 0 0;
+        color: rgba(255, 255, 255, 0.75);
+        line-height: 1.55;
+      }
+
+      .path {
+        margin-top: 20px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.03);
+        color: rgba(255, 255, 255, 0.88);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        overflow-x: auto;
+      }
+
+      .actions {
+        margin-top: 24px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        border-radius: 999px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        padding: 0 16px;
+      }
+
+      .btn-primary {
+        color: #000;
+        background: #fff;
+        border: 1px solid transparent;
+      }
+
+      .btn-primary:hover {
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      .btn-ghost {
+        color: rgba(255, 255, 255, 0.84);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .btn-ghost:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .footnote {
+        margin-top: 18px;
+        font-size: 0.82rem;
+        color: rgba(255, 255, 255, 0.54);
+      }
+
+      @media (max-width: 640px) {
+        .header-inner {
+          padding: 10px 0;
+        }
+
+        .content {
+          padding-top: 32px;
+        }
+
+        .card {
+          padding: 20px;
+        }
+
+        .nav {
+          display: none;
+        }
       }
     </style>
   </head>
   <body>
-    <div id="message">
-      <h2>404</h2>
-      <h1>Page Not Found</h1>
-      <p>The specified file was not found on this website. Please check the URL for mistakes and try again.</p>
-      <h3>Why am I seeing this?</h3>
-      <p>This page was generated by the Firebase Command-Line Interface. To modify it, edit the <code>404.html</code> file in your project's configured <code>public</code> directory.</p>
-    </div>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="/" aria-label="GitHance Home">
+          <span class="brand-badge">GH</span>
+          <span>GitHance</span>
+        </a>
+        <nav class="nav" aria-label="Primary">
+          <a href="/">Home</a>
+          <a href="/product">Product</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/changelog">Changelog</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="container">
+        <article class="card" role="alert" aria-live="polite">
+          <p class="eyebrow">404 Not Found</p>
+          <h1>This page does not exist.</h1>
+          <p>
+            The URL you tried is not available. If you typed it manually, check for typos,
+            or return to a known page.
+          </p>
+          <div class="path" id="missing-path">/</div>
+
+          <div class="actions">
+            <a class="btn btn-primary" href="/">Go to Home</a>
+            <a class="btn btn-ghost" href="/pricing">See Pricing</a>
+            <button class="btn btn-ghost" type="button" onclick="history.back()">Go Back</button>
+          </div>
+
+          <p class="footnote">Outside-app fallback page served for unknown routes.</p>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      (function setMissingPath() {
+        var path = window.location.pathname || "/";
+        var query = window.location.search || "";
+        var hash = window.location.hash || "";
+        var fullPath = path + query + hash;
+        var target = document.getElementById("missing-path");
+        if (target) {
+          target.textContent = fullPath;
+        }
+      })();
+    </script>
   </body>
 </html>

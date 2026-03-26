@@ -53,9 +53,9 @@ function buildInitialOptions(data, currentReadme) {
     repoName: data?.repository?.name,
     repoDescription: data?.repository?.description,
   });
-  const licenseDetected = Boolean(data?.repository?.license?.name) || analysis.sectionCoverage.some(
-    (section) => section.key === "license" && section.found
-  );
+  const licenseDetected =
+    Boolean(data?.repository?.license?.name) ||
+    analysis.sectionCoverage.some((section) => section.key === "license" && section.found);
 
   return {
     ...DEFAULT_OPTIONS,
@@ -133,6 +133,48 @@ function InsightPanel({ title, items, emptyText, tone = "default" }) {
   );
 }
 
+function SectionCoverageCard({ sectionCoverage = [] }) {
+  const safeCoverage = Array.isArray(sectionCoverage) ? sectionCoverage : [];
+  const totalSections = safeCoverage.length || 1;
+  const coveredSections = safeCoverage.filter((section) => section.found).length;
+  const coveragePercent = Math.round((coveredSections / totalSections) * 100);
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/45">Section Coverage</p>
+      <h3 className="mt-1 text-xl font-semibold text-white">
+        {coveredSections}/{safeCoverage.length || 0} sections detected
+      </h3>
+      <p className="mt-2 text-sm text-white/70">
+        GitHance checks your markdown structure and highlights gaps before you publish.
+      </p>
+
+      <div className="mt-4 h-2.5 overflow-hidden rounded-full border border-white/10 bg-black/20">
+        <div
+          className="h-full rounded-full bg-cyan-400 transition-all"
+          style={{ width: `${coveragePercent}%` }}
+        />
+      </div>
+      <p className="mt-2 text-xs text-white/55">{coveragePercent}% of recommended sections are currently present.</p>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {safeCoverage.map((section) => (
+          <span
+            key={section.key}
+            className={`rounded-full border px-2.5 py-1 text-xs ${
+              section.found
+                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+                : "border-amber-400/30 bg-amber-500/10 text-amber-100"
+            }`}
+          >
+            {section.label}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function BuilderControls({ options, onChange, isGenerating, onGenerate, generateLabel }) {
   const toggleSection = (key) => {
     onChange({
@@ -148,8 +190,11 @@ function BuilderControls({ options, onChange, isGenerating, onGenerate, generate
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-white/45">User Editable Features</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Step 1: Configure</p>
           <h3 className="mt-1 text-xl font-semibold text-white">Guide the README before generation</h3>
+          <p className="mt-1 text-sm text-white/70">
+            Set tone and sections first, then generate a draft that matches your intent.
+          </p>
         </div>
         <button
           type="button"
@@ -211,13 +256,14 @@ function BuilderControls({ options, onChange, isGenerating, onGenerate, generate
       </div>
 
       <div className="mt-5">
-        <p className="text-sm text-white/75">Sections to include</p>
+        <p className="text-sm text-white/75">Sections to include (core sections are marked with *)</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {README_SECTION_DEFINITIONS.map((section) => (
             <button
               key={section.key}
               type="button"
               onClick={() => toggleSection(section.key)}
+              aria-pressed={Boolean(options.sections[section.key])}
               className={`rounded-full border px-3 py-1.5 text-xs transition ${
                 options.sections[section.key]
                   ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-100"
@@ -225,6 +271,7 @@ function BuilderControls({ options, onChange, isGenerating, onGenerate, generate
               }`}
             >
               {section.label}
+              {section.required ? " *" : ""}
             </button>
           ))}
         </div>
@@ -248,8 +295,11 @@ function EditorPane({
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Markdown Editor</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">Edit the README directly</h3>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Step 2: Edit Markdown</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">Refine the draft before publishing</h3>
+          <p className="mt-1 text-sm text-white/70">
+            Make final wording changes here. You can safely copy, reset, or publish anytime.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -258,7 +308,7 @@ function EditorPane({
             disabled={!canReset}
             className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white/75 transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Reset to Original
+            Reset to GitHub README
           </button>
           <button
             type="button"
@@ -274,7 +324,7 @@ function EditorPane({
             disabled={!canPublish || isPublishing}
             className="rounded-xl bg-cyan-300 px-3 py-2 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isPublishing ? "Publishing..." : "Publish README"}
+            {isPublishing ? "Publishing..." : "Publish to GitHub"}
           </button>
         </div>
       </div>
@@ -294,7 +344,7 @@ function PreviewPane({ value }) {
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Live Preview</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Step 3: Preview</p>
           <h3 className="mt-1 text-xl font-semibold text-white">Rendered markdown</h3>
         </div>
       </div>
@@ -371,6 +421,7 @@ export default function ReadmeClient({ reponame }) {
       isCancelled = true;
     };
   }, [status, session?.username, reponame]);
+
   const readmeExists = Boolean(workspaceData?.readme?.exists);
   const hasEditorContent = Boolean(editorValue.trim());
   const generationMode = readmeExists || hasEditorContent ? "improve" : "create";
@@ -385,6 +436,14 @@ export default function ReadmeClient({ reponame }) {
     [editorValue, workspaceData?.repository?.name, workspaceData?.repository?.description]
   );
 
+  const coveredSections = analysis.sectionCoverage.filter((section) => section.found).length;
+  const totalSections = analysis.sectionCoverage.length || README_SECTION_DEFINITIONS.length;
+  const repositoryTreePreview =
+    workspaceData?.relevantFiles?.length > 0
+      ? workspaceData.relevantFiles
+      : Array.isArray(workspaceData?.tree)
+        ? workspaceData.tree.slice(0, 80)
+        : [];
 
   const user = session?.username
     ? { name: session.username, subtitle: reponame ? `Repo: ${reponame}` : "" }
@@ -509,23 +568,18 @@ export default function ReadmeClient({ reponame }) {
         user={user}
       >
         <div className="grid gap-6">
-          <section
-            id="overview"
-            className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-faint)]">
-              README Lab
-            </p>
-            <h2 className="mt-2 text-3xl font-semibold text-white">{reponame || "Repository"}</h2>
+          <section id="overview" className="analytics-card p-5">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/45">README Workspace</p>
+            <h2 className="mt-1 text-2xl font-semibold text-white">Preparing your analysis and editing tools</h2>
             <p className="mt-2 max-w-3xl text-sm text-white/70">
-              Reading repository metadata, locating the current README, and setting up the editor.
+              Loading repository metadata, current README content, and file structure for better suggestions.
             </p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="README Score" value="--" hint="Waiting for analysis" />
+            <MetricCard label="Sections" value="--" />
             <MetricCard label="Words" value="--" />
-            <MetricCard label="Headings" value="--" />
             <MetricCard label="Code Blocks" value="--" />
           </div>
 
@@ -538,65 +592,76 @@ export default function ReadmeClient({ reponame }) {
   if (status !== "authenticated") {
     return <Unauthorized />;
   }
+
   return (
     <AnalyticsShell
       context="README"
       title={reponame || "README Lab"}
-      subtitle="Analyze the repository README, generate a missing one with GitHance, and refine the markdown before publishing."
+      subtitle="Analyze the repository README, generate missing content with GitHance, and refine markdown before publishing."
       navSections={buildNavSections(reponame)}
       activeNavId="overview"
       user={user}
     >
       <div className="grid gap-6">
-        <section
-          id="overview"
-          className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
-        >
+        <section id="overview" className="analytics-card p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-faint)]">README Lab</p>
-              <h2 className="mt-2 text-3xl font-semibold text-white">{reponame}</h2>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/45">README Workspace</p>
+              <h2 className="mt-1 text-2xl font-semibold text-white">Status and guided workflow</h2>
               <p className="mt-2 max-w-3xl text-sm text-white/70">
                 {readmeExists
-                  ? "The repository already has a README. You can inspect the structure, edit it directly, or let GitHance refine it from the repo context."
-                  : "No README was found. GitHance can inspect the repository, draft one for you, and keep the result fully editable before you publish it."}
+                  ? "Your repository already has a README. Review insights, tweak generation settings, then edit and publish with confidence."
+                  : "No README was found. Start with generation settings, create a draft, and publish when the preview looks right."}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <StatusBadge active={readmeExists} activeLabel="README Present" inactiveLabel="README Missing" />
-              <StatusBadge active={analysis.score >= 70} activeLabel={`${analysis.qualityLabel} (${analysis.score})`} inactiveLabel={`${analysis.qualityLabel} (${analysis.score})`} />
+              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs uppercase tracking-[0.16em] text-cyan-100">
+                {analysis.qualityLabel} ({analysis.score})
+              </span>
               <span className="rounded-full border border-white/15 bg-black/20 px-3 py-1 text-xs uppercase tracking-[0.16em] text-white/70">
                 {workspaceData?.branch || "main"}
               </span>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={isGenerating || !workspaceData}
-              className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70"
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="README Score" value={analysis.score} hint={analysis.qualityLabel} />
+            <MetricCard
+              label="Sections"
+              value={`${coveredSections}/${totalSections}`}
+              hint="Detected in current markdown"
+            />
+            <MetricCard label="Words" value={analysis.stats.words.toLocaleString()} />
+            <MetricCard label="Code Blocks" value={analysis.stats.codeBlocks} hint={`${analysis.stats.links} links`} />
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <a
+              href="#insights"
+              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
             >
-              {isGenerating ? "GitHance is thinking..." : generateLabel}
-            </button>
-            <button
-              type="button"
-              onClick={handleCopy}
-              disabled={!editorValue.trim()}
-              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50"
+              1. Review Insights
+            </a>
+            <a
+              href="#builder"
+              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
             >
-              Copy Markdown
-            </button>
-            <button
-              type="button"
-              onClick={handlePublish}
-              disabled={!editorValue.trim() || isPublishing}
-              className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+              2. Configure Generation
+            </a>
+            <a
+              href="#editor"
+              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
             >
-              {isPublishing ? "Publishing..." : "Publish README"}
-            </button>
+              3. Edit Markdown
+            </a>
+            <a
+              href="#preview"
+              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
+            >
+              4. Preview + Publish
+            </a>
             <a
               href={`/repository-security/${encodeURIComponent(reponame || "")}`}
               className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
@@ -610,9 +675,38 @@ export default function ReadmeClient({ reponame }) {
           <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-100">{workspaceError}</div>
         ) : null}
 
+        <FeedbackBanner feedback={feedback} />
+
         {!workspaceError && workspaceData ? (
           <>
-            <section id="builder" className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+            <section id="insights" className="space-y-4">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+                <SectionCoverageCard sectionCoverage={analysis.sectionCoverage} />
+                <ReadmeBlock tree={repositoryTreePreview} />
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-3">
+                <InsightPanel
+                  title="Strengths"
+                  items={analysis.strengths}
+                  emptyText="No standout strengths yet. Generate or expand the README to improve the structure signal."
+                  tone="good"
+                />
+                <InsightPanel
+                  title="Gaps to Fix"
+                  items={analysis.gaps}
+                  emptyText="No urgent structural gaps detected from the current markdown."
+                  tone="warn"
+                />
+                <InsightPanel
+                  title="Recommended Next Steps"
+                  items={analysis.recommendations}
+                  emptyText="No additional recommendations right now."
+                />
+              </div>
+            </section>
+
+            <section id="builder" className="grid gap-4">
               <BuilderControls
                 options={options}
                 onChange={setOptions}
@@ -644,3 +738,4 @@ export default function ReadmeClient({ reponame }) {
     </AnalyticsShell>
   );
 }
+

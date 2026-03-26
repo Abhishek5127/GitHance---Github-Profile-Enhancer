@@ -23,6 +23,10 @@ const plans = [
     cadence: "/month",
     summary: "For maintainers shipping docs across multiple repositories.",
     features: [
+      "Profile builder and reusable blocks",
+      "Repository insight snapshots",
+      "README editing workspace",
+      "Basic publishing workflow",
       "Advanced vulnerability repository analysis",
       "Auto Updates elements in intervals",
       "Compare Profiles",
@@ -68,7 +72,7 @@ export default function PricingPage() {
           </p>
         </section>
 
-        <section className="mt-10 grid gap-4 lg:grid-cols-3">
+        <section className="mt-10 grid gap-4 lg:grid-cols-2">
           {plans.map((plan) => (
             <article
               key={plan.name}
