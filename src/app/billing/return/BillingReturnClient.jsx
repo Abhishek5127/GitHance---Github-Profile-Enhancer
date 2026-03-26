@@ -3,8 +3,21 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useBilling } from "@/app/components/billing/BillingProvider";
+import { formatClientPriceLabel } from "@/app/lib/billing/clientCurrency";
 
 const MAX_ATTEMPTS = 6;
+
+function buildPaidMessage(amount, currency) {
+  const numericAmount = Number(amount || 0);
+  if (!numericAmount) {
+    return "Your GitHance Pro subscription is active.";
+  }
+
+  return `Your GitHance Pro subscription is active at ${formatClientPriceLabel(
+    numericAmount,
+    currency
+  )}/month.`;
+}
 
 export default function BillingReturnClient({ orderId = "" }) {
   const { refreshBilling } = useBilling();
@@ -50,7 +63,7 @@ export default function BillingReturnClient({ orderId = "" }) {
             setState({
               loading: false,
               status: "paid",
-              message: "Your GitHance Pro subscription is active.",
+              message: buildPaidMessage(payload?.orderAmount, payload?.orderCurrency),
             });
             return;
           }

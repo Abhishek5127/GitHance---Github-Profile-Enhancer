@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import {
   buildBillingReturnUrl,
+  buildBillingWebhookUrl,
   getCashfreeApiVersion,
   getCashfreeBaseUrl,
   getCashfreeMode,
@@ -99,7 +100,7 @@ export async function createCashfreeOrder({
     body: JSON.stringify({
       order_id: normalizedOrderId,
       order_amount: Number(amount),
-      order_currency: String(currency || "USD").trim().toUpperCase(),
+      order_currency: String(currency || "INR").trim().toUpperCase(),
       customer_details: {
         customer_id: String(customerId || "").trim(),
         customer_name: String(customerName || "").trim() || "GitHance User",
@@ -110,7 +111,7 @@ export async function createCashfreeOrder({
       },
       order_meta: {
         return_url: buildBillingReturnUrl(normalizedOrderId),
-        notify_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/billing/webhook`,
+        notify_url: buildBillingWebhookUrl(),
       },
       order_note: String(orderNote || "GitHance Pro subscription").trim(),
       order_tags: {

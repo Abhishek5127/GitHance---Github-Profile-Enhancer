@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { createCashfreeOrder, getCashfreePublicConfig } from "@/app/lib/billing/cashfree";
-import { getProPlanConfig } from "@/app/lib/billing/plans";
+import {
+  detectBillingCurrencyFromLocale,
+  getProPlanConfig,
+  normalizeBillingCurrency,
+} from "@/app/lib/billing/plans";
 import { upsertBillingOrder } from "@/app/lib/billing/subscriptions";
 
 export const runtime = "nodejs";
@@ -35,7 +39,10 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: "Unsupported billing plan" }, { status: 400 });
     }
 
-    const planConfig = getProPlanConfig();
+    const localeHeader = String(request.headers.get("accept-language") || "").trim();
+    const fallbackCurrency = detectBillingCurrencyFromLocale(localeHeader, "INR");
+    const requestedCurrency = normalizeBillingCurrency(body?.currency, fallbackCurrency);
+    const planConfig = getProPlanConfig(requestedCurrency);
     const orderId = createOrderId(session.username);
     const customerName =
       String(session?.user?.name || "").trim() || String(session.username || "").trim();
@@ -48,7 +55,7 @@ export async function POST(request) {
       customerName,
       customerEmail: session?.user?.email || "",
       customerPhone: process.env.CASHFREE_CUSTOMER_PHONE_FALLBACK || "9999999999",
-      orderNote: "GitHance Pro subscription",
+      orderNote: `GitHance Pro subscription (${planConfig.currency})`,
       source,
     });
 
@@ -65,6 +72,8 @@ export async function POST(request) {
       source,
       metadata: {
         createdVia: source,
+        locale: localeHeader,
+        requestedCurrency: planConfig.currency,
       },
     });
 

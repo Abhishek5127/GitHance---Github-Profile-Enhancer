@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { fetchCashfreeOrder } from "@/app/lib/billing/cashfree";
+import { normalizeBillingCurrency } from "@/app/lib/billing/plans";
 import {
   activateProSubscriptionFromOrder,
   getBillingOrderById,
@@ -30,6 +31,11 @@ export async function GET(request) {
 
     const remoteOrder = await fetchCashfreeOrder(orderId);
     const remoteStatus = String(remoteOrder?.order_status || "").trim().toUpperCase();
+    const orderAmount = Number(remoteOrder?.order_amount || localOrder?.amount || 0);
+    const orderCurrency = normalizeBillingCurrency(
+      remoteOrder?.order_currency || localOrder?.currency || "INR",
+      "INR"
+    );
 
     await markBillingOrderState({
       orderId,
@@ -43,10 +49,8 @@ export async function GET(request) {
         orderId,
         userId: session.username,
         cfOrderId: remoteOrder?.cf_order_id || "",
-        amount: Number(remoteOrder?.order_amount || localOrder?.amount || 0),
-        currency: String(
-          remoteOrder?.order_currency || localOrder?.currency || "USD"
-        ).trim(),
+        amount: orderAmount,
+        currency: orderCurrency,
         paymentTime: remoteOrder?.created_at || new Date().toISOString(),
         providerPayload: remoteOrder,
       });
@@ -58,6 +62,8 @@ export async function GET(request) {
       ok: true,
       orderStatus: remoteStatus,
       orderId,
+      orderAmount,
+      orderCurrency,
       subscription,
     });
   } catch (error) {

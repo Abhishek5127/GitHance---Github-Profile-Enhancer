@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { BILLING_FEATURES, getProPlanConfig } from "@/app/lib/billing/plans";
+import {
+  BILLING_FEATURES,
+  getProPlanConfig,
+  getSupportedProPlans,
+} from "@/app/lib/billing/plans";
 import { getSubscriptionForUser } from "@/app/lib/billing/subscriptions";
 
 export const runtime = "nodejs";
@@ -35,6 +39,7 @@ export async function GET() {
         },
         features: buildFeatures(null),
         plan: getProPlanConfig(),
+        plans: getSupportedProPlans(),
       });
     }
 
@@ -45,6 +50,7 @@ export async function GET() {
       subscription,
       features: buildFeatures(subscription),
       plan: getProPlanConfig(),
+      plans: getSupportedProPlans(),
     });
   } catch (error) {
     return NextResponse.json(

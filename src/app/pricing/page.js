@@ -7,9 +7,26 @@ import {
   createOfferSchema,
   createProductSchema,
 } from "../lib/seo";
-import { formatPriceLabel, getProPlanConfig } from "@/app/lib/billing/plans";
+import {
+  formatPriceLabel,
+  getSupportedProPlans,
+} from "@/app/lib/billing/plans";
 
-const proPlan = getProPlanConfig();
+const supportedProPlans = getSupportedProPlans();
+const defaultProPlan = supportedProPlans.find((plan) => plan.currency === "INR") || supportedProPlans[0];
+
+const proPricing = Object.fromEntries(
+  supportedProPlans.map((plan) => [
+    plan.currency,
+    {
+      amount: plan.amount,
+      price: String(plan.amount),
+      priceLabel: formatPriceLabel(plan.amount, plan.currency),
+      currency: plan.currency,
+      cadence: plan.cadenceLabel,
+    },
+  ])
+);
 
 const plans = [
   {
@@ -29,9 +46,10 @@ const plans = [
   },
   {
     name: "Pro",
-    price: String(proPlan.amount),
-    priceLabel: formatPriceLabel(proPlan.amount, proPlan.currency),
-    cadence: proPlan.cadenceLabel,
+    price: String(defaultProPlan.amount),
+    priceLabel: formatPriceLabel(defaultProPlan.amount, defaultProPlan.currency),
+    cadence: defaultProPlan.cadenceLabel,
+    pricing: proPricing,
     summary: "For maintainers shipping docs across multiple repositories.",
     features: [
       "Profile builder and reusable blocks",
@@ -82,15 +100,24 @@ export const metadata = buildMetadata({
   ],
 });
 
-const offerSchemas = plans.map((plan) =>
+const offerSchemas = [
   createOfferSchema({
-    name: `GitHance ${plan.name}`,
-    description: plan.summary,
-    price: plan.price,
-    priceCurrency: proPlan.currency,
-    path: `/pricing#${plan.name.toLowerCase()}`,
-  })
-);
+    name: "GitHance Starter",
+    description: plans[0].summary,
+    price: plans[0].price,
+    priceCurrency: "USD",
+    path: "/pricing#starter",
+  }),
+  ...supportedProPlans.map((plan) =>
+    createOfferSchema({
+      name: `GitHance Pro (${plan.currency})`,
+      description: plans[1].summary,
+      price: String(plan.amount),
+      priceCurrency: plan.currency,
+      path: "/pricing#pro",
+    })
+  ),
+];
 
 const schemas = [
   createProductSchema({
@@ -111,7 +138,11 @@ export default function PricingPage() {
   return (
     <>
       <JsonLd data={schemas} />
-      <PricingClient plans={plans} faqs={PRICING_FAQS} />
+      <PricingClient
+        plans={plans}
+        faqs={PRICING_FAQS}
+        defaultCurrency={defaultProPlan.currency}
+      />
     </>
   );
 }

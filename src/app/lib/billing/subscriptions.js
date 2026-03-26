@@ -1,5 +1,5 @@
 import { getMongoDb, isMongoConfigured } from "@/app/lib/mongodb";
-import { getProPlanConfig } from "@/app/lib/billing/plans";
+import { getProPlanConfig, normalizeBillingCurrency } from "@/app/lib/billing/plans";
 
 const SUBSCRIPTIONS_COLLECTION = "subscriptions";
 const BILLING_ORDERS_COLLECTION = "billing_orders";
@@ -172,6 +172,7 @@ export async function upsertBillingOrder({
 
   const normalizedOrderId = String(orderId || "").trim();
   const normalizedUserId = normalizeUserId(userId);
+  const normalizedCurrency = normalizeBillingCurrency(currency, "INR");
   if (!normalizedOrderId || !normalizedUserId) {
     return null;
   }
@@ -190,7 +191,7 @@ export async function upsertBillingOrder({
         plan: normalizePlan(plan),
         paymentProvider: "cashfree",
         amount: Number(amount || 0),
-        currency: String(currency || "").trim().toUpperCase(),
+        currency: normalizedCurrency,
         cfOrderId: String(cfOrderId || "").trim(),
         paymentSessionId: String(paymentSessionId || "").trim(),
         orderStatus: String(orderStatus || "").trim().toUpperCase(),
@@ -279,13 +280,14 @@ export async function activateProSubscriptionFromOrder({
 
   const normalizedOrderId = String(orderId || "").trim();
   const normalizedUserId = normalizeUserId(userId);
+  const normalizedCurrency = normalizeBillingCurrency(currency, "INR");
   if (!normalizedOrderId || !normalizedUserId) {
     return buildFreeSubscription(normalizedUserId);
   }
 
   const { subscriptionsCollection, billingOrdersCollection } = await getBillingCollections();
   const now = new Date();
-  const planConfig = getProPlanConfig();
+  const planConfig = getProPlanConfig(normalizedCurrency);
 
   await billingOrdersCollection.updateOne(
     { orderId: normalizedOrderId },
@@ -302,7 +304,7 @@ export async function activateProSubscriptionFromOrder({
         paymentStatus: "SUCCESS",
         orderStatus: "PAID",
         amount: Number(amount || planConfig.amount),
-        currency: String(currency || planConfig.currency).trim().toUpperCase(),
+        currency: normalizedCurrency,
         paymentTime: toDate(paymentTime) || now,
         providerPayload,
         updatedAt: now,
@@ -352,7 +354,7 @@ export async function activateProSubscriptionFromOrder({
         cfOrderId: String(cfOrderId || "").trim(),
         paymentId: String(paymentId || "").trim(),
         amount: Number(amount || planConfig.amount),
-        currency: String(currency || planConfig.currency).trim().toUpperCase(),
+        currency: normalizedCurrency,
         startDate,
         endDate,
         autoUpdateEnabled: Boolean(currentPublic.autoUpdateEnabled),

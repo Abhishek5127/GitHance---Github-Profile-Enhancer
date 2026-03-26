@@ -4,6 +4,10 @@ import { useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useBilling } from "@/app/components/billing/BillingProvider";
+import {
+  normalizeClientBillingCurrency,
+  resolveClientBillingCurrency,
+} from "@/app/lib/billing/clientCurrency";
 
 let cashfreeLoaderPromise = null;
 
@@ -62,12 +66,24 @@ export default function UpgradeButton({
   className = "",
   source = "pricing_page",
   allowRenewal = false,
+  currency = "",
 }) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const { isPro } = useBilling();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkoutCurrency, setCheckoutCurrency] = useState(
+    normalizeClientBillingCurrency(currency || "INR")
+  );
+
+  const resolveRequestedCurrency = () => {
+    if (currency) {
+      return normalizeClientBillingCurrency(currency);
+    }
+
+    return resolveClientBillingCurrency("INR");
+  };
 
   const handleUpgrade = async () => {
     if (status !== "authenticated" || !session?.username) {
@@ -85,6 +101,9 @@ export default function UpgradeButton({
       setIsLoading(true);
       setError("");
 
+      const selectedCurrency = resolveRequestedCurrency();
+      setCheckoutCurrency(selectedCurrency);
+
       const response = await fetch("/api/billing/create-order", {
         method: "POST",
         headers: {
@@ -93,6 +112,7 @@ export default function UpgradeButton({
         body: JSON.stringify({
           plan: "pro",
           source,
+          currency: selectedCurrency,
         }),
       });
 
@@ -127,7 +147,11 @@ export default function UpgradeButton({
   };
 
   const isDisabled = isLoading || (isPro && !allowRenewal);
-  const buttonLabel = isPro && !allowRenewal ? "Pro Active" : isLoading ? "Opening checkout..." : label;
+  const buttonLabel = isPro && !allowRenewal
+    ? "Pro Active"
+    : isLoading
+      ? `Opening ${checkoutCurrency} checkout...`
+      : label;
 
   return (
     <div className="space-y-2">
