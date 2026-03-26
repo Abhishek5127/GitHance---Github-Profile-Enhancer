@@ -37,7 +37,7 @@ export default function LandingNav() {
     <header className="relative z-30 w-full">
       <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 pt-4 sm:gap-4 sm:pt-6">
         <div onClick={() => router.push("/")} className="flex cursor-pointer items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+          <div className="flex h-12 w-12 p-1 items-center justify-center rounded-xl border border-white/10 bg-white/5">
             <Image src={assets.Logo} height={100} width={100} alt="Logo" />
           </div>
           <div className="text-lg font-bold text-white sm:text-xl">GitHance</div>

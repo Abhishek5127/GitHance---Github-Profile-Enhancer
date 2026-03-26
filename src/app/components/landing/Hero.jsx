@@ -27,21 +27,7 @@ const modes = [
     detail: "Installation, usage, and structure done right.",
     blocklist: [
       { label: "Build Readme", path: "profile-builder" },
-      { label: "Repository Readme", path: "/repo-builder" },
-      { label: "Analyze Repositories", path: ANALYZE_REPOSITORIES_PATH },
-    ],
-    colorPalette: ["green", "yellow", "blue"],
-  },
-  {
-    id: "insights",
-    label: "Insights",
-    title: "See what matters inside any repository.",
-    copy: "Surface key files, map structure, and understand codebases faster.",
-    detail: "Perfect for audits, onboarding, and reviews.",
-    blocklist: [
-      { label: "Analyze Profile", path: "/profile" },
-      { label: "Get Profile data", path: "/profile" },
-      { label: "Analyze Repositories", path: ANALYZE_REPOSITORIES_PATH },
+      { label: "Repository Readme", path: ANALYZE_REPOSITORIES_PATH },
     ],
     colorPalette: ["green", "yellow", "blue"],
   },
