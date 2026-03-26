@@ -11,6 +11,18 @@ function normalizeSecret(value) {
   return String(value || "").trim();
 }
 
+function buildCashfreeAuthErrorMessage(mode) {
+  return `Cashfree rejected the API credentials for ${mode} mode. Check CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET, and make sure CASHFREE_ENVIRONMENT matches the same Cashfree account mode.`;
+}
+
+function isCashfreeAuthFailure(response, payload) {
+  const message = String(payload?.message || payload?.error || "")
+    .trim()
+    .toLowerCase();
+
+  return response.status === 401 || response.status === 403 || message.includes("authentication failed");
+}
+
 export function getCashfreeConfig() {
   const clientId = normalizeSecret(
     process.env.CASHFREE_CLIENT_ID || process.env.CASHFREE_APP_ID
@@ -124,6 +136,10 @@ export async function createCashfreeOrder({
 
   const payload = await parseCashfreeResponse(response);
   if (!response.ok) {
+    if (isCashfreeAuthFailure(response, payload)) {
+      throw new Error(buildCashfreeAuthErrorMessage(config.mode));
+    }
+
     throw new Error(
       payload?.message || payload?.error || "Failed to create Cashfree order"
     );
@@ -149,6 +165,10 @@ export async function fetchCashfreeOrder(orderId) {
 
   const payload = await parseCashfreeResponse(response);
   if (!response.ok) {
+    if (isCashfreeAuthFailure(response, payload)) {
+      throw new Error(buildCashfreeAuthErrorMessage(config.mode));
+    }
+
     throw new Error(payload?.message || payload?.error || "Failed to fetch Cashfree order");
   }
 

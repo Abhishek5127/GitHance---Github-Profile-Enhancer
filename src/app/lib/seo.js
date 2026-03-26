@@ -1,9 +1,38 @@
-﻿const FALLBACK_SITE_URL = "https://githance.in";
+const FALLBACK_SITE_URL = "https://githance.in";
+const LEGACY_VERCEL_SITE_URL = "githance.vercel.app";
+
+function normalizeSiteUrl(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+
+  const normalizedInput = /^https?:\/\//i.test(rawValue)
+    ? rawValue
+    : `${/^(localhost|127(?:\.\d{1,3}){3})/i.test(rawValue) ? "http" : "https"}://${rawValue}`;
+
+  try {
+    const parsed = new URL(normalizedInput);
+    if (parsed.hostname.toLowerCase() === LEGACY_VERCEL_SITE_URL) {
+      return FALLBACK_SITE_URL;
+    }
+
+    return parsed.origin.replace(/\/$/, "");
+  } catch {
+    return FALLBACK_SITE_URL;
+  }
+}
 
 export const SITE_NAME = "GitHance";
-export const SITE_URL = String(
-  process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || FALLBACK_SITE_URL
-).replace(/\/$/, "");
+export const SITE_URL =
+  [
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.SITE_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.APP_BASE_URL,
+    process.env.NEXTAUTH_URL,
+    FALLBACK_SITE_URL,
+  ]
+    .map((value) => normalizeSiteUrl(value))
+    .find(Boolean) || FALLBACK_SITE_URL;
 export const SITE_DESCRIPTION =
   "GitHance helps developers generate GitHub READMEs, optimize profile READMEs, analyze repositories, compare developer profiles, and surface security issues from one AI-powered workspace.";
 export const DEFAULT_OG_IMAGE = "/og/githance-og.png";

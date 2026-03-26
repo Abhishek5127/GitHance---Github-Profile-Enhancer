@@ -1,4 +1,4 @@
-﻿import { buildRenderUrl, buildTrophyUrl } from "./generateBlockSvg";
+import { buildRenderUrl, buildTrophyUrl } from "./generateBlockSvg";
 import {
   TECH_STACK_CATEGORY_LABELS,
   TECH_STACK_CATEGORY_ORDER,
@@ -113,13 +113,21 @@ export default function generateMarkdown(canvasItems, options = {}) {
   let hasRepoCommitHeading = suppressRepoCommitHeading;
 
   const resolveBaseUrl = () => {
-    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const envUrl = String(process.env.NEXT_PUBLIC_APP_URL || "").trim();
     if (envUrl) {
-      return envUrl.replace(/\/$/, "");
+      const normalizedEnvUrl = envUrl.replace(/\/$/, "");
+      if (/^https?:\/\/githance\.vercel\.app$/i.test(normalizedEnvUrl)) {
+        return "https://githance.in";
+      }
+      return normalizedEnvUrl;
     }
 
     if (typeof window !== "undefined") {
-      return window.location.origin.replace(/\/$/, "");
+      const origin = window.location.origin.replace(/\/$/, "");
+      if (/^https?:\/\/githance\.vercel\.app$/i.test(origin)) {
+        return "https://githance.in";
+      }
+      return origin;
     }
 
     return "https://githance.in";
