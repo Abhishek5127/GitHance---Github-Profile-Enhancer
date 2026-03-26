@@ -2,23 +2,63 @@
 import ProfileCompareClient from "./ProfileCompareClient";
 import JsonLd from "../components/seo/JsonLd";
 import {
-  buildMetadata,
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  absoluteUrl,
   createBreadcrumbSchema,
   createSoftwareApplicationSchema,
 } from "../lib/seo";
 
-export const metadata = buildMetadata({
-  title: "Compare GitHub Profiles with Multi-Factor Developer Scoring",
-  description:
-    "Compare two GitHub profiles across activity, quality, diversity, impact, and popularity with GitHance profile comparison tools.",
-  path: "/profile-compare",
+const title = "Compare GitHub Profiles with Multi-Factor Developer Scoring";
+const description =
+  "Compare two GitHub profiles across activity, quality, diversity, impact, and popularity with GitHance profile comparison tools.";
+const canonical = absoluteUrl("/profile-compare");
+const socialImage = absoluteUrl(DEFAULT_OG_IMAGE);
+
+export const metadata: Metadata = {
+  title,
+  description,
   keywords: [
     "compare GitHub profiles",
     "developer profile comparison",
     "GitHub profile analyzer",
     "developer scoring tool",
   ],
-}) as Metadata;
+  alternates: {
+    canonical,
+  },
+  openGraph: {
+    title,
+    description,
+    url: canonical,
+    siteName: SITE_NAME,
+    type: "website",
+    locale: "en_US",
+    images: [
+      {
+        url: socialImage,
+        alt: title,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: [socialImage],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
+};
 
 const schemas = [
   createSoftwareApplicationSchema({
