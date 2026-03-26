@@ -606,21 +606,12 @@ export default function ReadmeClient({ reponame }) {
           </div>
         </section>
 
-        <FeedbackBanner feedback={feedback} />
-
         {workspaceError ? (
           <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-100">{workspaceError}</div>
         ) : null}
 
         {!workspaceError && workspaceData ? (
           <>
-            <section id="insights" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="README Score" value={analysis.score} hint={analysis.qualityLabel} />
-              <MetricCard label="Words" value={analysis.stats.words} />
-              <MetricCard label="Headings" value={analysis.stats.headings} />
-              <MetricCard label="Code Blocks" value={analysis.stats.codeBlocks} />
-            </section>
-
             <section id="builder" className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
               <BuilderControls
                 options={options}
@@ -628,12 +619,6 @@ export default function ReadmeClient({ reponame }) {
                 isGenerating={isGenerating}
                 onGenerate={handleGenerate}
                 generateLabel={generateLabel}
-              />
-
-              <InsightPanel
-                title="GitHance Suggestions"
-                items={analysis.recommendations}
-                emptyText="The README is already in solid shape. Minor polish is enough."
               />
             </section>
 

@@ -120,11 +120,9 @@ export default function PricingPage() {
                 <p className="mt-2 text-sm leading-6 text-white/65">{item.a}</p>
               </article>
             ))}
-            <div></div>
           </div>
         </section>
       </main>
-
       <Footer />
     </div>
   );
