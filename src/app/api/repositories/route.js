@@ -17,6 +17,31 @@ function normalizeUsername(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function parseReadmeMetadata(response) {
+  if (response?.ok) {
+    return {
+      readme: "Readme Available",
+      readmeStatus: "available",
+    };
+  }
+
+  if (response?.status === 404) {
+    return {
+      readme: null,
+      readmeStatus: "missing",
+    };
+  }
+
+  return {
+    readme: null,
+    readmeStatus: "unknown",
+  };
+}
+
+function hasNextPage(linkHeader) {
+  return typeof linkHeader === "string" && /rel="next"/i.test(linkHeader);
+}
+
 async function resolveAuthenticatedUsername(headers) {
   try {
     const response = await fetch("https://api.github.com/user", { headers });
@@ -29,7 +54,7 @@ async function resolveAuthenticatedUsername(headers) {
   }
 }
 
-function mapRepository(repo, readmeValue = null) {
+function mapRepository(repo, readmeValue = null, readmeStatus = "unknown") {
   return {
     id: repo.id,
     name: repo.name,
@@ -53,7 +78,13 @@ function mapRepository(repo, readmeValue = null) {
     archived: Boolean(repo.archived),
     disabled: Boolean(repo.disabled),
     readme: readmeValue,
-    hasReadme: Boolean(readmeValue),
+    hasReadme:
+      readmeStatus === "available"
+        ? true
+        : readmeStatus === "missing"
+          ? false
+          : null,
+    readmeStatus,
   };
 }
 
@@ -131,6 +162,7 @@ export async function POST(req) {
       );
     }
 
+    const nextPageAvailable = hasNextPage(reposResponse.headers.get("link"));
     const repos = await reposResponse.json();
     if (!Array.isArray(repos)) {
       return Response.json(
@@ -145,6 +177,7 @@ export async function POST(req) {
         page,
         perPage,
         listingMode,
+        hasNextPage: nextPageAvailable,
         viewer: authenticatedUsername || username || null,
         repos: repos.map((repo) => mapRepository(repo)),
       });
@@ -154,7 +187,7 @@ export async function POST(req) {
       repos.map(async (repo) => {
         const owner = repo.owner?.login || authenticatedUsername || username;
         if (!owner) {
-          return mapRepository(repo, null);
+          return mapRepository(repo, null, "unknown");
         }
 
         try {
@@ -164,13 +197,15 @@ export async function POST(req) {
             )}/readme`,
             { headers }
           );
+          const readmeMetadata = parseReadmeMetadata(readmeResponse);
 
           return mapRepository(
             repo,
-            readmeResponse.ok ? "Readme Available" : null
+            readmeMetadata.readme,
+            readmeMetadata.readmeStatus
           );
         } catch {
-          return mapRepository(repo, null);
+          return mapRepository(repo, null, "unknown");
         }
       })
     );
@@ -180,6 +215,7 @@ export async function POST(req) {
       page,
       perPage,
       listingMode,
+      hasNextPage: nextPageAvailable,
       viewer: authenticatedUsername || username || null,
       repos: reposWithReadmeFlag,
     });

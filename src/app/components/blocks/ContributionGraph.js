@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useDroppable } from "@dnd-kit/core";
 import Image from "next/image";
+import SafeImage from "@/app/components/seo/SafeImage";
 import { resolveProfileBuilderUsername } from "@/app/lib/profileComponents";
 import {
   normalizeContributionRange,
@@ -464,10 +465,13 @@ export default function ContributionGraph({
                       }`}
                       title={sticker.title}
                     >
-                      <img
+                      <SafeImage
                         src={sticker.assetPath}
                         alt={sticker.title}
+                        width={Math.max(24, layer.sizePx || 24)}
+                        height={Math.max(24, layer.sizePx || 24)}
                         className="h-full w-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
+                        sizes={`${Math.max(24, layer.sizePx || 24)}px`}
                       />
                     </button>
 
@@ -517,14 +521,17 @@ export default function ContributionGraph({
                       style={nudgeStyle}
                     >
                       <div className="group/sticker relative pointer-events-auto">
-                        <img
+                        <SafeImage
                           src={sticker.assetPath}
                           alt={sticker.title}
+                          width={stickerSizePx}
+                          height={stickerSizePx}
                           className="object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
                           style={{
                             width: `${stickerSizePx}px`,
                             height: `${stickerSizePx}px`,
                           }}
+                          sizes={`${stickerSizePx}px`}
                         />
                         <button
                           onPointerDown={(event) => event.stopPropagation()}
@@ -568,3 +575,6 @@ export default function ContributionGraph({
     </div>
   );
 }
+
+
+

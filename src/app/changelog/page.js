@@ -1,9 +1,16 @@
 ﻿import LandingNav from "../components/landing/LandingNav";
 import Footer from "../components/landing/Footer";
+import JsonLd from "../components/seo/JsonLd";
+import {
+  buildMetadata,
+  createArticleSchema,
+  createBreadcrumbSchema,
+} from "../lib/seo";
 
 const releases = [
   {
     date: "March 2026",
+    isoDate: "2026-03-01",
     version: "v1.8.0",
     updates: [
       "Introduced dedicated Product, Solutions, Process, Pricing, and Changelog routes from the main navbar.",
@@ -13,6 +20,7 @@ const releases = [
   },
   {
     date: "February 2026",
+    isoDate: "2026-02-01",
     version: "v1.7.0",
     updates: [
       "Redesigned FeatureGrid into a GrowthCard-first product surface.",
@@ -22,6 +30,7 @@ const releases = [
   },
   {
     date: "January 2026",
+    isoDate: "2026-01-01",
     version: "v1.6.0",
     updates: [
       "Expanded repository analysis modules and route coverage.",
@@ -38,23 +47,54 @@ const roadmap = [
   "Release note generation from repository context",
 ];
 
+export const revalidate = 86400;
+
+export const metadata = buildMetadata({
+  title: "Changelog and Product Updates",
+  description:
+    "Track GitHance product updates across GitHub README generation, repository analysis, profile optimization, and developer workflow improvements.",
+  path: "/changelog",
+  keywords: [
+    "product changelog",
+    "GitHub tool updates",
+    "README generator changelog",
+    "developer productivity product updates",
+  ],
+});
+
+const latestRelease = releases[0];
+const schemas = [
+  createArticleSchema({
+    headline: "GitHance changelog",
+    description:
+      "Track GitHance product updates across GitHub README generation, repository analysis, and profile optimization.",
+    path: "/changelog",
+    datePublished: releases[releases.length - 1].isoDate,
+    dateModified: latestRelease.isoDate,
+  }),
+  createBreadcrumbSchema([
+    { name: "Home", path: "/" },
+    { name: "Changelog", path: "/changelog" },
+  ]),
+];
+
 export default function ChangelogPage() {
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">
+      <JsonLd data={schemas} />
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute right-8 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(99,102,241,0.16),_transparent_68%)] blur-3xl" />
         <LandingNav />
       </div>
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
+      <main id="main-content" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
         <section className="rounded-[32px] border border-white/10 bg-[#101418] p-6 shadow-[0_30px_110px_rgba(0,0,0,0.42)] sm:p-8 lg:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.34em] text-indigo-300">Changelog</p>
           <h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-tight sm:text-5xl">
             Product evolution, shipped in clear iterations.
           </h1>
           <p className="mt-5 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
-            A rolling view of how GitHance is evolving across product surfaces, workflow quality, and developer
-            experience.
+            A rolling view of how GitHance is evolving across product surfaces, workflow quality, and developer experience.
           </p>
         </section>
 
@@ -104,3 +144,4 @@ export default function ChangelogPage() {
     </div>
   );
 }
+

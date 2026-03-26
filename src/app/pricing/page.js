@@ -1,11 +1,20 @@
 ﻿import Link from "next/link";
 import LandingNav from "../components/landing/LandingNav";
 import Footer from "../components/landing/Footer";
+import JsonLd from "../components/seo/JsonLd";
+import {
+  buildMetadata,
+  createBreadcrumbSchema,
+  createFaqSchema,
+  createOfferSchema,
+  createProductSchema,
+} from "../lib/seo";
 
 const plans = [
   {
     name: "Starter",
-    price: "$0",
+    price: "0",
+    priceLabel: "$0",
     cadence: "/month",
     summary: "For solo developers polishing profile and README flow.",
     features: [
@@ -19,7 +28,8 @@ const plans = [
   },
   {
     name: "Pro",
-    price: "$5",
+    price: "5",
+    priceLabel: "$5",
     cadence: "/month",
     summary: "For maintainers shipping docs across multiple repositories.",
     features: [
@@ -38,34 +48,77 @@ const plans = [
   },
 ];
 
-const faqs = [
+export const PRICING_FAQS = [
   {
-    q: "Can we start free before choosing a plan?",
-    a: "Yes. Start with the free workspace, then upgrade when your profile and repo workflow needs scale.",
+    question: "Can we start free before choosing a plan?",
+    answer:
+      "Yes. GitHance offers a free starting point so developers can test profile building, repository preview, and README workflows before upgrading.",
   },
   {
-    q: "Do plans include repository analysis features?",
-    a: "All paid plans include analysis capabilities, with depth and collaboration increasing by tier.",
+    question: "Do plans include repository analysis features?",
+    answer:
+      "Yes. Paid plans include repository analysis features, with more depth for maintainers and teams who need README, profile, and security workflows together.",
   },
   {
-    q: "Can we switch plans later?",
-    a: "Absolutely. You can move between tiers as repository count, team size, or workflow needs change.",
+    question: "Can we switch plans later?",
+    answer:
+      "Absolutely. You can move between tiers as repository count, team size, or workflow needs change.",
   },
+];
+
+export const revalidate = 86400;
+
+export const metadata = buildMetadata({
+  title: "Pricing for GitHub README and Developer Productivity Workflows",
+  description:
+    "Review GitHance pricing for GitHub README generation, repository analysis, profile building, and developer productivity workflows for individuals and teams.",
+  path: "/pricing",
+  keywords: [
+    "README generator pricing",
+    "GitHub tool pricing",
+    "developer productivity SaaS pricing",
+    "repository analysis software pricing",
+  ],
+});
+
+const offerSchemas = plans.map((plan) =>
+  createOfferSchema({
+    name: `GitHance ${plan.name}`,
+    description: plan.summary,
+    price: plan.price,
+    path: `/pricing#${plan.name.toLowerCase()}`,
+  })
+);
+
+const schemas = [
+  createProductSchema({
+    name: "GitHance Pricing",
+    description:
+      "Pricing for GitHance GitHub README generation, repository analysis, and profile optimization workflows.",
+    path: "/pricing",
+    offers: offerSchemas,
+  }),
+  createFaqSchema(PRICING_FAQS),
+  createBreadcrumbSchema([
+    { name: "Home", path: "/" },
+    { name: "Pricing", path: "/pricing" },
+  ]),
 ];
 
 export default function PricingPage() {
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">
+      <JsonLd data={schemas} />
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute -left-24 top-8 h-80 w-80 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.2),_transparent_70%)] blur-3xl" />
         <LandingNav />
       </div>
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
+      <main id="main-content" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
         <section className="text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[#ffb37f]">Pricing</p>
           <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-semibold leading-tight sm:text-5xl">
-            Choose the plan that matches your GitHub visibility goals.
+            Choose the plan that matches your GitHub visibility and documentation goals.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
             Scale from individual profile polishing to team-wide documentation quality without changing tools.
@@ -75,6 +128,7 @@ export default function PricingPage() {
         <section className="mt-10 grid gap-4 lg:grid-cols-2">
           {plans.map((plan) => (
             <article
+              id={plan.name.toLowerCase()}
               key={plan.name}
               className={`rounded-[30px] border p-6 shadow-[0_26px_90px_rgba(0,0,0,0.3)] sm:p-7 ${plan.accent}`}
             >
@@ -87,7 +141,7 @@ export default function PricingPage() {
                 ) : null}
               </div>
               <div className="mt-4 flex items-end gap-2">
-                <div className="text-4xl font-semibold text-white sm:text-5xl">{plan.price}</div>
+                <div className="text-4xl font-semibold text-white sm:text-5xl">{plan.priceLabel}</div>
                 <div className="pb-1 text-sm text-white/60">{plan.cadence}</div>
               </div>
               <p className="mt-3 text-sm leading-6 text-white/65">{plan.summary}</p>
@@ -100,9 +154,12 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <button className="mt-6 w-full rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90">
+              <Link
+                href="/profile-builder"
+                className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
+              >
                 {plan.cta}
-              </button>
+              </Link>
             </article>
           ))}
         </section>
@@ -118,10 +175,10 @@ export default function PricingPage() {
             </Link>
           </div>
           <div className="mt-6 grid gap-4">
-            {faqs.map((item) => (
-              <article key={item.q} className="rounded-2xl border border-white/10 bg-[#0b0d0f]/75 p-4">
-                <h3 className="text-base font-semibold text-white">{item.q}</h3>
-                <p className="mt-2 text-sm leading-6 text-white/65">{item.a}</p>
+            {PRICING_FAQS.map((item) => (
+              <article key={item.question} className="rounded-2xl border border-white/10 bg-[#0b0d0f]/75 p-4">
+                <h3 className="text-base font-semibold text-white">{item.question}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/65">{item.answer}</p>
               </article>
             ))}
           </div>
@@ -131,3 +188,4 @@ export default function PricingPage() {
     </div>
   );
 }
+

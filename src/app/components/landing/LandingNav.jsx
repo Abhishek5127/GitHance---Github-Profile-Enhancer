@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { assets } from "@/app/assets/assets";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 const links = [
   { label: "Home", href: "/" },
@@ -16,17 +16,16 @@ const links = [
   { label: "Changelog", href: "/changelog" },
 ];
 
-export default function LandingNav() {
+export default function LandingNav({ signInCallbackUrl = "/profile" }) {
   const [open, setOpen] = useState(false);
   const { data: session, status } = useSession();
-  const router = useRouter();
   const pathname = usePathname();
   const isAuthenticated = status === "authenticated" && Boolean(session);
 
   const isActiveRoute = (href) => pathname === href || pathname?.startsWith(`${href}/`);
 
   const handleGitHubSignIn = () => {
-    signIn("github", { callbackUrl: "/profile" });
+    signIn("github", { callbackUrl: signInCallbackUrl });
   };
 
   const handleLogout = () => {
@@ -35,19 +34,18 @@ export default function LandingNav() {
 
   return (
     <header className="relative z-30 w-full">
-      <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 pt-4 sm:gap-4 sm:pt-6">
-        <div onClick={() => router.push("/")} className="flex cursor-pointer items-center gap-3">
-          <div className="flex h-12 w-12 p-1 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-            <Image src={assets.Logo} height={100} width={100} alt="Logo" />
+      <nav
+        aria-label="Primary"
+        className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 pt-4 sm:gap-4 sm:pt-6"
+      >
+        <Link href="/" className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 p-1">
+            <Image src={assets.Logo} height={100} width={100} alt="GitHance logo" />
           </div>
           <div className="text-lg font-bold text-white sm:text-xl">GitHance</div>
-        </div>
+        </Link>
 
-        <div
-          className="
-            relative hidden items-center gap-8 rounded-3xl border border-white/20 bg-white/10 px-6 py-4 text-sm text-white/80 backdrop-blur-xl shadow-lg shadow-black/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-white/20 before:to-transparent before:opacity-40 md:flex
-          "
-        >
+        <div className="relative hidden items-center gap-8 rounded-3xl border border-white/20 bg-white/10 px-6 py-4 text-sm text-white/80 shadow-lg shadow-black/20 backdrop-blur-xl before:pointer-events-none before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-white/20 before:to-transparent before:opacity-40 md:flex">
           {links.map((item) => {
             const isActive = isActiveRoute(item.href);
             return (
@@ -82,19 +80,14 @@ export default function LandingNav() {
               onClick={handleGitHubSignIn}
               className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
             >
-              <Image
-                src={assets.Github}
-                height={40}
-                width={40}
-                alt="github"
-                className="hidden sm:block"
-              />
+              <Image src={assets.Github} height={40} width={40} alt="GitHub icon" className="hidden sm:block" />
               Sign in
             </button>
           )}
           <button
             className="flex h-10 min-w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/80 transition hover:bg-white/20 md:hidden"
             aria-label="Toggle menu"
+            aria-expanded={open}
             onClick={() => setOpen((prev) => !prev)}
           >
             {open ? "Close" : "Menu"}
@@ -135,12 +128,13 @@ export default function LandingNav() {
                   Sign in
                 </button>
               )}
-              <button
-                onClick={() => router.push("/profile-builder")}
+              <Link
+                href="/profile-builder"
+                onClick={() => setOpen(false)}
                 className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
               >
                 Start free
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -148,3 +142,4 @@ export default function LandingNav() {
     </header>
   );
 }
+

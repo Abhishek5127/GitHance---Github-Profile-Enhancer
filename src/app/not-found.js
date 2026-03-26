@@ -1,4 +1,12 @@
-import Link from "next/link";
+﻿import Link from "next/link";
+import { buildMetadata } from "./lib/seo";
+
+export const metadata = buildMetadata({
+  title: "404 Not Found",
+  description: "The requested GitHance page could not be found.",
+  path: "/404",
+  noIndex: true,
+});
 
 const quickLinks = [
   { label: "Home", href: "/" },
@@ -19,7 +27,7 @@ export default function NotFound() {
             <span className="text-base font-semibold tracking-wide">GitHance</span>
           </Link>
 
-          <nav className="hidden items-center gap-2 sm:flex">
+          <nav className="hidden items-center gap-2 sm:flex" aria-label="Quick links">
             {quickLinks.map((item) => (
               <Link
                 key={item.href}
@@ -60,3 +68,4 @@ export default function NotFound() {
     </div>
   );
 }
+

@@ -1,29 +1,12 @@
-import React from 'react'
-import { assets } from '../../FeatureGridElements/TechStackAssets/assets'
+﻿import React from "react";
+import SafeImage from "@/app/components/seo/SafeImage";
+import { assets } from "../../FeatureGridElements/TechStackAssets/assets";
 
-const seriesTechStack = () => {
-
+const SeriesTechStack = () => {
   const techStacks = {
-    languages: [
-      assets.xml,
-      assets.yaml,
-      assets.vala,
-      assets.vyper,
-    ],
-
-    databases: [
-      assets.vault, // kinda secret storage but fits here loosely
-      assets.xinference,
-    ],
-
-    librariesFrameworks: [
-      assets.tensorflow,
-      assets.vuetify,
-      assets.vuestorefront,
-      assets.vapor,
-      assets.vaadin,
-    ],
-
+    languages: [assets.xml, assets.yaml, assets.vala, assets.vyper],
+    databases: [assets.vault, assets.xinference],
+    librariesFrameworks: [assets.tensorflow, assets.vuetify, assets.vuestorefront, assets.vapor, assets.vaadin],
     toolsPlatforms: [
       assets.tencentcloud,
       assets.terraform,
@@ -38,53 +21,46 @@ const seriesTechStack = () => {
       assets.waku,
       assets.xuanyuan,
       assets.yarn,
-    ]
-  }
+    ],
+  };
 
   const renderStack = (items) => {
     return items.map((item, index) => (
-      <img
-        key={index}
+      <SafeImage
+        key={`${item.src}-${index}`}
         src={item.src}
-        alt="tech"
-        className="w-4 h-4 object-contain"
+        alt="Technology icon"
+        width={16}
+        height={16}
+        className="h-4 w-4 object-contain"
       />
-    ))
-  }
+    ));
+  };
 
   return (
-    <div className="">
-
+    <div>
       <div>
-        <h1 className='text-black text-[8px] mt-2'>Languages</h1>
-        <div className="flex gap-2 flex-wrap">
-          {renderStack(techStacks.languages)}
-        </div>
+        <h2 className="mt-2 text-[8px] text-black">Languages</h2>
+        <div className="flex flex-wrap gap-2">{renderStack(techStacks.languages)}</div>
       </div>
 
       <div>
-        <h1 className='text-black text-[8px] mt-2'>Database</h1>
-        <div className="flex gap-2 flex-wrap">
-          {renderStack(techStacks.databases)}
-        </div>
+        <h2 className="mt-2 text-[8px] text-black">Database</h2>
+        <div className="flex flex-wrap gap-2">{renderStack(techStacks.databases)}</div>
       </div>
 
       <div>
-        <h1 className='text-black text-[8px] mt-2'>Libraries & Frameworks</h1>
-        <div className="flex gap-2 flex-wrap">
-          {renderStack(techStacks.librariesFrameworks)}
-        </div>
+        <h2 className="mt-2 text-[8px] text-black">Libraries &amp; Frameworks</h2>
+        <div className="flex flex-wrap gap-2">{renderStack(techStacks.librariesFrameworks)}</div>
       </div>
 
       <div>
-        <h1 className='text-black text-[8px] mt-2'>Tools & Platforms:</h1>
-        <div className="flex gap-2 flex-wrap">
-          {renderStack(techStacks.toolsPlatforms)}
-        </div>
+        <h2 className="mt-2 text-[8px] text-black">Tools &amp; Platforms</h2>
+        <div className="flex flex-wrap gap-2">{renderStack(techStacks.toolsPlatforms)}</div>
       </div>
-
     </div>
-  )
-}
+  );
+};
 
-export default seriesTechStack
+export default SeriesTechStack;
+

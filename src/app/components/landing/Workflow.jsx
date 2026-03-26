@@ -50,7 +50,7 @@ const summary = [
 
 export default function Workflow() {
   return (
-    <section id="process" className="mx-auto w-full max-w-[95%] px-4 pb-24">
+    <section id="workflow" aria-labelledby="workflow-heading" className="mx-auto w-full max-w-[95%] px-4 pb-24">
       <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-[#0f1115]/95 p-6 text-white shadow-[0_40px_120px_rgba(0,0,0,0.45)] sm:p-8 lg:p-10">
         <div className="pointer-events-none absolute -left-16 top-0 h-56 w-56 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.2),_transparent_68%)] blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-8 h-64 w-64 rounded-full bg-[radial-gradient(circle,_rgba(74,222,128,0.14),_transparent_70%)] blur-3xl" />
@@ -58,7 +58,7 @@ export default function Workflow() {
         <div className="relative grid gap-10 lg:grid-cols-[0.88fr_1.12fr] lg:items-start">
           <div className="max-w-xl">
             <p className="text-xs font-semibold uppercase tracking-[0.36em] text-[#ffb37f]">Workflow</p>
-            <h2 className="mt-5 text-3xl font-semibold text-white sm:text-4xl lg:text-5xl">
+            <h2 id="workflow-heading" className="mt-5 text-3xl font-semibold text-white sm:text-4xl lg:text-5xl">
               A shipping loop for GitHub presence, not a one-time generator.
             </h2>
             <p className="mt-5 max-w-lg text-sm leading-7 text-white/65 sm:text-base">
@@ -91,9 +91,7 @@ export default function Workflow() {
               <div className="grid gap-4 sm:grid-cols-3">
                 {summary.map((item) => (
                   <div key={item.label} className="rounded-[22px] border border-white/10 bg-[#0b0d0f]/70 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/38">
-                      {item.label}
-                    </p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/38">{item.label}</p>
                     <p className="mt-3 text-sm leading-6 text-white/68">{item.value}</p>
                   </div>
                 ))}
@@ -104,8 +102,9 @@ export default function Workflow() {
           <div className="relative">
             <div className="absolute left-6 top-10 hidden h-[calc(100%-5rem)] w-px bg-gradient-to-b from-[#ff7a1a]/55 via-white/12 to-transparent sm:block" />
             <div className="grid gap-4">
-              {steps.map((step) => (
+              {steps.map((step, index) => (
                 <article
+                  id={`step-${index + 1}`}
                   key={step.id}
                   className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-sm shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:p-6"
                 >
@@ -124,12 +123,8 @@ export default function Workflow() {
                       <div className="hidden text-xs font-semibold uppercase tracking-[0.34em] text-white/35 sm:block">
                         Step {step.id}
                       </div>
-                      <h3 className="mt-1 text-xl font-semibold text-white sm:text-2xl">
-                        {step.title}
-                      </h3>
-                      <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                        {step.detail}
-                      </p>
+                      <h3 className="mt-1 text-xl font-semibold text-white sm:text-2xl">{step.title}</h3>
+                      <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">{step.detail}</p>
                     </div>
 
                     <div className="justify-self-start sm:justify-self-end">
@@ -147,3 +142,4 @@ export default function Workflow() {
     </section>
   );
 }
+

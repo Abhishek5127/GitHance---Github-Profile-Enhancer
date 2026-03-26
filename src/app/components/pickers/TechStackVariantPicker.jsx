@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { buildBioPayload } from "@/app/services/githubData.service";
+import SafeImage from "@/app/components/seo/SafeImage";
 import {
   TECH_STACK_ALIGNMENTS,
   TECH_STACK_CATEGORY_LABELS,
@@ -60,15 +61,13 @@ function TechIcon({ item, size = 30, className = "" }) {
       title={item.name}
     >
       {iconSrc ? (
-        <img
+        <SafeImage
           src={iconSrc}
           alt={item.name}
           width={size}
           height={size}
           className="h-7 w-7 shrink-0 object-contain"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
+          onErrorHide
         />
       ) : null}
       <span className="text-xs text-white/85">{item.name}</span>
@@ -577,15 +576,13 @@ export default function TechStackVariantPicker({
                                   x
                                 </button>
 
-                                <img
+                                <SafeImage
                                   src={getTechIconUrl(item)}
                                   alt={item.name}
                                   width={22}
                                   height={22}
                                   className="h-5 w-5 shrink-0 object-contain"
-                                  onError={(event) => {
-                                    event.currentTarget.style.display = "none";
-                                  }}
+                                  onErrorHide
                                 />
                                 <span>{item.name}</span>
                               </div>
@@ -632,15 +629,13 @@ export default function TechStackVariantPicker({
                                 className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5"
                                 title={item.name}
                               >
-                                <img
+                                <SafeImage
                                   src={getTechIconUrl(item)}
                                   alt={item.name}
                                   width={34}
                                   height={34}
                                   className="h-8 w-8 object-contain"
-                                  onError={(event) => {
-                                    event.currentTarget.style.display = "none";
-                                  }}
+                                  onErrorHide
                                 />
                               </div>
                             ))}
@@ -690,3 +685,5 @@ export default function TechStackVariantPicker({
     </div>
   );
 }
+
+

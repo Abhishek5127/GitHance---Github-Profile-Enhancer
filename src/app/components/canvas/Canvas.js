@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import CanvasItem from "./CanvasItem";
+import SafeImage from "@/app/components/seo/SafeImage";
 import {
   STICKER_SLOT_PRESETS,
   buildStickerDropId,
@@ -39,10 +40,13 @@ function CanvasSticker({ entry, onRemove }) {
   return (
     <div className={`pointer-events-none absolute z-30 ${slot.positionClass}`}>
       <div className="group relative">
-        <img
+        <SafeImage
           src={sticker.assetPath}
           alt={sticker.title}
+          width={160}
+          height={160}
           className={`${sticker.sizeClass} object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]`}
+          sizes="160px"
         />
         <button
           onClick={() => onRemove(entry.id)}
@@ -183,3 +187,4 @@ export default function Canvas({
     </div>
   );
 }
+

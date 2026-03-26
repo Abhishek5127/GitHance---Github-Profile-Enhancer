@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
+import SafeImage from "@/app/components/seo/SafeImage";
 import HeaderBlock from "./HeaderBlock";
 import BioBlock from "../BioBlock";
 import TechStackBlock from "./TechStackBlock";
@@ -322,14 +323,17 @@ export default function SectionBlock({
           return (
             <div key={`${item.id}-${slot.id}`} className={`absolute ${slot.positionClass}`}>
               <div className="group/sticker relative pointer-events-auto">
-                <img
+                <SafeImage
                   src={sticker.assetPath}
                   alt={sticker.title}
+                  width={getStickerBaseSizePx(sticker.id) * 2}
+                  height={getStickerBaseSizePx(sticker.id) * 2}
                   className="object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
                   style={{
                     width: `${getStickerBaseSizePx(sticker.id) * 2}px`,
                     height: `${getStickerBaseSizePx(sticker.id) * 2}px`,
                   }}
+                  sizes={`${getStickerBaseSizePx(sticker.id) * 2}px`}
                 />
                 <button
                   onPointerDown={(event) => event.stopPropagation()}
@@ -365,3 +369,6 @@ export default function SectionBlock({
     </div>
   );
 }
+
+
+

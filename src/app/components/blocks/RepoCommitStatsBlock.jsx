@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useDroppable } from "@dnd-kit/core";
+import SafeImage from "@/app/components/seo/SafeImage";
 import {
   REPO_COMMIT_STAT_ITEMS,
   getRepoCommitStatItemById,
@@ -354,10 +355,13 @@ export default function RepoCommitStatsBlock({
         >
           {statsBlocks.length === 1 ? (
             <div className={`${cardClass} w-full min-w-0`}>
-              <img
+              <SafeImage
                 src={statsBlocks[0].src}
                 alt={statsBlocks[0].label}
+                width={COMPACT_CANVAS_WIDTH}
+                height={COMPACT_CANVAS_HEIGHT_TALL}
                 className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0f0b0b]"
+                sizes="(min-width: 640px) 420px, 100vw"
               />
             </div>
           ) : (
@@ -365,10 +369,13 @@ export default function RepoCommitStatsBlock({
               {statsBlocks.map((block) => (
                 <div key={block.id} className={`${cardClass} w-full min-w-0`}>
                   <p className={labelClass}>{block.label}</p>
-                  <img
+                  <SafeImage
                     src={block.src}
                     alt={block.label}
+                    width={COMPACT_CANVAS_WIDTH}
+                    height={COMPACT_CANVAS_HEIGHT_TALL}
                     className="mx-auto block h-auto max-w-full rounded-md border border-white/10 bg-[#0b0d0f]"
+                    sizes="(min-width: 640px) 420px, 100vw"
                   />
                 </div>
               ))}
@@ -387,14 +394,17 @@ export default function RepoCommitStatsBlock({
             return (
               <div key={`${item.id}-${slot.id}`} className={`absolute ${slot.positionClass}`}>
                 <div className="group/sticker relative pointer-events-auto">
-                  <img
+                  <SafeImage
                     src={sticker.assetPath}
                     alt={sticker.title}
+                    width={stickerSizePx}
+                    height={stickerSizePx}
                     className="object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
                     style={{
                       width: `${stickerSizePx}px`,
                       height: `${stickerSizePx}px`,
                     }}
+                    sizes={`${stickerSizePx}px`}
                   />
                   <button
                     onPointerDown={(event) => event.stopPropagation()}
@@ -431,3 +441,6 @@ export default function RepoCommitStatsBlock({
     </div>
   );
 }
+
+
+

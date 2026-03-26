@@ -1,5 +1,6 @@
-"use client";
+﻿"use client";
 
+import SafeImage from "@/app/components/seo/SafeImage";
 import { buildRenderUrl } from "@/app/lib/generateBlockSvg";
 
 export default function RenderHeaderPreview({
@@ -29,11 +30,15 @@ export default function RenderHeaderPreview({
         compact ? "h-[190px]" : ""
       }`}
     >
-      <img
+      <SafeImage
         src={src}
         alt="Header preview"
-        className={`block w-full ${compact ? "h-full object-contain" : ""}`}
+        width={1200}
+        height={240}
+        className={`block w-full ${compact ? "h-full object-contain" : "h-auto"}`}
+        sizes="100vw"
       />
     </div>
   );
 }
+

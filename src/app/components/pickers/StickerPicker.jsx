@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useMemo } from "react";
 import { useDraggable } from "@dnd-kit/core";
+import SafeImage from "@/app/components/seo/SafeImage";
 import { STICKER_LIBRARY, buildStickerDragId } from "@/app/lib/stickerCatalog";
 
 function StickerCard({ sticker }) {
@@ -29,10 +30,13 @@ function StickerCard({ sticker }) {
           : "border-white/10 hover:border-cyan-300/45 hover:bg-[#101b2a]"
       }`}
     >
-      <img
+      <SafeImage
         src={sticker.assetPath}
         alt={sticker.title}
+        width={160}
+        height={160}
         className="h-full w-full object-contain"
+        sizes="160px"
       />
     </div>
   );
@@ -47,7 +51,7 @@ export default function StickerPicker({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none lg:inset-y-0 lg:left-72 lg:right-0">
+    <div className="pointer-events-none fixed inset-0 z-50 lg:inset-y-0 lg:left-72 lg:right-0">
       <div className="pointer-events-auto h-full w-full overflow-y-auto bg-[#0d1117] p-3 shadow-[24px_0_48px_rgba(0,0,0,0.45)] sm:p-4 lg:w-[580px] lg:border-r lg:border-white/10">
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -74,3 +78,4 @@ export default function StickerPicker({
     </div>
   );
 }
+

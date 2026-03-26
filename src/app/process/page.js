@@ -2,7 +2,13 @@
 import Image from "next/image";
 import LandingNav from "../components/landing/LandingNav";
 import Footer from "../components/landing/Footer";
+import JsonLd from "../components/seo/JsonLd";
 import { assets } from "../assets/assets";
+import {
+  buildMetadata,
+  createBreadcrumbSchema,
+  createHowToSchema,
+} from "../lib/seo";
 
 const processSteps = [
   {
@@ -37,24 +43,53 @@ const processSteps = [
   },
 ];
 
+export const revalidate = 86400;
+
+export const metadata = buildMetadata({
+  title: "How GitHance Works for README Generation and Repository Analysis",
+  description:
+    "See the GitHance process for GitHub README generation, repository analysis, profile optimization, and repeatable developer-facing documentation workflows.",
+  path: "/process",
+  keywords: [
+    "GitHub README workflow",
+    "developer documentation process",
+    "repository analysis workflow",
+    "GitHub profile optimization process",
+  ],
+});
+
+const schemas = [
+  createHowToSchema({
+    name: "How GitHance works",
+    description:
+      "The GitHance workflow for GitHub README generation, repository analysis, and profile optimization.",
+    path: "/process",
+    steps: processSteps,
+  }),
+  createBreadcrumbSchema([
+    { name: "Home", path: "/" },
+    { name: "Process", path: "/process" },
+  ]),
+];
+
 export default function ProcessPage() {
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">
+      <JsonLd data={schemas} />
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(56,189,248,0.22),_transparent_70%)] blur-3xl" />
         <LandingNav />
       </div>
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
+      <main id="main-content" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
         <section className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
           <div className="rounded-[30px] border border-white/10 bg-[#111418] p-6 shadow-[0_26px_90px_rgba(0,0,0,0.38)] sm:p-8 lg:sticky lg:top-8">
             <p className="text-xs font-semibold uppercase tracking-[0.34em] text-cyan-300">Process</p>
             <h1 className="mt-5 text-4xl font-semibold leading-tight sm:text-5xl">
-              A repeatable loop that keeps docs aligned with code.
+              A repeatable loop that keeps GitHub docs aligned with code.
             </h1>
             <p className="mt-5 text-sm leading-7 text-white/65 sm:text-base">
-              This is the operating model behind GitHance: each phase feeds the next, so repo insight, README quality,
-              and profile signal improve together instead of drifting apart.
+              This is the operating model behind GitHance: each phase feeds the next so repo insight, README quality, and profile signal improve together instead of drifting apart.
             </p>
             <div className="mt-7 flex flex-col gap-3">
               <Link
@@ -75,8 +110,9 @@ export default function ProcessPage() {
           <div className="relative">
             <div className="absolute left-6 top-8 hidden h-[calc(100%-4rem)] w-px bg-gradient-to-b from-cyan-300/70 via-white/20 to-transparent sm:block" />
             <div className="grid gap-4">
-              {processSteps.map((step) => (
+              {processSteps.map((step, index) => (
                 <article
+                  id={`step-${index + 1}`}
                   key={step.id}
                   className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_72px_rgba(0,0,0,0.3)] sm:p-6"
                 >
@@ -103,3 +139,4 @@ export default function ProcessPage() {
     </div>
   );
 }
+

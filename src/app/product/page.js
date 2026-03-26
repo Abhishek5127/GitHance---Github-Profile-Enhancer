@@ -2,7 +2,13 @@
 import Image from "next/image";
 import LandingNav from "../components/landing/LandingNav";
 import Footer from "../components/landing/Footer";
+import JsonLd from "../components/seo/JsonLd";
 import { assets } from "../assets/assets";
+import {
+  buildMetadata,
+  createBreadcrumbSchema,
+  createSoftwareApplicationSchema,
+} from "../lib/seo";
 
 const productBlocks = [
   {
@@ -35,25 +41,55 @@ const outcomes = [
   "Consistent GitHub presence across teams",
 ];
 
+export const revalidate = 86400;
+
+export const metadata = buildMetadata({
+  title: "AI GitHub Tools for README Generation and Profile Optimization",
+  description:
+    "Explore the GitHance product: AI-powered GitHub README generation, repository analysis, profile README building, and developer visibility workflows in one SaaS platform.",
+  path: "/product",
+  keywords: [
+    "GitHub tools",
+    "AI README generator",
+    "GitHub profile optimization",
+    "repository analysis software",
+  ],
+});
+
+const schemas = [
+  createSoftwareApplicationSchema({
+    name: "GitHance Product",
+    path: "/product",
+    description:
+      "GitHance combines repository analysis, README generation, profile building, and developer visibility tooling in one web application.",
+    featureList: productBlocks.map((block) => block.title),
+    keywords: ["GitHub tools", "README generator", "developer productivity SaaS"],
+  }),
+  createBreadcrumbSchema([
+    { name: "Home", path: "/" },
+    { name: "Product", path: "/product" },
+  ]),
+];
+
 export default function ProductPage() {
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">
+      <JsonLd data={schemas} />
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute -left-28 top-0 h-80 w-80 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.24),_transparent_65%)] blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-10 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(74,222,128,0.16),_transparent_70%)] blur-3xl" />
         <LandingNav />
       </div>
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
+      <main id="main-content" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16 lg:px-4">
         <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#ffb37f]">Product</p>
             <h1 className="mt-5 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
-              One product surface for repository clarity and profile signal.
+              One product surface for GitHub README generation, repository clarity, and profile signal.
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
-              GitHance combines repository analysis, README composition, and profile storytelling into one loop,
-              so shipping documentation no longer feels disconnected from development.
+              GitHance combines repository analysis, README composition, profile storytelling, and developer workflow automation into one loop so documentation no longer feels disconnected from development.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link
@@ -75,13 +111,14 @@ export default function ProductPage() {
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0d0f]">
               <Image
                 src={assets.Highlights}
-                alt="GitHance product preview"
+                alt="GitHance product preview for repository analysis and README optimization"
                 className="h-auto w-full"
                 priority
+                sizes="(min-width: 1024px) 42vw, 95vw"
               />
             </div>
             <p className="mt-4 text-sm leading-6 text-white/60">
-              Product surfaces stay connected: insight first, composition second, publishing third.
+              Product surfaces stay connected: repository insight first, README composition second, publishing third.
             </p>
           </div>
         </section>
@@ -107,7 +144,18 @@ export default function ProductPage() {
         </section>
 
         <section className="mt-12 rounded-[30px] border border-white/10 bg-[#111418] p-6 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/45">What Changes</p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/45">What Changes</p>
+              <h2 className="mt-4 text-3xl font-semibold text-white">What GitHance improves for developer-facing repositories</h2>
+            </div>
+            <Link
+              href="/pricing"
+              className="inline-flex rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+            >
+              See plans
+            </Link>
+          </div>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             {outcomes.map((item) => (
               <div key={item} className="rounded-2xl border border-white/10 bg-[#0b0d0f]/75 px-4 py-3 text-sm text-white/68">
@@ -122,3 +170,4 @@ export default function ProductPage() {
     </div>
   );
 }
+

@@ -16,7 +16,6 @@ const features = [
   "AI-Powered Suggestions",
 ];
 
-// Arc config
 const VIEWBOX_WIDTH = 1200;
 const VIEWBOX_HEIGHT = 220;
 const ARC_OFFSET_Y = 8;
@@ -42,9 +41,7 @@ function easeInOutSine(value) {
 function getAutoplayDelta(elapsed) {
   const cycle = Math.floor(elapsed / CYCLE_MS);
   const phase = elapsed % CYCLE_MS;
-  const moveProgress = phase <= HOLD_MS
-    ? 0
-    : easeInOutSine((phase - HOLD_MS) / MOVE_MS);
+  const moveProgress = phase <= HOLD_MS ? 0 : easeInOutSine((phase - HOLD_MS) / MOVE_MS);
 
   return cycle + moveProgress;
 }
@@ -254,14 +251,17 @@ export default function Highlights() {
   return (
     <section
       id="product"
+      aria-labelledby="highlights-heading"
       className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-4 py-20 sm:gap-16 sm:px-6 sm:py-24"
     >
       <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl">
-          Why <span className="text-neutral-400">Githance?</span>
-        </h1>
-        <p className="mx-auto mt-4 max-w-xl text-neutral-500">
-          Powerful tools to analyze, optimize, and showcase your GitHub like a pro.
+        <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[#ffb37f]">Repository + Profile Intelligence</p>
+        <h2 id="highlights-heading" className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl">
+          Why developers use <span className="text-neutral-400">GitHance</span>
+        </h2>
+        <p className="mx-auto mt-4 max-w-3xl text-neutral-400 sm:text-lg">
+          GitHance brings GitHub README generation, repository analysis, security review, and profile optimization into
+          one product surface so documentation and discoverability improve together.
         </p>
       </div>
 
@@ -282,6 +282,7 @@ export default function Highlights() {
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
+          aria-hidden="true"
         >
           <defs>
             <filter id="pill-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -334,10 +335,10 @@ export default function Highlights() {
         <div className="relative w-full max-w-5xl">
           <Image
             src={assets.Highlights}
-            alt="Githance highlights preview"
+            alt="GitHance dashboard preview showing GitHub repository analysis and README optimization"
             className="h-auto w-full"
             draggable="false"
-            priority
+            sizes="(min-width: 1280px) 960px, (min-width: 768px) 90vw, 95vw"
           />
           <div className="pointer-events-none absolute inset-x-[10%] bottom-0 h-px bg-gradient-to-r from-transparent via-[#4ade80] to-transparent" />
           <div className="pointer-events-none absolute inset-x-[18%] bottom-[-10px] h-6 rounded-full bg-[#4ade80]/30 blur-2xl" />
@@ -346,5 +347,4 @@ export default function Highlights() {
     </section>
   );
 }
-
 

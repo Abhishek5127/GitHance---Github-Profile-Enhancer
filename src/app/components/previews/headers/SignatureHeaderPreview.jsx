@@ -1,4 +1,6 @@
-"use client";
+﻿"use client";
+
+import SafeImage from "@/app/components/seo/SafeImage";
 
 export default function SignatureHeaderPreview({ name, role, theme, compact = false }) {
   const safeName = name || "Your Name";
@@ -19,11 +21,15 @@ export default function SignatureHeaderPreview({ name, role, theme, compact = fa
         compact ? "h-[190px]" : ""
       }`}
     >
-      <img
+      <SafeImage
         src={src}
         alt="Header preview"
-        className={`block w-full ${compact ? "h-full object-contain" : ""}`}
+        width={1200}
+        height={160}
+        className={`block w-full ${compact ? "h-full object-contain" : "h-auto"}`}
+        sizes="100vw"
       />
     </div>
   );
 }
+

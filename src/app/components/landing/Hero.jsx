@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 const ANALYZE_REPOSITORIES_PATH = "/analyze";
 
@@ -9,9 +9,9 @@ const modes = [
   {
     id: "profile",
     label: "Profile",
-    title: "Design a GitHub profile that looks intentional.",
-    copy: "Compose sections, tune colors, and ship a profile README that feels crafted, not copied.",
-    detail: "Drag blocks, preview instantly, publish in one click.",
+    title: "Build a GitHub profile README that feels intentional.",
+    copy: "Shape developer-first sections, live contribution visuals, and a profile README that communicates your strengths clearly.",
+    detail: "Profile builder, profile comparison, and repository analysis work together inside one GitHub optimization workflow.",
     blocklist: [
       { label: "Analyze Profile", path: "/profile" },
       { label: "Compare Profiles", path: "/profile-compare" },
@@ -22,12 +22,13 @@ const modes = [
   {
     id: "readme",
     label: "README",
-    title: "Ship clean project docs without the scramble.",
-    copy: "Generate README structure based on your repo and fill the gaps with focused prompts.",
-    detail: "Installation, usage, and structure done right.",
+    title: "Generate cleaner GitHub READMEs from real repository context.",
+    copy: "Move from repository preview to README creation with AI guidance that is grounded in your codebase, structure, and documentation gaps.",
+    detail: "Repository preview, README generation, and security review stay one click apart so documentation never drifts far from the code.",
     blocklist: [
-      { label: "Build Readme", path: "profile-builder" },
-      { label: "Repository Readme", path: ANALYZE_REPOSITORIES_PATH },
+      { label: "Build Profile README", path: "/profile-builder" },
+      { label: "Repository README", path: ANALYZE_REPOSITORIES_PATH },
+      { label: "Security Analysis", path: "/analyze" },
     ],
     colorPalette: ["green", "yellow", "blue"],
   },
@@ -41,48 +42,63 @@ const colorMap = {
 
 export default function Hero() {
   const [active, setActive] = useState(modes[0]);
-  const router = useRouter();
 
   return (
-    <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-4 pb-16 pt-12 text-white sm:px-6 sm:pb-20 sm:pt-16 lg:grid-cols-[1.1fr_0.9fr] lg:px-4">
-      <div className="max-w-2xl">
-        <h1 className="mt-4 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
-          Build a GitHub presence
-          <span className="block text-white/80">that ships with confidence.</span>
+    <section
+      id="hero"
+      aria-labelledby="hero-heading"
+      className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-4 pb-16 pt-12 text-white sm:px-6 sm:pb-20 sm:pt-16 lg:grid-cols-[1.1fr_0.9fr] lg:px-4"
+    >
+      <div className="max-w-3xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.36em] text-[#ffb37f]">
+          GitHub README Generator + Developer Visibility Suite
+        </p>
+        <h1 id="hero-heading" className="mt-4 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
+          AI-powered GitHub README generation,
+          <span className="block text-white/80">profile building, and repository analysis for developers.</span>
         </h1>
 
-        <p className="mt-5 max-w-xl text-base leading-7 text-white/70">
-          A new workflow for developer branding. Create profile READMEs, analyze repos, and keep everything consistent
-          without the chaos.
+        <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 sm:text-lg">
+          GitHance helps developers create GitHub profile READMEs, generate project READMEs, preview repositories,
+          compare profiles, and review security signals from one connected workflow built for discoverability and faster shipping.
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          <button
-            onClick={() => {
-              router.push("/profile-builder");
-            }}
-            className="rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]"
+          <Link
+            href="/profile-builder"
+            className="inline-flex rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]"
           >
-            Start building
-          </button>
-          <button className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10">
-            Watch demo
-          </button>
+            Start profile builder
+          </Link>
+          <Link
+            href="/analyze"
+            className="inline-flex rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+          >
+            Analyze repositories
+          </Link>
+          <Link
+            href="/process"
+            className="inline-flex rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+          >
+            See how it works
+          </Link>
         </div>
 
         <div className="mt-10 flex flex-wrap items-center gap-3 text-sm text-white/60">
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">3 min setup</span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">No design tools</span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Built for Developers</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">GitHub README generator</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Repository security review</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Developer discoverability</span>
         </div>
       </div>
 
       <div className="w-full max-w-xl justify-self-end rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.5)] sm:p-5">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3" role="tablist" aria-label="Workflow modes">
           {modes.map((mode) => (
             <button
               key={mode.id}
+              type="button"
               onClick={() => setActive(mode)}
+              aria-pressed={active.id === mode.id}
               className={`rounded-full px-4 py-2 text-[11px] font-semibold transition sm:text-xs ${
                 active.id === mode.id
                   ? "bg-white text-black"
@@ -95,7 +111,8 @@ export default function Hero() {
         </div>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-4 sm:p-5">
-          <h3 className="mt-3 text-lg font-semibold text-white">{active.title}</h3>
+          <p className="text-xs uppercase tracking-[0.24em] text-white/40">Active workflow</p>
+          <h2 className="mt-3 text-lg font-semibold text-white">{active.title}</h2>
           <p className="mt-2 text-sm leading-6 text-white/60">{active.copy}</p>
           <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-xs leading-5 text-white/60">
             {active.detail}
@@ -105,18 +122,13 @@ export default function Hero() {
               const colorKey = active.colorPalette?.[index] || "blue";
 
               return (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (item.path) {
-                      router.push(item.path);
-                    }
-                  }}
-                  key={index}
+                <Link
+                  href={item.path}
+                  key={item.label}
                   className={`min-h-12 rounded-lg px-3 py-3 text-left text-xs font-semibold transition hover:scale-[1.02] sm:text-center ${colorMap[colorKey]}`}
                 >
                   {item.label}
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -125,3 +137,4 @@ export default function Hero() {
     </section>
   );
 }
+
