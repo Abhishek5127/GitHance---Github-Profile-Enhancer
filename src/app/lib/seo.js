@@ -1,4 +1,4 @@
-﻿const FALLBACK_SITE_URL = "https://githance.vercel.app";
+﻿const FALLBACK_SITE_URL = "https://githance.in";
 
 export const SITE_NAME = "GitHance";
 export const SITE_URL = String(
@@ -301,4 +301,5 @@ export function createProductSchema({
     offers,
   };
 }
+
 

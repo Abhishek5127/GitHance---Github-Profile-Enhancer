@@ -1,4 +1,4 @@
-import { buildRenderUrl, buildTrophyUrl } from "./generateBlockSvg";
+﻿import { buildRenderUrl, buildTrophyUrl } from "./generateBlockSvg";
 import {
   TECH_STACK_CATEGORY_LABELS,
   TECH_STACK_CATEGORY_ORDER,
@@ -122,7 +122,7 @@ export default function generateMarkdown(canvasItems, options = {}) {
       return window.location.origin.replace(/\/$/, "");
     }
 
-    return "https://githance.vercel.app";
+    return "https://githance.in";
   };
 
   canvasItems.forEach((item) => {
@@ -522,3 +522,4 @@ ${content || "&nbsp;"}
 
   return markdown.trim();
 }
+
