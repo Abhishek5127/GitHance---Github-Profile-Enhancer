@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { useBilling } from "@/app/components/billing/BillingProvider";
 
 const MAX_ATTEMPTS = 6;
 
-export default function BillingReturnClient() {
-  const searchParams = useSearchParams();
+export default function BillingReturnClient({ orderId = "" }) {
   const { refreshBilling } = useBilling();
   const [state, setState] = useState({
     loading: true,
@@ -17,8 +15,8 @@ export default function BillingReturnClient() {
   });
 
   useEffect(() => {
-    const orderId = String(searchParams?.get("order_id") || "").trim();
-    if (!orderId) {
+    const normalizedOrderId = String(orderId || "").trim();
+    if (!normalizedOrderId) {
       setState({
         loading: false,
         status: "missing",
@@ -33,7 +31,7 @@ export default function BillingReturnClient() {
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
         try {
           const response = await fetch(
-            `/api/billing/checkout-status?orderId=${encodeURIComponent(orderId)}`,
+            `/api/billing/checkout-status?orderId=${encodeURIComponent(normalizedOrderId)}`,
             {
               method: "GET",
               cache: "no-store",
@@ -99,7 +97,7 @@ export default function BillingReturnClient() {
     return () => {
       isCancelled = true;
     };
-  }, [refreshBilling, searchParams]);
+  }, [orderId, refreshBilling]);
 
   return (
     <div className="min-h-screen bg-[#0b0d0f] px-4 py-20 text-white">

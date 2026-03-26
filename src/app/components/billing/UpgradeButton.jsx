@@ -2,14 +2,19 @@
 
 import { useState } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useBilling } from "@/app/components/billing/BillingProvider";
 
 let cashfreeLoaderPromise = null;
 
-function getCurrentCallbackUrl(pathname, searchParams) {
-  const query = searchParams?.toString();
-  return query ? `${pathname}?${query}` : pathname;
+function getCurrentCallbackUrl(pathname) {
+  if (typeof window !== "undefined") {
+    const search = String(window.location.search || "").trim();
+    const currentPath = String(window.location.pathname || pathname || "/pricing").trim();
+    return `${currentPath || "/pricing"}${search}`;
+  }
+
+  return pathname || "/pricing";
 }
 
 async function loadCashfreeSdk() {
@@ -59,7 +64,6 @@ export default function UpgradeButton({
   allowRenewal = false,
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const { isPro } = useBilling();
   const [isLoading, setIsLoading] = useState(false);
@@ -68,7 +72,7 @@ export default function UpgradeButton({
   const handleUpgrade = async () => {
     if (status !== "authenticated" || !session?.username) {
       await signIn("github", {
-        callbackUrl: getCurrentCallbackUrl(pathname || "/pricing", searchParams),
+        callbackUrl: getCurrentCallbackUrl(pathname),
       });
       return;
     }

@@ -8,6 +8,9 @@ export const metadata = {
   },
 };
 
-export default function BillingReturnPage() {
-  return <BillingReturnClient />;
+export default async function BillingReturnPage({ searchParams }) {
+  const params = await searchParams;
+  const orderId = String(params?.order_id || "").trim();
+
+  return <BillingReturnClient orderId={orderId} />;
 }
