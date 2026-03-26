@@ -1,7 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+
+const ANALYZE_REPOSITORIES_PATH = "/analyze";
 
 const modes = [
   {
@@ -13,7 +15,7 @@ const modes = [
     blocklist: [
       { label: "Analyze Profile", path: "/profile" },
       { label: "Compare Profiles", path: "/profile-compare" },
-      { label: "Analyze Repositories", path: "/analyze" },
+      { label: "Analyze Repositories", path: ANALYZE_REPOSITORIES_PATH },
     ],
     colorPalette: ["green", "yellow", "blue"],
   },
@@ -26,7 +28,7 @@ const modes = [
     blocklist: [
       { label: "Build Readme", path: "profile-builder" },
       { label: "Repository Readme", path: "/repo-builder" },
-      { label: "Analyze Repositories", path: "/analyze" },
+      { label: "Analyze Repositories", path: ANALYZE_REPOSITORIES_PATH },
     ],
     colorPalette: ["green", "yellow", "blue"],
   },
@@ -39,7 +41,7 @@ const modes = [
     blocklist: [
       { label: "Analyze Profile", path: "/profile" },
       { label: "Get Profile data", path: "/profile" },
-      { label: "Analyze Repository", path: "/analyze" },
+      { label: "Analyze Repositories", path: ANALYZE_REPOSITORIES_PATH },
     ],
     colorPalette: ["green", "yellow", "blue"],
   },
