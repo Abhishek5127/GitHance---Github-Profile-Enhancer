@@ -10,7 +10,7 @@ export const SUPPORTED_BILLING_CURRENCIES = ["INR", "USD"];
 
 const DEFAULT_PRO_PRICING = {
   INR: {
-    amount: 49,
+    amount: 99,
     locale: "en-IN",
   },
   USD: {
@@ -177,5 +177,6 @@ export function buildBillingReturnUrl(orderId) {
 export function buildBillingWebhookUrl() {
   return absoluteUrl("/api/billing/webhook");
 }
+
 
 

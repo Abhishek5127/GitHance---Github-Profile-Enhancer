@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -147,7 +147,7 @@ const HowItWorks = () => {
           <div
             id={`workflow-panel-${isActiveSection}`}
             ref={carouselRef}
-            className="relative h-[280px] w-full max-w-[420px] self-center overflow-hidden bg-black sm:h-[380px] lg:h-[500px] lg:self-auto"
+            className="relative h-[320px] w-full max-w-[360px] self-center overflow-hidden bg-black sm:h-[420px] lg:h-[540px] lg:self-auto"
           >
             <div
               className="absolute w-full transition-transform duration-700 ease-in-out"
@@ -158,16 +158,17 @@ const HowItWorks = () => {
               {sectionImages.map((img, index) => (
                 <div
                   key={sections[index].title}
-                  className="flex h-[280px] items-center justify-center sm:h-[380px] lg:h-[500px]"
+                  className="flex h-[320px] w-full items-center justify-center p-4 sm:h-[420px] sm:p-5 lg:h-[540px] lg:p-6"
                 >
-                  <Image
-                    src={img}
-                    height={600}
-                    width={400}
-                    alt={`${sections[index].title} preview inside the GitHance workflow`}
-                    className="h-auto w-[85%] max-w-[400px] sm:w-[88%] lg:w-[95%]"
-                    sizes="(min-width: 1024px) 400px, (min-width: 640px) 60vw, 85vw"
-                  />
+                  <div className="relative h-full w-full">
+                    <Image
+                      src={img}
+                      fill
+                      alt={`${sections[index].title} preview inside the GitHance workflow`}
+                      className="object-contain"
+                      sizes="(min-width: 1024px) 460px, (min-width: 640px) 70vw, 92vw"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -179,4 +180,5 @@ const HowItWorks = () => {
 };
 
 export default HowItWorks;
+
 
