@@ -105,7 +105,7 @@ const offerSchemas = [
     name: "GitHance Starter",
     description: plans[0].summary,
     price: plans[0].price,
-    priceCurrency: "USD",
+    priceCurrency: "INR",
     path: "/pricing#starter",
   }),
   ...supportedProPlans.map((plan) =>
@@ -146,3 +146,4 @@ export default function PricingPage() {
     </>
   );
 }
+

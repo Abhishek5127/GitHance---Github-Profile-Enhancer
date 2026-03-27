@@ -85,7 +85,7 @@ export default function PricingClient({ plans, faqs, defaultCurrency = "INR" }) 
           <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
             Scale from individual profile polishing to team-wide documentation quality without changing tools.
           </p>
-          {currencyOptions.length ? (
+          {currencyOptions.length > 1 ? (
             <div className="mt-8 flex flex-col items-center gap-3">
               <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-1">
                 {currencyOptions.map((option) => {
@@ -218,3 +218,4 @@ export default function PricingClient({ plans, faqs, defaultCurrency = "INR" }) 
     </div>
   );
 }
+

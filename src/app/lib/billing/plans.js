@@ -6,16 +6,12 @@ export const BILLING_FEATURES = {
   README_AUTO_UPDATE: "readme_auto_update",
 };
 
-export const SUPPORTED_BILLING_CURRENCIES = ["INR", "USD"];
+export const SUPPORTED_BILLING_CURRENCIES = ["INR"];
 
 const DEFAULT_PRO_PRICING = {
   INR: {
     amount: 99,
     locale: "en-IN",
-  },
-  USD: {
-    amount: 3.99,
-    locale: "en-US",
   },
 };
 
@@ -52,8 +48,7 @@ function resolveLegacyConfiguredAmount(currency) {
 
 function resolveConfiguredAmount(currency) {
   const normalizedCurrency = normalizeBillingCurrency(currency);
-  const envKey =
-    normalizedCurrency === "USD" ? "GITHANCE_PRO_PRICE_USD" : "GITHANCE_PRO_PRICE_INR";
+  const envKey = "GITHANCE_PRO_PRICE_INR";
   const configuredValue = process.env[envKey];
 
   if (configuredValue) {
@@ -63,8 +58,8 @@ function resolveConfiguredAmount(currency) {
   return resolveLegacyConfiguredAmount(normalizedCurrency);
 }
 
-function resolveLocaleForCurrency(currency) {
-  return normalizeBillingCurrency(currency) === "USD" ? "en-US" : "en-IN";
+function resolveLocaleForCurrency() {
+  return "en-IN";
 }
 
 export function normalizeBillingCurrency(value, fallback = DEFAULT_PRO_CURRENCY) {
@@ -161,7 +156,7 @@ export function getFeatureLabel(featureName) {
 export function formatPriceLabel(amount, currency) {
   const normalizedCurrency = normalizeBillingCurrency(currency);
 
-  return new Intl.NumberFormat(resolveLocaleForCurrency(normalizedCurrency), {
+  return new Intl.NumberFormat(resolveLocaleForCurrency(), {
     style: "currency",
     currency: normalizedCurrency,
     minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
@@ -177,6 +172,4 @@ export function buildBillingReturnUrl(orderId) {
 export function buildBillingWebhookUrl() {
   return absoluteUrl("/api/billing/webhook");
 }
-
-
 
