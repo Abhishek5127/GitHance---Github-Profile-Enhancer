@@ -1,6 +1,6 @@
-﻿import React from "react";
+import React from "react";
 import SafeImage from "@/app/components/seo/SafeImage";
-import { assets } from "../../FeatureGridElements/TechStackAssets/assets";
+import { assets } from "../../ReadmeShowcaseTemplates/TechStackAssets/assets";
 
 const SeriesTechStack = () => {
   const techStacks = {
@@ -63,4 +63,5 @@ const SeriesTechStack = () => {
 };
 
 export default SeriesTechStack;
+
 

@@ -1,6 +1,6 @@
 import React from "react";
 import Image from "next/image";
-import {assets} from "@/app/UI/home/FeatureGridElements/TechStackAssets/assets"
+import {assets} from "@/app/UI/home/ReadmeShowcaseTemplates/TechStackAssets/assets"
 const SquareTechStack = () => {
   const items = [
     assets.tensorflow,
