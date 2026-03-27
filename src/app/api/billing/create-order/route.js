@@ -24,6 +24,21 @@ function createOrderId(username) {
   return `githance-${safeUsername || "user"}-${Date.now()}-${suffix}`.slice(0, 45);
 }
 
+function isUnsupportedMerchantCurrencyError(error) {
+  const message = String(error instanceof Error ? error.message : error || "")
+    .trim()
+    .toLowerCase();
+
+  if (!message) {
+    return false;
+  }
+
+  return (
+    message.includes("currency not enabled for this merchant account") ||
+    message.includes("order currency not enabled for this merchant account")
+  );
+}
+
 export async function POST(request) {
   try {
     const session = await getServerSession(authOptions);
@@ -42,22 +57,46 @@ export async function POST(request) {
     const localeHeader = String(request.headers.get("accept-language") || "").trim();
     const fallbackCurrency = detectBillingCurrencyFromLocale(localeHeader, "INR");
     const requestedCurrency = normalizeBillingCurrency(body?.currency, fallbackCurrency);
-    const planConfig = getProPlanConfig(requestedCurrency);
+    const requestedPlanConfig = getProPlanConfig(requestedCurrency);
+    let planConfig = requestedPlanConfig;
+
     const orderId = createOrderId(session.username);
     const customerName =
       String(session?.user?.name || "").trim() || String(session.username || "").trim();
 
-    const cashfreeOrder = await createCashfreeOrder({
-      orderId,
-      amount: planConfig.amount,
-      currency: planConfig.currency,
-      customerId: session.username,
-      customerName,
-      customerEmail: session?.user?.email || "",
-      customerPhone: process.env.CASHFREE_CUSTOMER_PHONE_FALLBACK || "9999999999",
-      orderNote: `GitHance Pro subscription (${planConfig.currency})`,
-      source,
-    });
+    const createOrderForPlan = (config) =>
+      createCashfreeOrder({
+        orderId,
+        amount: config.amount,
+        currency: config.currency,
+        customerId: session.username,
+        customerName,
+        customerEmail: session?.user?.email || "",
+        customerPhone: process.env.CASHFREE_CUSTOMER_PHONE_FALLBACK || "9999999999",
+        orderNote: `GitHance Pro subscription (${config.currency})`,
+        source,
+      });
+
+    let cashfreeOrder;
+    let currencyFallback = null;
+
+    try {
+      cashfreeOrder = await createOrderForPlan(planConfig);
+    } catch (createOrderError) {
+      if (
+        requestedPlanConfig.currency !== "INR" &&
+        isUnsupportedMerchantCurrencyError(createOrderError)
+      ) {
+        planConfig = getProPlanConfig("INR");
+        cashfreeOrder = await createOrderForPlan(planConfig);
+        currencyFallback = {
+          requested: requestedPlanConfig.currency,
+          used: planConfig.currency,
+        };
+      } else {
+        throw createOrderError;
+      }
+    }
 
     await upsertBillingOrder({
       orderId,
@@ -73,7 +112,8 @@ export async function POST(request) {
       metadata: {
         createdVia: source,
         locale: localeHeader,
-        requestedCurrency: planConfig.currency,
+        requestedCurrency: requestedPlanConfig.currency,
+        chargedCurrency: planConfig.currency,
       },
     });
 
@@ -89,6 +129,7 @@ export async function POST(request) {
         currency: planConfig.currency,
         durationDays: planConfig.durationDays,
       },
+      currencyFallback,
     });
   } catch (error) {
     return NextResponse.json(

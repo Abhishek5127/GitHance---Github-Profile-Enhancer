@@ -73,6 +73,7 @@ export default function UpgradeButton({
   const { isPro } = useBilling();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [checkoutCurrency, setCheckoutCurrency] = useState(
     normalizeClientBillingCurrency(currency || "INR")
   );
@@ -100,6 +101,7 @@ export default function UpgradeButton({
     try {
       setIsLoading(true);
       setError("");
+      setNotice("");
 
       const selectedCurrency = resolveRequestedCurrency();
       setCheckoutCurrency(selectedCurrency);
@@ -119,6 +121,17 @@ export default function UpgradeButton({
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.ok) {
         throw new Error(payload?.error || "Unable to start checkout");
+      }
+
+      const resolvedCheckoutCurrency = normalizeClientBillingCurrency(
+        payload?.plan?.currency || selectedCurrency
+      );
+      setCheckoutCurrency(resolvedCheckoutCurrency);
+
+      if (payload?.currencyFallback?.requested && payload?.currencyFallback?.used) {
+        setNotice(
+          `${payload.currencyFallback.requested} checkout is not enabled for this merchant account. Opening ${payload.currencyFallback.used} checkout instead.`
+        );
       }
 
       const Cashfree = await loadCashfreeSdk();
@@ -163,6 +176,7 @@ export default function UpgradeButton({
       >
         {buttonLabel}
       </button>
+      {notice ? <p className="text-xs text-amber-200">{notice}</p> : null}
       {error ? <p className="text-xs text-red-200">{error}</p> : null}
     </div>
   );
