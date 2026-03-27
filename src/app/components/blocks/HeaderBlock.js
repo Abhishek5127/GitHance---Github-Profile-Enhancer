@@ -84,7 +84,7 @@ export default function HeaderBlock({ item }) {
     );
   }
 
-  if (["constellation", "signal", "terminal", "stacked"].includes(variant)) {
+  if (["constellation", "signal", "terminal", "stacked", "circuit", "blueprint", "spotlight", "marquee", "panorama"].includes(variant)) {
     return (
       <RenderHeaderPreview
         variant={variant}
@@ -107,3 +107,4 @@ export default function HeaderBlock({ item }) {
 
   return null;
 }
+

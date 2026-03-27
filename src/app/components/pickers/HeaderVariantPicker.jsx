@@ -30,6 +30,18 @@ const HEADER_DEFAULTS = {
   customTheme: "midnight",
 };
 
+const RENDER_HEADER_VARIANTS = [
+  "constellation",
+  "signal",
+  "terminal",
+  "stacked",
+  "circuit",
+  "blueprint",
+  "spotlight",
+  "marquee",
+  "panorama",
+];
+
 const VARIANTS = [
   { id: "simple", title: "Badge Header" },
   { id: "signature", title: "Signature Banner" },
@@ -39,6 +51,11 @@ const VARIANTS = [
   { id: "signal", title: "Signal Wave" },
   { id: "terminal", title: "Terminal" },
   { id: "stacked", title: "Stacked Panels" },
+  { id: "circuit", title: "Circuit Trace" },
+  { id: "blueprint", title: "Blueprint Grid" },
+  { id: "spotlight", title: "Spotlight Halo" },
+  { id: "marquee", title: "Marquee Strip" },
+  { id: "panorama", title: "Panorama Bands" },
   { id: "image", title: "Image Banner" },
 ];
 
@@ -144,7 +161,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
       );
     }
 
-    if (["constellation", "signal", "terminal", "stacked"].includes(variantId)) {
+    if (RENDER_HEADER_VARIANTS.includes(variantId)) {
       return (
         <RenderHeaderPreview
           variant={variantId}
@@ -301,7 +318,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
       );
     }
 
-    if (["constellation", "signal", "terminal", "stacked"].includes(selectedVariant)) {
+    if (RENDER_HEADER_VARIANTS.includes(selectedVariant)) {
       return (
         <div className="space-y-3">
           <input
@@ -393,7 +410,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
       );
     }
 
-    if (["constellation", "signal", "terminal", "stacked"].includes(selectedVariant)) {
+    if (RENDER_HEADER_VARIANTS.includes(selectedVariant)) {
       return (
         <RenderHeaderPreview
           variant={selectedVariant}
@@ -486,3 +503,4 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
     </div>
   );
 }
+

@@ -68,6 +68,7 @@ export function generateHeaderSvg({
   const outerRadius = normalizeRadius(radius, 0);
   const panelRadius = clamp(outerRadius - 4, 0, 32);
   const innerRadius = clamp(outerRadius - 10, 0, 24);
+  const safeAccents = (accents || []).filter(Boolean).slice(0, 4).map(escapeXml);
 
   if (variant === "constellation") {
     const dots = Array.from({ length: 18 }).map((_, i) => {
@@ -115,6 +116,150 @@ export function generateHeaderSvg({
   <rect x="30" y="100" width="${width - 60}" height="50" rx="${innerRadius}" fill="${palette.accent}" fill-opacity="0.2" />
   <text x="50" y="70" font-size="28" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">${title}</text>
   <text x="50" y="132" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+</svg>`;
+  }
+
+  if (variant === "circuit") {
+    const traceRows = [44, 74, 104, 134];
+    const traces = traceRows
+      .map((y, index) => {
+        const startX = 34 + index * 22;
+        const bendX = 270 + index * 42;
+        const endX = 860 - index * 18;
+        return `
+  <path d="M${startX} ${y} H${bendX} V${y + 18} H${endX}" stroke="${palette.accent}" stroke-width="2.5" stroke-opacity="${0.18 + index * 0.08}" fill="none" />
+  <circle cx="${bendX}" cy="${y + 18}" r="4" fill="${palette.accent}" fill-opacity="${0.75 - index * 0.08}" />
+  <circle cx="${endX}" cy="${y + 18}" r="3" fill="${palette.subtext}" fill-opacity="0.7" />`;
+      })
+      .join("");
+
+    const chips = safeAccents
+      .slice(0, 3)
+      .map((accent, index) => {
+        const x = 54 + index * 146;
+        return `
+  <rect x="${x}" y="122" width="128" height="28" rx="${innerRadius}" fill="${palette.panel}" />
+  <text x="${x + 16}" y="140" font-size="11" fill="${palette.text}" font-family="Inter, sans-serif">${accent}</text>`;
+      })
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="#0f1115" />
+  ${traces}
+  <text x="54" y="84" font-size="34" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="54" y="108" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  ${chips}
+</svg>`;
+  }
+
+  if (variant === "blueprint") {
+    const horizontalGrid = Array.from({ length: 7 })
+      .map((_, index) => {
+        const y = 26 + index * 22;
+        return `<line x1="24" y1="${y}" x2="876" y2="${y}" stroke="${palette.subtext}" stroke-opacity="0.12" />`;
+      })
+      .join("");
+    const verticalGrid = Array.from({ length: 12 })
+      .map((_, index) => {
+        const x = 26 + index * 76;
+        return `<line x1="${x}" y1="24" x2="${x}" y2="156" stroke="${palette.subtext}" stroke-opacity="0.12" />`;
+      })
+      .join("");
+    const notes = safeAccents
+      .slice(0, 3)
+      .map((accent, index) => {
+        const y = 58 + index * 30;
+        return `
+  <rect x="612" y="${y - 16}" width="226" height="22" rx="${innerRadius}" fill="${palette.panel}" fill-opacity="0.85" />
+  <text x="628" y="${y}" font-size="11" fill="${palette.text}" font-family="Inter, sans-serif">${accent}</text>`;
+      })
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <g>${horizontalGrid}${verticalGrid}</g>
+  <rect x="42" y="40" width="520" height="102" rx="${innerRadius}" fill="${palette.panel}" fill-opacity="0.75" stroke="${palette.accent}" stroke-opacity="0.28" />
+  <text x="62" y="82" font-size="32" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="62" y="110" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  <text x="628" y="42" font-size="11" fill="${palette.accent}" font-family="Inter, sans-serif">PROFILE NOTES</text>
+  ${notes}
+</svg>`;
+  }
+
+  if (variant === "spotlight") {
+    const chips = safeAccents
+      .slice(0, 3)
+      .map((accent, index) => {
+        const widthOffset = 92 + accent.length * 6;
+        const x = 214 + index * 156;
+        return `
+  <rect x="${x}" y="122" width="${widthOffset}" height="30" rx="15" fill="${palette.panel}" fill-opacity="0.84" />
+  <text x="${x + 18}" y="141" font-size="11" fill="${palette.text}" font-family="Inter, sans-serif">${accent}</text>`;
+      })
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="spotlight-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="${palette.accent}" stop-opacity="0.38" />
+      <stop offset="65%" stop-color="${palette.accent}" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="${palette.accent}" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <ellipse cx="450" cy="84" rx="240" ry="82" fill="url(#spotlight-glow)" />
+  <text x="50%" y="82" text-anchor="middle" font-size="36" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="50%" y="108" text-anchor="middle" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  ${chips}
+</svg>`;
+  }
+
+  if (variant === "marquee") {
+    const marqueeText = safeAccents.length
+      ? safeAccents.join("   //   ")
+      : "Open Source   //   Product Thinking   //   Shipping Fast";
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <rect x="36" y="32" width="${width - 72}" height="24" rx="${innerRadius}" fill="${palette.panel}" />
+  <rect x="36" y="124" width="${width - 72}" height="24" rx="${innerRadius}" fill="${palette.panel}" />
+  <text x="52" y="48" font-size="11" fill="${palette.accent}" font-family="Inter, sans-serif">${marqueeText}</text>
+  <text x="50%" y="92" text-anchor="middle" font-size="34" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="50%" y="114" text-anchor="middle" font-size="13" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  <text x="52" y="140" font-size="11" fill="${palette.subtext}" font-family="Inter, sans-serif">${marqueeText}</text>
+</svg>`;
+  }
+
+  if (variant === "panorama") {
+    const bandWidths = [168, 124, 148, 116];
+    const bands = bandWidths
+      .map((bandWidth, index) => {
+        const x = 520 + bandWidths.slice(0, index).reduce((sum, value) => sum + value + 14, 0);
+        const y = 38 + index * 10;
+        const h = 94 - index * 10;
+        return `<rect x="${x}" y="${y}" width="${bandWidth}" height="${h}" rx="${innerRadius}" fill="${palette.panel}" fill-opacity="${0.64 + index * 0.08}" />`;
+      })
+      .join("");
+    const lines = safeAccents
+      .slice(0, 2)
+      .map((accent, index) => {
+        const y = 116 + index * 18;
+        return `<text x="54" y="${y}" font-size="11" fill="${palette.subtext}" font-family="Inter, sans-serif">${accent}</text>`;
+      })
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <path d="M36 126 H864" stroke="${palette.accent}" stroke-width="2" stroke-opacity="0.3" />
+  ${bands}
+  <text x="54" y="74" font-size="34" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="54" y="98" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  ${lines}
 </svg>`;
   }
 
@@ -382,3 +527,4 @@ export function buildTrophyUrl({
     },
   });
 }
+

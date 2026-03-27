@@ -101,6 +101,9 @@ export default function ReadmeTemplateCarousel() {
     if (!container) {
       return;
     }
+    if (event.pointerType !== "mouse" || event.button !== 0 || !event.isPrimary) {
+      return;
+    }
 
     pointerStateRef.current = {
       id: event.pointerId,
@@ -117,6 +120,10 @@ export default function ReadmeTemplateCarousel() {
     const container = containerRef.current;
 
     if (!container || !isDragging) {
+      return;
+    }
+
+    if (event.pointerId !== pointerStateRef.current.id) {
       return;
     }
 
@@ -208,7 +215,7 @@ export default function ReadmeTemplateCarousel() {
 
       <div
         ref={containerRef}
-        className={`mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 pr-4 select-none ${
+        className={`mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 pr-4 select-none touch-pan-y ${
           isDragging ? "cursor-grabbing" : "cursor-grab"
         }`}
         onPointerDown={handlePointerDown}
@@ -298,5 +305,4 @@ export default function ReadmeTemplateCarousel() {
     </section>
   );
 }
-
 
