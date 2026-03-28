@@ -1,22 +1,42 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { REPO_COMMIT_STAT_ITEMS } from "@/app/lib/repoCommitCatalog";
+
+const buildInitialSelection = (initialItemIds = [], selectionMode = "multiple") => {
+  const normalizedIds = (Array.isArray(initialItemIds) ? initialItemIds : [])
+    .map((itemId) => String(itemId || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  if (selectionMode === "single") {
+    return new Set([normalizedIds[0] || REPO_COMMIT_STAT_ITEMS[0]?.id || "contribution"]);
+  }
+
+  const fallbackIds = REPO_COMMIT_STAT_ITEMS.map((item) => item.id);
+  return new Set(normalizedIds.length ? normalizedIds : fallbackIds);
+};
 
 export default function RepoCommitVariantPicker({
   open,
   onClose,
   onSave,
   submitLabel = "Add to Canvas",
+  initialItemIds = [],
+  selectionMode = "multiple",
 }) {
-  const [selectedItems, setSelectedItems] = useState(
-    () => new Set(REPO_COMMIT_STAT_ITEMS.map((item) => item.id))
+  const isSingleSelect = selectionMode === "single";
+  const [selectedItems, setSelectedItems] = useState(() =>
+    buildInitialSelection(initialItemIds, selectionMode)
   );
 
   const selectedCount = selectedItems.size;
+  const pickerHeading = isSingleSelect ? "Choose the stat to update" : "Choose the stats to add";
+  const pickerDescription = isSingleSelect
+    ? "Pick one compact stat card for this block."
+    : "Select one or combine several compact stat cards.";
 
   const resetState = () => {
-    setSelectedItems(new Set(REPO_COMMIT_STAT_ITEMS.map((item) => item.id)));
+    setSelectedItems(buildInitialSelection(initialItemIds, selectionMode));
   };
 
   const handleClose = () => {
@@ -26,6 +46,10 @@ export default function RepoCommitVariantPicker({
 
   const toggleItem = (itemId) => {
     setSelectedItems((prev) => {
+      if (isSingleSelect) {
+        return new Set([itemId]);
+      }
+
       const next = new Set(prev);
       if (next.has(itemId)) {
         next.delete(itemId);
@@ -37,6 +61,7 @@ export default function RepoCommitVariantPicker({
   };
 
   const handleSelectAll = () => {
+    if (isSingleSelect) return;
     setSelectedItems(new Set(REPO_COMMIT_STAT_ITEMS.map((item) => item.id)));
   };
 
@@ -44,13 +69,16 @@ export default function RepoCommitVariantPicker({
     setSelectedItems(new Set());
   };
 
+  const orderedSelectedIds = useMemo(
+    () => REPO_COMMIT_STAT_ITEMS.map((item) => item.id).filter((id) => selectedItems.has(id)),
+    [selectedItems]
+  );
+
   const handleAddToCanvas = async () => {
     if (!selectedCount) return;
 
     await onSave({
-      itemIds: REPO_COMMIT_STAT_ITEMS.map((item) => item.id).filter((id) =>
-        selectedItems.has(id)
-      ),
+      itemIds: orderedSelectedIds,
     });
     handleClose();
   };
@@ -63,7 +91,7 @@ export default function RepoCommitVariantPicker({
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-white/40">Repo Commit Stats</p>
-            <h3 className="mt-1 text-lg font-semibold text-white">Choose the stats to add</h3>
+            <h3 className="mt-1 text-lg font-semibold text-white">{pickerHeading}</h3>
           </div>
           <button
             onClick={handleClose}
@@ -74,32 +102,32 @@ export default function RepoCommitVariantPicker({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-cyan-300/35 bg-[#081224]/90 p-4">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/80">
                 Available Stats
               </p>
-              <p className="mt-1 text-xs text-cyan-100/70">
-                Select one or combine several compact stat cards.
-              </p>
+              <p className="mt-1 text-xs text-cyan-100/70">{pickerDescription}</p>
             </div>
             <p className="text-xs text-cyan-100/80">{selectedCount} selected</p>
           </div>
 
-          <div className="mb-3 flex gap-2">
-            <button
-              onClick={handleSelectAll}
-              className="rounded-lg border border-cyan-300/35 px-3 py-1 text-xs text-cyan-100/85 hover:text-cyan-50"
-            >
-              Select all
-            </button>
-            <button
-              onClick={handleClearAll}
-              className="rounded-lg border border-cyan-300/35 px-3 py-1 text-xs text-cyan-100/85 hover:text-cyan-50"
-            >
-              Clear
-            </button>
-          </div>
+          {!isSingleSelect ? (
+            <div className="mb-3 flex gap-2">
+              <button
+                onClick={handleSelectAll}
+                className="rounded-lg border border-cyan-300/35 px-3 py-1 text-xs text-cyan-100/85 hover:text-cyan-50"
+              >
+                Select all
+              </button>
+              <button
+                onClick={handleClearAll}
+                className="rounded-lg border border-cyan-300/35 px-3 py-1 text-xs text-cyan-100/85 hover:text-cyan-50"
+              >
+                Clear
+              </button>
+            </div>
+          ) : null}
 
           <div className="grid gap-2 sm:grid-cols-2">
             {REPO_COMMIT_STAT_ITEMS.map((item) => {
@@ -117,12 +145,14 @@ export default function RepoCommitVariantPicker({
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">{item.label}</span>
                     <span
-                      className={`h-4 w-4 rounded-full border ${
+                      className={`flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
                         selected
-                          ? "border-cyan-100 bg-cyan-300/90"
-                          : "border-cyan-100/35 bg-transparent"
+                          ? "border-cyan-100 bg-cyan-300/90 text-[#031016]"
+                          : "border-cyan-100/35 bg-transparent text-transparent"
                       }`}
-                    />
+                    >
+                      {isSingleSelect && selected ? "1" : ""}
+                    </span>
                   </div>
                   <p className="mt-2 text-[11px] text-inherit/85">
                     {item.description || "Dynamic live stat block"}

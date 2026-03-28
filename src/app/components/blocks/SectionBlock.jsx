@@ -42,7 +42,7 @@ function SectionSlot({
   const canEditSlotItem =
     Boolean(onEditItem) &&
     slotItem &&
-    ["header", "bio", "skills", "contribution"].includes(slotItem.type);
+    ["header", "bio", "skills", "commitStat", "contribution"].includes(slotItem.type);
 
   const renderSlotItem = () => {
     if (!slotItem) {
@@ -369,6 +369,7 @@ export default function SectionBlock({
     </div>
   );
 }
+
 
 
 

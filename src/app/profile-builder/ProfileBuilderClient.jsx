@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -149,9 +149,17 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     pickerKey: 0,
   });
   const [showSectionPicker, setShowSectionPicker] = useState(false);
-  const [sectionPickerKey, setSectionPickerKey] = useState(0);
+  const [sectionPickerContext, setSectionPickerContext] = useState({
+    itemId: null,
+    initialVariantId: null,
+    pickerKey: 0,
+  });
   const [showRepoCommitPicker, setShowRepoCommitPicker] = useState(false);
-  const [repoCommitPickerKey, setRepoCommitPickerKey] = useState(0);
+  const [repoCommitPickerContext, setRepoCommitPickerContext] = useState({
+    itemId: null,
+    initialItemIds: [],
+    pickerKey: 0,
+  });
   const [showContributionPicker, setShowContributionPicker] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [activeStickerId, setActiveStickerId] = useState("");
@@ -1440,7 +1448,28 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
-    setSectionPickerKey(Date.now());
+    setSectionPickerContext({
+      itemId: null,
+      initialVariantId: null,
+      pickerKey: Date.now(),
+    });
+    setShowSectionPicker(true);
+  };
+
+  const openSectionPickerForEdit = (item) => {
+    if (item.type !== "section") return;
+
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowRepoCommitPicker(false);
+    setShowContributionPicker(false);
+    setShowStickerPicker(false);
+    setSectionPickerContext({
+      itemId: item.id,
+      initialVariantId: item?.data?.variantId || null,
+      pickerKey: Date.now(),
+    });
     setShowSectionPicker(true);
   };
 
@@ -1455,7 +1484,28 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
-    setRepoCommitPickerKey(Date.now());
+    setRepoCommitPickerContext({
+      itemId: null,
+      initialItemIds: [],
+      pickerKey: Date.now(),
+    });
+    setShowRepoCommitPicker(true);
+  };
+
+  const openRepoCommitPickerForEdit = (item) => {
+    if (item.type !== "commitStat") return;
+
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowSectionPicker(false);
+    setShowContributionPicker(false);
+    setShowStickerPicker(false);
+    setRepoCommitPickerContext({
+      itemId: item.id,
+      initialItemIds: [String(item?.data?.statId || "contribution")],
+      pickerKey: Date.now(),
+    });
     setShowRepoCommitPicker(true);
   };
 
@@ -1564,16 +1614,67 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   };
 
   const handleSectionSelection = async ({ variantId }) => {
-    addSectionToCanvas({
-      variantId,
-    });
+    const nextVariantId = String(variantId || "").trim();
+    const selectedVariant = getSectionVariantById(nextVariantId);
+    if (!selectedVariant?.id) return;
+
+    if (sectionPickerContext.itemId) {
+      updateCanvasItemById(sectionPickerContext.itemId, (item) => {
+        const currentSlots = Array.isArray(item?.data?.slots)
+          ? item.data.slots.slice(0, selectedVariant.slotCount)
+          : [];
+        const nextSlots =
+          currentSlots.length >= selectedVariant.slotCount
+            ? currentSlots
+            : [
+                ...currentSlots,
+                ...Array.from(
+                  { length: selectedVariant.slotCount - currentSlots.length },
+                  () => null
+                ),
+              ];
+
+        return {
+          ...item,
+          data: {
+            ...item.data,
+            variantId: selectedVariant.id,
+            slots: nextSlots,
+          },
+        };
+      });
+    } else {
+      addSectionToCanvas({
+        variantId: selectedVariant.id,
+      });
+    }
+
     closeSectionPicker();
   };
 
   const handleRepoCommitSelection = async ({ itemIds }) => {
+    const normalizedItemIds = (Array.isArray(itemIds) ? itemIds : [])
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter(Boolean);
+
+    if (repoCommitPickerContext.itemId) {
+      const nextStatId = normalizedItemIds[0] || REPO_COMMIT_STAT_ITEMS[0]?.id || "contribution";
+      updateCanvasItemById(repoCommitPickerContext.itemId, (item) => ({
+        ...item,
+        data: {
+          ...item.data,
+          username: resolveCanvasUsername(item?.data?.username),
+          statId: nextStatId,
+        },
+      }));
+      closeRepoCommitPicker();
+      return;
+    }
+
     await addCommitStatsItemsToCanvas({
-      itemIds,
+      itemIds: normalizedItemIds,
     });
+    closeRepoCommitPicker();
   };
 
   const handleContributionSelection = async ({ variant, range }) => {
@@ -1614,6 +1715,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     if (item.type === "skills") {
       openTechStackPickerForEdit(item);
+      return;
+    }
+
+    if (item.type === "section") {
+      openSectionPickerForEdit(item);
+      return;
+    }
+
+    if (item.type === "commitStat") {
+      openRepoCommitPickerForEdit(item);
       return;
     }
 
@@ -1818,19 +1929,22 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           />
 
           <SectionVariantPicker
-            key={`sections-${sectionPickerKey}`}
+            key={`sections-${sectionPickerContext.pickerKey}`}
             open={showSectionPicker}
             onClose={closeSectionPicker}
             onSave={handleSectionSelection}
-            submitLabel="Add Section"
+            initialVariantId={sectionPickerContext.initialVariantId}
+            submitLabel={sectionPickerContext.itemId ? "Update Section" : "Add Section"}
           />
 
           <RepoCommitVariantPicker
-            key={`commits-${repoCommitPickerKey}`}
+            key={`commits-${repoCommitPickerContext.pickerKey}`}
             open={showRepoCommitPicker}
             onClose={closeRepoCommitPicker}
             onSave={handleRepoCommitSelection}
-            submitLabel="Add Selected"
+            initialItemIds={repoCommitPickerContext.initialItemIds}
+            selectionMode={repoCommitPickerContext.itemId ? "single" : "multiple"}
+            submitLabel={repoCommitPickerContext.itemId ? "Update Item" : "Add Selected"}
           />
 
           <ContributionGraphVariantPicker
@@ -1851,6 +1965,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
+
 
 
 

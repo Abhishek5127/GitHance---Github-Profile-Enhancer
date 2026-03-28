@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { README_SECTION_VARIANTS } from "@/app/lib/sectionCatalog";
@@ -10,8 +10,11 @@ export default function SectionVariantPicker({
   onClose,
   onSave,
   submitLabel = "Add Section",
+  initialVariantId = null,
 }) {
-  const [selectedVariantId, setSelectedVariantId] = useState(DEFAULT_VARIANT_ID);
+  const [selectedVariantId, setSelectedVariantId] = useState(
+    initialVariantId || DEFAULT_VARIANT_ID
+  );
 
   const selectedVariant = useMemo(
     () =>
@@ -21,7 +24,7 @@ export default function SectionVariantPicker({
   );
 
   const handleClose = () => {
-    setSelectedVariantId(DEFAULT_VARIANT_ID);
+    setSelectedVariantId(initialVariantId || DEFAULT_VARIANT_ID);
     onClose();
   };
 

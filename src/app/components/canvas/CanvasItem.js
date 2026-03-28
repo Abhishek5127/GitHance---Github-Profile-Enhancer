@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useDndContext } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
@@ -14,14 +14,21 @@ import {
   normalizeStickerAssignments,
 } from "@/app/lib/stickerCatalog";
 
+const EDITABLE_ITEM_TYPES = [
+  "header",
+  "bio",
+  "skills",
+  "section",
+  "commitStat",
+  "contribution",
+];
+
 export default function CanvasItem({ item, setItems, onEditItem }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
   const { active } = useDndContext();
 
-  const canEdit =
-    Boolean(onEditItem) &&
-    ["header", "bio", "skills", "contribution"].includes(item.type);
+  const canEdit = Boolean(onEditItem) && EDITABLE_ITEM_TYPES.includes(item.type);
   const acceptsStickers = canItemAcceptStickers(item.type);
   const isStickerDragging = active?.data?.current?.source === "sticker-template";
   const stickerAssignments = normalizeStickerAssignments(item?.data?.stickers);
