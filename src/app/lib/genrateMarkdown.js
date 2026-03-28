@@ -226,7 +226,7 @@ export default function generateMarkdown(canvasItems, options = {}) {
 
     if (
       block === "header" &&
-      ["constellation", "signal", "terminal", "stacked", "circuit", "blueprint", "spotlight", "marquee", "panorama"].includes(item.variant)
+      ["constellation", "signal", "terminal", "stacked", "circuit", "blueprint", "spotlight", "executive", "briefing", "glass", "ledger", "summit", "marquee", "panorama"].includes(item.variant)
     ) {
       const baseUrl = resolveBaseUrl();
       const url = buildRenderUrl({
@@ -530,5 +530,6 @@ ${content || "&nbsp;"}
 
   return markdown.trim();
 }
+
 
 

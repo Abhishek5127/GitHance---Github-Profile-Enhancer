@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
 import SignatureHeaderPreview from "../previews/headers/SignatureHeaderPreview";
 import AchievementHeaderPreview from "../previews/headers/AchievementHeaderPreview";
@@ -38,15 +38,17 @@ const RENDER_HEADER_VARIANTS = [
   "circuit",
   "blueprint",
   "spotlight",
-  "marquee",
-  "panorama",
+  "executive",
+  "briefing",
+  "glass",
+  "ledger",
+  "summit",
 ];
 
-const VARIANTS = [
+const VISIBLE_VARIANTS = [
   { id: "simple", title: "Badge Header" },
   { id: "signature", title: "Signature Banner" },
   { id: "achievement", title: "Achievement Flow" },
-  { id: "trophy", title: "Trophy Showcase" },
   { id: "constellation", title: "Constellation" },
   { id: "signal", title: "Signal Wave" },
   { id: "terminal", title: "Terminal" },
@@ -54,10 +56,47 @@ const VARIANTS = [
   { id: "circuit", title: "Circuit Trace" },
   { id: "blueprint", title: "Blueprint Grid" },
   { id: "spotlight", title: "Spotlight Halo" },
-  { id: "marquee", title: "Marquee Strip" },
-  { id: "panorama", title: "Panorama Bands" },
-  { id: "image", title: "Image Banner" },
+  { id: "executive", title: "Executive Panel" },
+  { id: "briefing", title: "Briefing Deck" },
+  { id: "glass", title: "Glass Board" },
 ];
+
+const HIDDEN_VARIANTS = [
+  { id: "typingHeader", title: "Typing Header" },
+  { id: "image", title: "Image Banner" },
+  { id: "trophy", title: "Trophy Showcase" },
+  { id: "ledger", title: "Ledger Frame" },
+  { id: "summit", title: "Summit Line" },
+];
+
+const ALL_VARIANTS = [...VISIBLE_VARIANTS, ...HIDDEN_VARIANTS];
+
+const normalizeList = (value, fallback = []) => {
+  const source = Array.isArray(value) ? value : [];
+  const targetLength = Math.max(fallback.length, source.length);
+
+  return Array.from({ length: targetLength }, (_, index) => {
+    const nextValue = source[index];
+
+    if (nextValue === undefined || nextValue === null) {
+      return fallback[index] ?? "";
+    }
+
+    return String(nextValue);
+  });
+};
+
+const createHeaderFormData = (initialData = null) => {
+  const nextData = initialData || {};
+
+  return {
+    ...HEADER_DEFAULTS,
+    ...nextData,
+    achievementList: normalizeList(nextData.achievementList, HEADER_DEFAULTS.achievementList),
+    trophyList: normalizeList(nextData.trophyList, HEADER_DEFAULTS.trophyList),
+    customAccents: normalizeList(nextData.customAccents, HEADER_DEFAULTS.customAccents),
+  };
+};
 
 function SimpleBadgePreview({ title, subtitle, color, subcolor }) {
   return (
@@ -80,18 +119,32 @@ function SimpleBadgePreview({ title, subtitle, color, subcolor }) {
   );
 }
 
-export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) {
+export default function HeaderVariantPicker({
+  open,
+  onClose,
+  onSelectVariant,
+  initialVariant = null,
+  initialData = null,
+  submitLabel = "Add to Canvas",
+}) {
   const [selectedVariant, setSelectedVariant] = useState(null);
-  const [formData, setFormData] = useState({ ...HEADER_DEFAULTS });
+  const [formData, setFormData] = useState(createHeaderFormData());
 
   const selectedMeta = useMemo(
-    () => VARIANTS.find((variant) => variant.id === selectedVariant),
+    () => ALL_VARIANTS.find((variant) => variant.id === selectedVariant),
     [selectedVariant]
   );
 
+  useEffect(() => {
+    if (!open) return;
+
+    setSelectedVariant(initialVariant || null);
+    setFormData(createHeaderFormData(initialData));
+  }, [open, initialVariant, initialData]);
+
   const openEditor = (variantId) => {
     setSelectedVariant(variantId);
-    setFormData({ ...HEADER_DEFAULTS });
+    setFormData((prev) => createHeaderFormData(prev));
   };
 
   const updateField = (field, value) => {
@@ -106,14 +159,18 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
 
   const handleAddToCanvas = () => {
     if (!selectedVariant) return;
+
+    const nextVariant = selectedVariant;
+    const nextData = createHeaderFormData(formData);
+
     setSelectedVariant(null);
-    setFormData({ ...HEADER_DEFAULTS });
-    onSelectVariant(selectedVariant, formData);
+    setFormData(createHeaderFormData());
+    onSelectVariant(nextVariant, nextData);
   };
 
   const handleClose = () => {
     setSelectedVariant(null);
-    setFormData({ ...HEADER_DEFAULTS });
+    setFormData(createHeaderFormData());
     onClose();
   };
 
@@ -166,14 +223,14 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
         <RenderHeaderPreview
           variant={variantId}
           name="Your Name"
-          subtitle="Job Discription"
+          subtitle="Product Engineer | AI Systems"
           theme="midnight"
-          accents={["Open Source", "Design Systems"]}
+          accents={["Open Source", "Design Systems", "AI Workflows"]}
         />
       );
     }
 
-    if (variantId === "typingHeader") return <TypingHeaderPreview />;
+    if (variantId === "typingHeader") return null;
     if (variantId === "image") return <ImageHeaderPreview name="Your Name" />;
     return null;
   };
@@ -422,7 +479,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
       );
     }
 
-    if (selectedVariant === "typingHeader") return <TypingHeaderPreview />;
+    if (selectedVariant === "typingHeader") return null;
     if (selectedVariant === "image") return <ImageHeaderPreview name={formData.customName} />;
     return null;
   };
@@ -445,7 +502,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-            {VARIANTS.map((variant) => (
+            {VISIBLE_VARIANTS.map((variant) => (
               <button
                 key={variant.id}
                 onClick={() => openEditor(variant.id)}
@@ -495,7 +552,7 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
               onClick={handleAddToCanvas}
               className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black hover:bg-[#ff8c3a]"
             >
-              Add to Canvas
+              {submitLabel}
             </button>
           </div>
         </div>
@@ -503,4 +560,3 @@ export default function HeaderVariantPicker({ open, onClose, onSelectVariant }) 
     </div>
   );
 }
-

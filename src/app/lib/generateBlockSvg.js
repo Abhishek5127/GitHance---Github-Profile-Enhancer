@@ -1,4 +1,4 @@
-export const RENDER_THEMES = {
+﻿export const RENDER_THEMES = {
   midnight: {
     bg: "#0b0d0f",
     panel: "#14181f",
@@ -31,10 +31,49 @@ const escapeXml = (value) =>
     .replace(/'/g, "&apos;");
 
 const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
-const RENDER_VERSION = "rect-v2";
+const RENDER_VERSION = "rect-v4";
 const normalizeRadius = () => 0;
+const truncateText = (value, max = 48) => {
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-export function buildRenderUrl({ baseUrl = "", type, variant, params = {} }) {
+  if (!normalized) return "";
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max - 1).trimEnd()}...`;
+};
+
+const buildMonogram = (value) => {
+  const parts = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const initials = parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
+  return initials || "YN";
+};
+
+
+const measurePillWidth = (value, min = 110, max = 188) =>
+  clamp(Math.round(String(value || "").length * 6.4 + 54), min, max);
+
+const layoutCenteredPills = (items, centerX, gap = 14, min = 110, max = 188) => {
+  const safeItems = (Array.isArray(items) ? items : []).filter(Boolean);
+  const widths = safeItems.map((item) => measurePillWidth(item, min, max));
+  const totalWidth = widths.reduce((sum, width) => sum + width, 0)
+    + Math.max(0, widths.length - 1) * gap;
+  let cursor = centerX - totalWidth / 2;
+
+  return safeItems.map((item, index) => {
+    const next = {
+      text: item,
+      width: widths[index],
+      x: Math.round(cursor * 10) / 10,
+    };
+    cursor += widths[index] + gap;
+    return next;
+  });
+};export function buildRenderUrl({ baseUrl = "", type, variant, params = {} }) {
   const origin = String(baseUrl || "").replace(/\/$/, "");
   const search = new URLSearchParams();
   search.set("type", type);
@@ -61,14 +100,40 @@ export function generateHeaderSvg({
   radius = 0,
 }) {
   const palette = RENDER_THEMES[theme] || RENDER_THEMES.midnight;
-  const title = escapeXml(name || "Your Name");
-  const sub = escapeXml(subtitle || "Building thoughtful software");
+  const accentAlt =
+    theme === "aurora"
+      ? "#8ef3ff"
+      : theme === "ember"
+        ? "#ff9a64"
+        : "#ffc36e";
+  const accentDeep =
+    theme === "aurora"
+      ? "#0f2d40"
+      : theme === "ember"
+        ? "#341d14"
+        : "#2a170d";
+  const accentGlow =
+    theme === "aurora"
+      ? "#55dfff"
+      : theme === "ember"
+        ? "#ffbf78"
+        : "#ff9a55";
+  const rawTitle = truncateText(name || "Your Name", 28);
+  const rawSubtitle = truncateText(subtitle || "Building thoughtful software", 62);
+  const normalizedAccents = (Array.isArray(accents) ? accents : [])
+    .filter(Boolean)
+    .map((item) => truncateText(item, 20))
+    .filter(Boolean)
+    .slice(0, 4);
+  const title = escapeXml(rawTitle);
+  const sub = escapeXml(rawSubtitle);
+  const safeAccents = normalizedAccents.map(escapeXml);
+  const monogram = escapeXml(buildMonogram(rawTitle));
   const width = 900;
   const height = 180;
   const outerRadius = normalizeRadius(radius, 0);
   const panelRadius = clamp(outerRadius - 4, 0, 32);
   const innerRadius = clamp(outerRadius - 10, 0, 24);
-  const safeAccents = (accents || []).filter(Boolean).slice(0, 4).map(escapeXml);
 
   if (variant === "constellation") {
     const dots = Array.from({ length: 18 }).map((_, i) => {
@@ -95,7 +160,7 @@ export function generateHeaderSvg({
   }
 
   if (variant === "terminal") {
-    const lines = [title, sub, ...(accents || []).slice(0, 2).map(escapeXml)];
+    const lines = [title, sub, ...safeAccents.slice(0, 2)];
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
   <rect x="20" y="20" width="${width - 40}" height="${height - 40}" rx="${innerRadius}" fill="#0f1115" stroke="${palette.subtext}" stroke-opacity="0.3" />
@@ -103,7 +168,7 @@ export function generateHeaderSvg({
   ${lines
     .map((line, index) => {
       const y = 90 + index * 22;
-      return `<text x="50" y="${y}" font-size="16" fill="${palette.text}" font-family="Inter, sans-serif">${escapeXml(line)}</text>`;
+      return `<text x="50" y="${y}" font-size="16" fill="${palette.text}" font-family="Inter, sans-serif">${line}</text>`;
     })
     .join("")}
 </svg>`;
@@ -214,6 +279,185 @@ export function generateHeaderSvg({
   <text x="50%" y="82" text-anchor="middle" font-size="36" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
   <text x="50%" y="108" text-anchor="middle" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
   ${chips}
+</svg>`;
+  }
+
+  if (variant === "executive") {
+    const notes = (safeAccents.length
+      ? safeAccents
+      : ["Strategy", "Product", "Execution"].map(escapeXml))
+      .slice(0, 3);
+    const summaryRows = notes
+      .map((accent, index) => {
+        const y = 84 + index * 20;
+        return `
+  <circle cx="622" cy="${y - 4}" r="4" fill="${accentAlt}" />
+  <text x="636" y="${y}" font-size="11" fill="${palette.text}" font-family="Inter, sans-serif">${accent}</text>`;
+      })
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="executive-shell" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${palette.panel}" />
+      <stop offset="100%" stop-color="${accentDeep}" />
+    </linearGradient>
+    <linearGradient id="executive-side" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${accentGlow}" stop-opacity="0.26" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.02" />
+    </linearGradient>
+  </defs>
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <rect x="34" y="28" width="832" height="124" rx="28" fill="url(#executive-shell)" stroke="${palette.subtext}" stroke-opacity="0.12" />
+  <rect x="54" y="44" width="488" height="92" rx="22" fill="#ffffff" fill-opacity="0.04" />
+  <rect x="584" y="44" width="250" height="92" rx="22" fill="url(#executive-side)" stroke="${accentAlt}" stroke-opacity="0.22" />
+  <rect x="72" y="58" width="138" height="22" rx="11" fill="${accentGlow}" fill-opacity="0.18" />
+  <text x="90" y="73" font-size="11" fill="${accentAlt}" font-family="Inter, sans-serif">EXECUTIVE PROFILE</text>
+  <text x="72" y="98" font-size="34" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="72" y="120" font-size="13" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  <path d="M72 130 H314" stroke="${accentAlt}" stroke-width="3" stroke-linecap="round" />
+  <text x="606" y="66" font-size="11" fill="${accentAlt}" font-family="Inter, sans-serif">FOCUS AREAS</text>
+  ${summaryRows}
+</svg>`;
+  }
+  if (variant === "briefing") {
+    const notes = (safeAccents.length
+      ? safeAccents
+      : ["Shipping products", "Clear communication", "Systems thinking"].map(escapeXml))
+      .slice(0, 3);
+    const cards = layoutCenteredPills(notes, 284, 12, 108, 148)
+      .map(({ text, x, width }) => `
+  <rect x="${x}" y="120" width="${width}" height="24" rx="12" fill="#ffffff" fill-opacity="0.05" stroke="${palette.subtext}" stroke-opacity="0.12" />
+  <text x="${x + 16}" y="136" font-size="11" fill="${palette.text}" font-family="Inter, sans-serif">${text}</text>`)
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="briefing-banner" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${accentGlow}" />
+      <stop offset="100%" stop-color="${palette.accent}" />
+    </linearGradient>
+    <linearGradient id="briefing-side" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${accentDeep}" />
+      <stop offset="100%" stop-color="${palette.panel}" />
+    </linearGradient>
+  </defs>
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <rect x="36" y="30" width="828" height="120" rx="28" fill="${palette.panel}" fill-opacity="0.84" stroke="${palette.subtext}" stroke-opacity="0.12" />
+  <path d="M598 30 H864 V150 H730 Q664 118 598 30 Z" fill="url(#briefing-side)" fill-opacity="0.98" />
+  <rect x="56" y="42" width="146" height="24" rx="12" fill="url(#briefing-banner)" />
+  <text x="74" y="58" font-size="11" fill="#0b0d0f" font-family="Inter, sans-serif" font-weight="700">PROFILE BRIEF</text>
+  <text x="56" y="90" font-size="34" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="56" y="112" font-size="13" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  ${cards}
+  <rect x="624" y="48" width="192" height="80" rx="18" fill="#ffffff" fill-opacity="0.05" stroke="${palette.subtext}" stroke-opacity="0.12" />
+  <text x="644" y="70" font-size="11" fill="${accentAlt}" font-family="Inter, sans-serif">SUMMARY</text>
+  <text x="644" y="92" font-size="13" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">Readable layouts</text>
+  <text x="644" y="110" font-size="13" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">Presentation-ready tone</text>
+</svg>`;
+  }
+  if (variant === "glass") {
+    const notes = (safeAccents.length
+      ? safeAccents
+      : ["Systems", "Leadership", "Execution"].map(escapeXml))
+      .slice(0, 3);
+    const chips = layoutCenteredPills(notes, 450, 14, 110, 156)
+      .map(({ text, x, width }) => `
+  <rect x="${x}" y="120" width="${width}" height="24" rx="12" fill="#ffffff" fill-opacity="0.08" stroke="${palette.subtext}" stroke-opacity="0.18" />
+  <text x="${x + 16}" y="136" font-size="11" fill="${palette.text}" font-family="Inter, sans-serif">${text}</text>`)
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="glass-frame" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${accentAlt}" stop-opacity="0.82" />
+      <stop offset="100%" stop-color="${palette.subtext}" stop-opacity="0.18" />
+    </linearGradient>
+    <radialGradient id="glass-orb-left" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="${accentGlow}" stop-opacity="0.58" />
+      <stop offset="100%" stop-color="${accentGlow}" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glass-orb-right" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="${palette.accent}" stop-opacity="0.44" />
+      <stop offset="100%" stop-color="${palette.accent}" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <circle cx="164" cy="72" r="84" fill="url(#glass-orb-left)" />
+  <circle cx="738" cy="114" r="88" fill="url(#glass-orb-right)" />
+  <rect x="82" y="30" width="736" height="120" rx="30" fill="#ffffff" fill-opacity="0.07" stroke="url(#glass-frame)" />
+  <path d="M110 44 H790" stroke="#ffffff" stroke-opacity="0.22" stroke-linecap="round" />
+  <rect x="360" y="44" width="180" height="22" rx="11" fill="#ffffff" fill-opacity="0.08" />
+  <text x="450" y="59" text-anchor="middle" font-size="11" fill="${accentAlt}" font-family="Inter, sans-serif">GLASS BOARD</text>
+  <text x="50%" y="90" text-anchor="middle" font-size="35" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="50%" y="112" text-anchor="middle" font-size="13" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  ${chips}
+</svg>`;
+  }
+  if (variant === "ledger") {
+    const notes = (safeAccents.length
+      ? safeAccents
+      : ["Architecture", "Delivery", "Documentation"].map(escapeXml))
+      .slice(0, 3);
+    const rows = notes
+      .map((accent, index) => {
+        const y = 60 + index * 28;
+        return `
+  <line x1="248" y1="${y + 10}" x2="852" y2="${y + 10}" stroke="${palette.subtext}" stroke-opacity="0.13" />
+  <text x="268" y="${y}" font-size="11" fill="${palette.subtext}" font-family="Inter, sans-serif">0${index + 1}</text>
+  <text x="314" y="${y}" font-size="12" fill="${palette.text}" font-family="Inter, sans-serif">${accent}</text>`;
+      })
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <rect x="40" y="28" width="174" height="124" rx="22" fill="${palette.panel}" />
+  <text x="64" y="50" font-size="11" fill="${accentAlt}" font-family="Inter, sans-serif">LEDGER</text>
+  <text x="64" y="104" font-size="44" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${monogram}</text>
+  <text x="64" y="130" font-size="11" fill="${palette.subtext}" font-family="Inter, sans-serif">Professional identity block</text>
+  <text x="248" y="48" font-size="11" fill="${accentAlt}" font-family="Inter, sans-serif">PROFILE RECORD</text>
+  <text x="248" y="82" font-size="32" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="248" y="108" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  ${rows}
+  <rect x="704" y="36" width="132" height="66" rx="18" fill="${accentDeep}" />
+  <text x="724" y="60" font-size="11" fill="${accentAlt}" font-family="Inter, sans-serif">STATUS</text>
+  <text x="724" y="84" font-size="18" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="600">Clear / Structured</text>
+</svg>`;
+  }
+
+  if (variant === "summit") {
+    const notes = (safeAccents.length
+      ? safeAccents
+      : ["Open Source", "Reliable Delivery"].map(escapeXml))
+      .slice(0, 2);
+    const sideCards = notes
+      .map((accent, index) => {
+        const x = index === 0 ? 64 : 674;
+        return `
+  <rect x="${x}" y="120" width="160" height="26" rx="13" fill="#ffffff" fill-opacity="0.06" stroke="${palette.subtext}" stroke-opacity="0.12" />
+  <text x="${x + 18}" y="136" font-size="11" fill="${palette.text}" font-family="Inter, sans-serif">${accent}</text>`;
+      })
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="summit-ridge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${accentAlt}" />
+      <stop offset="100%" stop-color="${palette.accent}" />
+    </linearGradient>
+  </defs>
+  <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="${panelRadius}" fill="${palette.bg}" />
+  <circle cx="450" cy="50" r="18" fill="${accentGlow}" fill-opacity="0.34" />
+  <text x="50%" y="80" text-anchor="middle" font-size="36" fill="${palette.text}" font-family="Inter, sans-serif" font-weight="700">${title}</text>
+  <text x="50%" y="106" text-anchor="middle" font-size="14" fill="${palette.subtext}" font-family="Inter, sans-serif">${sub}</text>
+  <path d="M60 146 L176 96 L278 128 L420 64 L548 124 L694 88 L840 146" fill="none" stroke="url(#summit-ridge)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M60 146 L176 96 L278 128 L420 64 L548 124 L694 88 L840 146 L840 154 L60 154 Z" fill="${accentDeep}" fill-opacity="0.8" />
+  ${sideCards}
 </svg>`;
   }
 
@@ -527,4 +771,8 @@ export function buildTrophyUrl({
     },
   });
 }
+
+
+
+
 
