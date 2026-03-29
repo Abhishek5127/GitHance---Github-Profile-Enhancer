@@ -1,10 +1,11 @@
-﻿import dynamic from "next/dynamic";
+import dynamic from "next/dynamic";
 import LandingNav from "./components/landing/LandingNav";
 import Hero from "./components/landing/Hero";
 import Workflow from "./components/landing/Workflow";
 import Footer from "./components/landing/Footer";
 import FaqSection, { HOME_FAQS } from "./components/landing/FaqSection";
 import InternalLinksSection from "./components/landing/InternalLinksSection";
+import LandingFeedbackWidget from "./components/landing/LandingFeedbackWidget";
 import JsonLd from "./components/seo/JsonLd";
 import {
   buildMetadata,
@@ -79,7 +80,9 @@ export default function Home() {
         </main>
       </div>
       <Footer />
+      <LandingFeedbackWidget />
     </div>
   );
 }
+
 
