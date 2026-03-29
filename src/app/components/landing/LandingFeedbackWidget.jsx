@@ -164,11 +164,16 @@ className={`overflow-hidden rounded-[28px] border border-white/12 bg-[#11161d]/9
             : "pointer-events-none w-0 translate-x-4 translate-y-2 opacity-0"
         }`}
 aria-hidden={!isExpanded}
-> <form onSubmit={handleSubmit} className="flex flex-col gap-3 p-4"> <div> <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#ffb37f]">
+> 
+<div className="flex w-full h-[25px]">
+
+<div className="absolute flex right-3 p-2 rounded-full cursor-pointer top-2" onClick={()=>setIsFocusedWithin(false)}>X</div>
+</div>
+
+<form onSubmit={handleSubmit} className="flex flex-col gap-3 p-4"> <div> <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#ffb37f]">
 Quick Feedback </p> <p className="mt-1 text-sm text-white/60">
 Tell us what should feel better on GitHance. </p> </div>
 
-```
       <textarea
         id="landing-feedback-message"
         ref={textareaRef}
@@ -179,7 +184,7 @@ Tell us what should feel better on GitHance. </p> </div>
         disabled={!isExpanded}
         tabIndex={isExpanded ? 0 : -1}
         placeholder="Type your feedback here..."
-        className="min-h-28 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/28 disabled:cursor-default disabled:opacity-0 focus:border-[#ff7a1a]/45 focus:bg-black/30"
+        className="min-h-38 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/28 disabled:cursor-default disabled:opacity-0 focus:border-[#ff7a1a]/45 focus:bg-black/30"
       />
 
       <div className="flex items-center justify-between gap-3">
