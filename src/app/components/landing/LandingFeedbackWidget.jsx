@@ -31,7 +31,7 @@ const isExpanded = isPinnedOpen || isFocusedWithin;
 useEffect(() => {
 if (!isPinnedOpen) return;
 
-```
+
 const handlePointerDown = (event) => {
   if (containerRef.current?.contains(event.target)) return;
 
@@ -53,7 +53,7 @@ return () => {
   window.removeEventListener("pointerdown", handlePointerDown);
   window.removeEventListener("keydown", handleKeyDown);
 };
-```
+
 
 }, [isPinnedOpen]);
 
@@ -101,7 +101,6 @@ if (status.message) {
 const handleSubmit = (event) => {
 event.preventDefault();
 
-```
 const trimmedMessage = message.trim();
 if (trimmedMessage.length < MIN_MESSAGE_LENGTH) {
   setStatus({
@@ -148,7 +147,6 @@ startTransition(async () => {
     setIsPinnedOpen(true);
   }
 });
-```
 
 };
 
