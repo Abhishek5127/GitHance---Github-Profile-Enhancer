@@ -69,20 +69,7 @@ export default function FooterVariantPicker({
                     className="h-full w-full object-cover object-center"
                     sizes="(min-width: 1024px) 640px, 100vw"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/72 via-black/32 to-black/55" />
-                  <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/65">
-                        Footer Banner
-                      </p>
-                      <p className="mt-1 truncate text-sm font-semibold text-white">
-                        {selectedBanner.title}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-white/15 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70">
-                      GitHub Ready
-                    </span>
-                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/48 via-black/12 to-black/38" />
                 </div>
               ) : null}
             </div>
@@ -164,3 +151,4 @@ export default function FooterVariantPicker({
     </div>
   );
 }
+
