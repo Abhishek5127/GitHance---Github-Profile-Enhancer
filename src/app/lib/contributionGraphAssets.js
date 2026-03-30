@@ -859,7 +859,6 @@ async function main() {
     updatedOutputs.push(graphConfig.outputPath);
   }
 
-  console.log("Contribution graphs updated: " + updatedOutputs.join(", "));
 }
 
 main().catch((error) => {

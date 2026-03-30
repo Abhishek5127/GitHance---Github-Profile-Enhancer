@@ -181,9 +181,7 @@ FINAL BIO:
     const rawBio =
       result?.choices?.[0]?.message?.content ||
       result?.choices?.[0]?.text ||
-      "";
-      console.log(rawBio);
-      
+      "";      
 
     const bio = sanitizeBio(rawBio);
 

@@ -38,9 +38,7 @@ export async function POST(req) {
     }
 
     const repoInfo = await repoInfoRes.json();
-    console.log(repoInfo);
     const defaultBranch = repoInfo.default_branch;
-    console.log(defaultBranch);
 
     // 4️⃣ Fetch full repo tree
     const treeRes = await fetch(
