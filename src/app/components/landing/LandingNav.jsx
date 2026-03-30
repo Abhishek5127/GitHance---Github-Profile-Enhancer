@@ -15,7 +15,7 @@ const links = [
   { label: "Solutions", href: "/solutions" },
   { label: "Process", href: "/process" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Changelog", href: "/changelog" },
+  { label: "Contribute", href: "/contribute" },
 ];
 
 export default function LandingNav({ signInCallbackUrl = "/profile" }) {
