@@ -88,6 +88,7 @@ export default function ContributePage() {
                 {[
                   { href: "https://github.com/abhishek5127", icon: "⌥", label: "GitHub" },
                   { href: "https://linkedin.com/in/abhishek-choudhary5127", icon: "◈", label: "LinkedIn" },
+                  { href:"https://github.com/Abhishek5127/GitHance---Github-Profile-Enhancer",icon:"✧",label:"Contribute to Repository"}
                 ].map(({ href, icon, label }) => (
                   <a key={label} href={href} target="_blank"
                     className="group relative inline-flex items-center gap-2 px-[22px] py-[9px] text-[10px] tracking-[0.14em] uppercase border border-white/15 text-white/50 overflow-hidden transition-colors hover:text-[#b8995a] hover:border-[rgba(184,153,90,0.35)]"
