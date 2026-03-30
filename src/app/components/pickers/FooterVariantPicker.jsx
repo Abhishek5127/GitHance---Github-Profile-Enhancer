@@ -60,25 +60,26 @@ export default function FooterVariantPicker({
             <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Live Preview</p>
             <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1118]">
               {selectedBanner ? (
-                <div className="relative">
+                <div className="relative h-24 w-full sm:h-28">
                   <SafeImage
                     src={selectedBanner.image}
                     alt={selectedBanner.alt}
                     width={1280}
                     height={360}
-                    className="h-auto w-full object-cover"
+                    className="h-full w-full object-cover object-center"
                     sizes="(min-width: 1024px) 640px, 100vw"
                   />
-                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/85 via-black/35 to-transparent px-4 py-3">
-                    <div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/72 via-black/32 to-black/55" />
+                  <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/65">
                         Footer Banner
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-white">
+                      <p className="mt-1 truncate text-sm font-semibold text-white">
                         {selectedBanner.title}
                       </p>
                     </div>
-                    <span className="rounded-full border border-white/15 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70">
+                    <span className="shrink-0 rounded-full border border-white/15 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70">
                       GitHub Ready
                     </span>
                   </div>
@@ -104,14 +105,17 @@ export default function FooterVariantPicker({
                       : "border-white/10 bg-white/5 hover:border-white/25"
                   }`}
                 >
-                  <SafeImage
-                    src={banner.image}
-                    alt={banner.alt}
-                    width={720}
-                    height={240}
-                    className="h-auto w-full object-cover"
-                    sizes="(min-width: 1024px) 280px, 100vw"
-                  />
+                  <div className="relative h-20 w-full sm:h-24">
+                    <SafeImage
+                      src={banner.image}
+                      alt={banner.alt}
+                      width={720}
+                      height={240}
+                      className="h-full w-full object-cover object-center"
+                      sizes="(min-width: 1024px) 280px, 100vw"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/68 via-black/24 to-black/50" />
+                  </div>
                   <div className="flex items-center justify-between px-3 py-3">
                     <div>
                       <p className="text-sm font-semibold text-white">{banner.title}</p>
@@ -160,4 +164,3 @@ export default function FooterVariantPicker({
     </div>
   );
 }
-

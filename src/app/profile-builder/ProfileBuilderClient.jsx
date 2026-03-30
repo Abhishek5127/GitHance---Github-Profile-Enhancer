@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -58,6 +58,7 @@ import {
   normalizeContributionVariant,
   renderContributionHeatmapSvg,
 } from "../lib/renderers/contributionHeatmapSvg";
+import { buildFooterBannerSvg } from "../lib/renderers/footerBannerSvg";
 import {
   FOOTER_BANNER_ITEMS,
   buildFooterAssetPath,
@@ -377,7 +378,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       const banner = getFooterBannerById(entry?.data?.bannerId || defaultFooterBannerId);
       const nextBannerId = banner?.id || defaultFooterBannerId;
       const currentPath = normalizeFooterAssetPathValue(entry?.data?.assetPath);
-      const nextPath = currentPath || buildFooterAssetPath(entry.id, nextBannerId);
+      const nextPath = buildFooterAssetPath(entry.id, nextBannerId);
 
       if (
         nextBannerId === String(entry?.data?.bannerId || "").trim().toLowerCase() &&
@@ -536,23 +537,26 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     return btoa(binary);
   };
 
-  const loadFooterBannerFileData = async (bannerId) => {
+  const loadFooterBannerDataUri = async (bannerId) => {
     const banner = getFooterBannerById(bannerId);
     const bannerSrc = typeof banner?.image === "string" ? banner.image : banner?.image?.src;
-    if (!banner?.id || !bannerSrc) return null;
+    if (!banner?.id || !bannerSrc) return "";
 
     try {
       const response = await fetch(bannerSrc, { cache: "force-cache" });
-      if (!response.ok) return null;
+      if (!response.ok) return "";
 
+      const contentType =
+        String(response.headers.get("content-type") || "")
+          .split(";")[0]
+          .trim()
+          .toLowerCase() || String(banner?.mimeType || "application/octet-stream");
       const buffer = await response.arrayBuffer();
-      return {
-        content: arrayBufferToBase64(buffer),
-        encoding: "base64",
-        title: banner.title,
-      };
+      const base64 = arrayBufferToBase64(buffer);
+
+      return `data:${contentType};base64,${base64}`;
     } catch {
-      return null;
+      return "";
     }
   };
 
@@ -754,8 +758,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
       if (!banner?.id || !footerAssetPath) continue;
 
-      const footerFile = await loadFooterBannerFileData(banner.id);
-      if (!footerFile?.content) {
+      const footerImageHref = await loadFooterBannerDataUri(banner.id);
+      if (!footerImageHref) {
         setPublishFeedback({
           tone: "error",
           message: `Failed to prepare ${banner.title} for GitHub publishing.`,
@@ -763,10 +767,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         return;
       }
 
+      const footerSvg = buildFooterBannerSvg({
+        title: banner.title,
+        alt: banner.alt,
+        imageHref: footerImageHref,
+      });
+
       upsertPublishFile({
         path: footerAssetPath,
-        content: footerFile.content,
-        encoding: footerFile.encoding,
+        content: footerSvg,
+        encoding: "utf8",
         message: `chore(readme): refresh ${banner.title.toLowerCase()} footer banner`,
       });
     }
@@ -2192,6 +2202,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
+
 
 
 

@@ -1,5 +1,9 @@
 import { ProfileAssets } from "@/app/UI/home/ReadmeShowcaseTemplates/ProfileAssets/ProfileAssets";
 
+export const FOOTER_BANNER_STRIP_WIDTH = 1600;
+export const FOOTER_BANNER_STRIP_HEIGHT = 240;
+export const FOOTER_BANNER_ASSET_EXTENSION = "svg";
+
 export const FOOTER_BANNER_ITEMS = [
   {
     id: "banner-1",
@@ -99,9 +103,8 @@ export function buildFooterAssetPath(itemId, bannerId) {
   const banner = getFooterBannerById(bannerId);
   const safeItemId = normalizeAssetSeed(itemId, "footer");
   const safeBannerId = normalizeAssetSeed(banner?.id, "banner");
-  const extension = String(banner?.extension || "jpeg").trim().toLowerCase();
 
-  return `assets/readme/footer-${safeBannerId}-${safeItemId}.${extension}`;
+  return `assets/readme/footer-strip-${safeBannerId}-${safeItemId}.${FOOTER_BANNER_ASSET_EXTENSION}`;
 }
 
 export function resolveFooterAssetPath(value, { itemId = "", bannerId = "" } = {}) {
