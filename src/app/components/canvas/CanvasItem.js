@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useDndContext } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
@@ -9,6 +9,7 @@ import BioBlock from "../BioBlock";
 import TechStackBlock from "../blocks/TechStackBlock";
 import RepoCommitStatsBlock from "../blocks/RepoCommitStatsBlock";
 import SectionBlock from "../blocks/SectionBlock";
+import FooterBannerBlock from "../blocks/FooterBannerBlock";
 import {
   canItemAcceptStickers,
   normalizeStickerAssignments,
@@ -21,6 +22,7 @@ const EDITABLE_ITEM_TYPES = [
   "section",
   "commitStat",
   "contribution",
+  "footer",
 ];
 
 export default function CanvasItem({ item, setItems, onEditItem }) {
@@ -96,6 +98,9 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
             showStickerDropSlots={isStickerDragging && acceptsStickers}
           />
         );
+
+      case "footer":
+        return <FooterBannerBlock item={item} setItems={setItems} />;
 
       default:
         return <div>{item.type}</div>;

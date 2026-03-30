@@ -49,6 +49,29 @@ function isValidPath(path) {
   );
 }
 
+function normalizeFileEncoding(value) {
+  const normalized = String(value || "utf8").trim().toLowerCase();
+  return normalized === "base64" ? "base64" : "utf8";
+}
+
+function resolveGithubFileContent(content, encoding = "utf8") {
+  const normalizedEncoding = normalizeFileEncoding(encoding);
+  if (normalizedEncoding === "base64") {
+    return String(content || "").replace(/\s+/g, "");
+  }
+
+  return Buffer.from(String(content || ""), "utf8").toString("base64");
+}
+
+function getFileByteSize(content, encoding = "utf8") {
+  const normalizedEncoding = normalizeFileEncoding(encoding);
+  if (normalizedEncoding === "base64") {
+    return Buffer.from(String(content || ""), "base64").byteLength;
+  }
+
+  return Buffer.byteLength(String(content || ""), "utf8");
+}
+
 function jsonError(status, error, details = undefined) {
   return NextResponse.json(
     {
@@ -113,6 +136,7 @@ async function upsertRepositoryFile({
   path,
   message,
   content,
+  encoding = "utf8",
   token,
 }) {
   const meta = await getContentMeta({ owner, repo, path, token });
@@ -134,7 +158,7 @@ async function upsertRepositoryFile({
       },
       body: JSON.stringify({
         message,
-        content: Buffer.from(content, "utf8").toString("base64"),
+        content: resolveGithubFileContent(content, encoding),
         ...(meta.exists && meta.sha ? { sha: meta.sha } : {}),
       }),
     }
@@ -256,6 +280,7 @@ function normalizeWriteTargets(body) {
     files.push({
       path: "README.md",
       content: body.readmeContent,
+      encoding: "utf8",
       message: normalizeId(body.readmeMessage) || "Update README via GitHance",
     });
   }
@@ -281,6 +306,7 @@ function normalizeWriteTargets(body) {
     files.push({
       path: legacySvgPath,
       content: body.svgContent,
+      encoding: "utf8",
       message: normalizeId(body.svgMessage) || "Update SVG asset via GitHance",
     });
   }
@@ -313,9 +339,11 @@ function normalizeWriteTargets(body) {
       }
 
       const resolvedMessage = normalizeId(entry.message) || "Update file via GitHance";
+      const resolvedEncoding = normalizeFileEncoding(entry.encoding);
       files.push({
         path: filePath,
         content: entry.content,
+        encoding: resolvedEncoding,
         message: resolvedMessage,
       });
     }
@@ -352,7 +380,7 @@ function normalizeWriteTargets(body) {
   });
 
   for (const entry of deduped) {
-    const byteSize = Buffer.byteLength(entry.content, "utf8");
+    const byteSize = getFileByteSize(entry.content, entry.encoding);
     if (byteSize > MAX_FILE_BYTES) {
       return {
         ok: false,
@@ -454,6 +482,7 @@ export async function POST(req) {
         path: file.path,
         message: file.message,
         content: file.content,
+        encoding: file.encoding,
         token: accessToken,
       });
 

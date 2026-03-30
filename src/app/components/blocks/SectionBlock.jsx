@@ -8,6 +8,7 @@ import BioBlock from "../BioBlock";
 import TechStackBlock from "./TechStackBlock";
 import RepoCommitStatsBlock from "./RepoCommitStatsBlock";
 import ContributionGraph from "./ContributionGraph";
+import FooterBannerBlock from "./FooterBannerBlock";
 import {
   buildSectionSlotDropId,
   getSectionVariantById,
@@ -42,7 +43,7 @@ function SectionSlot({
   const canEditSlotItem =
     Boolean(onEditItem) &&
     slotItem &&
-    ["header", "bio", "skills", "commitStat", "contribution"].includes(slotItem.type);
+    ["header", "bio", "skills", "commitStat", "contribution", "footer"].includes(slotItem.type);
 
   const renderSlotItem = () => {
     if (!slotItem) {
@@ -69,6 +70,8 @@ function SectionSlot({
         return <RepoCommitStatsBlock item={slotItem} />;
       case "contribution":
         return <ContributionGraph item={slotItem} />;
+      case "footer":
+        return <FooterBannerBlock item={slotItem} />;
       default:
         return (
           <div className="rounded-xl border border-white/15 bg-black/30 p-3 text-xs text-white/70">

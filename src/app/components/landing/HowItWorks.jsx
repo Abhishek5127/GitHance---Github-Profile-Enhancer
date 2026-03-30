@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { assets } from "@/app/assets/assets";
+import { antonio, poppins, danfo } from "@/app/fonts";
+
 
 const sections = [
   {
@@ -136,10 +138,10 @@ const HowItWorks = () => {
                 }`}
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-lg sm:text-xl lg:text-2xl">0{section.index}</span>
-                  <h3 className="text-2xl leading-tight sm:text-3xl lg:text-4xl">{section.title}</h3>
+                  <span className={`text-lg ${antonio.className} sm:text-xl lg:text-2xl`}>0{section.index}</span>
+                  <h3 className={`text-2xl ${antonio.className} leading-tight sm:text-3xl lg:text-4xl`}>{section.title}</h3>
                 </div>
-                <p className="max-w-2xl text-sm leading-6 sm:text-base">{section.description}</p>
+                <p className={`max-w-2xl text-sm ${poppins.className} leading-6 sm:text-base`}>{section.description}</p>
               </button>
             ))}
           </div>

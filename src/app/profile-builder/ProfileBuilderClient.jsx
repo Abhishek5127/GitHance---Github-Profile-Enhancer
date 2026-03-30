@@ -12,6 +12,7 @@ import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker
 import RepoCommitVariantPicker from "../components/pickers/RepoCommitVariantPicker";
 import SectionVariantPicker from "../components/pickers/SectionVariantPicker";
 import ContributionGraphVariantPicker from "../components/pickers/ContributionGraphVariantPicker";
+import FooterVariantPicker from "../components/pickers/FooterVariantPicker";
 import StickerPicker from "../components/pickers/StickerPicker";
 import SafeImage from "../components/seo/SafeImage";
 import {
@@ -57,6 +58,12 @@ import {
   normalizeContributionVariant,
   renderContributionHeatmapSvg,
 } from "../lib/renderers/contributionHeatmapSvg";
+import {
+  FOOTER_BANNER_ITEMS,
+  buildFooterAssetPath,
+  getFooterBannerById,
+  normalizeFooterAssetPathValue,
+} from "../lib/footerBannerCatalog";
 
 const PROFILE_BUILDER_DRAFT_STORAGE_KEY = "githance:profile-builder:draft:v1";
 const CONTRIBUTION_DEFAULT_VARIANT = "classic";
@@ -124,6 +131,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       { id: "git" },
     ],
   });
+  const defaultFooterBannerId = FOOTER_BANNER_ITEMS[0]?.id || "banner-1";
 
   const [canvasItems, setCanvasItems] = useState([]);
   const [readme, setReadme] = useState("");
@@ -161,11 +169,17 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     pickerKey: 0,
   });
   const [showContributionPicker, setShowContributionPicker] = useState(false);
+  const [showFooterPicker, setShowFooterPicker] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [activeStickerId, setActiveStickerId] = useState("");
   const [showMobileLibrary, setShowMobileLibrary] = useState(false);
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(false);
   const [contributionPickerContext, setContributionPickerContext] = useState({
+    itemId: null,
+    initialData: null,
+    pickerKey: 0,
+  });
+  const [footerPickerContext, setFooterPickerContext] = useState({
     itemId: null,
     initialData: null,
     pickerKey: 0,
@@ -356,6 +370,32 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     });
   };
 
+  const ensureFooterAssetPaths = (items) =>
+    mapCanvasItemsDeep(items, (entry) => {
+      if (entry.type !== "footer") return entry;
+
+      const banner = getFooterBannerById(entry?.data?.bannerId || defaultFooterBannerId);
+      const nextBannerId = banner?.id || defaultFooterBannerId;
+      const currentPath = normalizeFooterAssetPathValue(entry?.data?.assetPath);
+      const nextPath = currentPath || buildFooterAssetPath(entry.id, nextBannerId);
+
+      if (
+        nextBannerId === String(entry?.data?.bannerId || "").trim().toLowerCase() &&
+        nextPath === currentPath
+      ) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        data: {
+          ...entry.data,
+          bannerId: nextBannerId,
+          assetPath: nextPath,
+        },
+      };
+    });
+
   const enrichCommitBlocks = async (items) => {
     const commitBlocks = collectCanvasItemsDeep(
       items,
@@ -484,6 +524,38 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     }
   };
 
+  const arrayBufferToBase64 = (buffer) => {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = "";
+
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+
+    return btoa(binary);
+  };
+
+  const loadFooterBannerFileData = async (bannerId) => {
+    const banner = getFooterBannerById(bannerId);
+    const bannerSrc = typeof banner?.image === "string" ? banner.image : banner?.image?.src;
+    if (!banner?.id || !bannerSrc) return null;
+
+    try {
+      const response = await fetch(bannerSrc, { cache: "force-cache" });
+      if (!response.ok) return null;
+
+      const buffer = await response.arrayBuffer();
+      return {
+        content: arrayBufferToBase64(buffer),
+        encoding: "base64",
+        title: banner.title,
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const buildStickerHrefMapForAssignments = async (stickers) => {
     const normalizedStickers = normalizeStickerAssignments(stickers);
     const stickerIds = [...new Set(Object.values(normalizedStickers).filter(Boolean))];
@@ -578,7 +650,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     const commitEnrichedItems = await enrichCommitBlocks(canvasItems);
     const contributionEnrichedItems = await enrichContributionBlocks(commitEnrichedItems);
-    const enrichedItems = ensureUniqueContributionAssetPaths(contributionEnrichedItems);
+    const footerEnrichedItems = ensureFooterAssetPaths(contributionEnrichedItems);
+    const enrichedItems = ensureUniqueContributionAssetPaths(footerEnrichedItems);
     setCanvasItems(enrichedItems);
 
     const latestMarkdown = generateMarkdown(enrichedItems);
@@ -588,19 +661,23 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       enrichedItems,
       (item) => item.type === "contribution"
     );
+    const footerBlocks = collectCanvasItemsDeep(
+      enrichedItems,
+      (item) => item.type === "footer"
+    );
     const shouldEnableAutoUpdate = Boolean(
       autoUpdateEnabled && isPro && contributionBlocks.length
     );
-    const contributionFileMap = new Map();
+    const publishFileMap = new Map();
     const contributionGraphConfig = {
       version: 2,
       updatedAt: new Date().toISOString(),
       graphs: [],
     };
 
-    const upsertContributionFile = (entry) => {
+    const upsertPublishFile = (entry) => {
       if (!entry?.path) return;
-      contributionFileMap.set(entry.path, entry);
+      publishFileMap.set(entry.path, entry);
     };
 
     for (const contributionBlock of contributionBlocks) {
@@ -650,9 +727,10 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         height: contributionRange === "monthly" ? 228 : 320,
       });
 
-      upsertContributionFile({
+      upsertPublishFile({
         path: contributionAssetPath,
         content: `${contributionSvg}\n`,
+        encoding: "utf8",
         message: `chore(readme): refresh ${contributionRange} contribution graph asset`,
       });
 
@@ -668,32 +746,60 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       });
     }
 
+    for (const footerBlock of footerBlocks) {
+      const banner = getFooterBannerById(footerBlock?.data?.bannerId || defaultFooterBannerId);
+      const footerAssetPath =
+        normalizeFooterAssetPathValue(footerBlock?.data?.assetPath) ||
+        buildFooterAssetPath(footerBlock?.id, banner?.id || defaultFooterBannerId);
+
+      if (!banner?.id || !footerAssetPath) continue;
+
+      const footerFile = await loadFooterBannerFileData(banner.id);
+      if (!footerFile?.content) {
+        setPublishFeedback({
+          tone: "error",
+          message: `Failed to prepare ${banner.title} for GitHub publishing.`,
+        });
+        return;
+      }
+
+      upsertPublishFile({
+        path: footerAssetPath,
+        content: footerFile.content,
+        encoding: footerFile.encoding,
+        message: `chore(readme): refresh ${banner.title.toLowerCase()} footer banner`,
+      });
+    }
+
     if (contributionBlocks.length && shouldEnableAutoUpdate) {
-      upsertContributionFile({
+      upsertPublishFile({
         path: CONTRIBUTION_GRAPH_CONFIG_PATH,
         content: `${JSON.stringify(contributionGraphConfig, null, 2)}\n`,
+        encoding: "utf8",
         message: "chore(readme): update contribution graph config",
       });
 
-      upsertContributionFile({
+      upsertPublishFile({
         path: CONTRIBUTION_GRAPH_WORKFLOW_PATH,
         content: buildContributionGraphWorkflow({
           configPath: CONTRIBUTION_GRAPH_CONFIG_PATH,
           scriptPath: CONTRIBUTION_GRAPH_SCRIPT_PATH,
         }),
+        encoding: "utf8",
         message: "chore(readme): configure contribution graph workflow",
       });
 
-      upsertContributionFile({
+      upsertPublishFile({
         path: CONTRIBUTION_GRAPH_SCRIPT_PATH,
         content: buildContributionGraphUpdaterScript({
           configPath: CONTRIBUTION_GRAPH_CONFIG_PATH,
         }),
+        encoding: "utf8",
         message: "chore(readme): add contribution graph generator script",
       });
     }
 
-    const contributionFiles = [...contributionFileMap.values()];
+    const publishFiles = [...publishFileMap.values()];
 
     const res = await fetch("/api/publish-readme", {
       method: "POST",
@@ -702,7 +808,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         owner: session.username,
         repo: session.username,
         readmeContent: latestMarkdown,
-        files: contributionFiles,
+        files: publishFiles,
         autoUpdateEnabled: shouldEnableAutoUpdate,
       }),
     });
@@ -1105,6 +1211,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           variant: CONTRIBUTION_DEFAULT_VARIANT,
           range: CONTRIBUTION_DEFAULT_RANGE,
         },
+        footer: {
+          bannerId: defaultFooterBannerId,
+        },
       };
 
       const resolvedType =
@@ -1127,6 +1236,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           ...newItem.data,
           range: normalizedRange,
           assetPath: buildContributionAssetPath(newItem.id, normalizedRange, 0),
+        };
+      }
+
+      if (resolvedType === "footer") {
+        const banner = getFooterBannerById(newItem?.data?.bannerId || defaultFooterBannerId);
+        const resolvedBannerId = banner?.id || defaultFooterBannerId;
+        newItem.data = {
+          ...newItem.data,
+          bannerId: resolvedBannerId,
+          assetPath: buildFooterAssetPath(newItem.id, resolvedBannerId),
         };
       }
 
@@ -1285,6 +1404,25 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setCanvasItems((prev) => [...prev, newItem]);
   };
 
+  const addFooterToCanvas = ({
+    bannerId = defaultFooterBannerId,
+  } = {}) => {
+    const banner = getFooterBannerById(bannerId || defaultFooterBannerId);
+    const resolvedBannerId = banner?.id || defaultFooterBannerId;
+    const newItemId = `canvas-footer-${Date.now()}`;
+
+    const newItem = {
+      id: newItemId,
+      type: "footer",
+      data: {
+        bannerId: resolvedBannerId,
+        assetPath: buildFooterAssetPath(newItemId, resolvedBannerId),
+      },
+    };
+
+    setCanvasItems((prev) => [...prev, newItem]);
+  };
+
   const updateCanvasItemById = (itemId, updater) => {
     const normalizedItemId = String(itemId || "").trim();
     if (!normalizedItemId || typeof updater !== "function") return;
@@ -1338,6 +1476,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setHeaderPickerContext({
       itemId: null,
       initialVariant: null,
@@ -1356,6 +1495,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setHeaderPickerContext({
       itemId: item.id,
       initialVariant: item.variant || null,
@@ -1376,6 +1516,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setBioPickerContext({
       itemId: null,
       initialData: null,
@@ -1393,6 +1534,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setBioPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -1412,6 +1554,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setTechStackPickerContext({
       itemId: null,
       initialData: null,
@@ -1429,6 +1572,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setTechStackPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -1448,6 +1592,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setSectionPickerContext({
       itemId: null,
       initialVariantId: null,
@@ -1465,6 +1610,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setSectionPickerContext({
       itemId: item.id,
       initialVariantId: item?.data?.variantId || null,
@@ -1484,6 +1630,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setRepoCommitPickerContext({
       itemId: null,
       initialItemIds: [],
@@ -1501,6 +1648,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowContributionPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setRepoCommitPickerContext({
       itemId: item.id,
       initialItemIds: [String(item?.data?.statId || "contribution")],
@@ -1520,6 +1668,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowRepoCommitPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setContributionPickerContext({
       itemId: null,
       initialData: null,
@@ -1537,6 +1686,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowRepoCommitPicker(false);
     setShowStickerPicker(false);
+    setShowFooterPicker(false);
     setContributionPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -1549,6 +1699,46 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
   };
 
+  const openFooterPickerForAdd = () => {
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowSectionPicker(false);
+    setShowRepoCommitPicker(false);
+    setShowContributionPicker(false);
+    setShowStickerPicker(false);
+    setShowFooterPicker(false);
+    setFooterPickerContext({
+      itemId: null,
+      initialData: null,
+      pickerKey: Date.now(),
+    });
+    setShowFooterPicker(true);
+  };
+
+  const openFooterPickerForEdit = (item) => {
+    if (item.type !== "footer") return;
+
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowSectionPicker(false);
+    setShowRepoCommitPicker(false);
+    setShowContributionPicker(false);
+    setShowStickerPicker(false);
+    setShowFooterPicker(false);
+    setFooterPickerContext({
+      itemId: item.id,
+      initialData: item.data || null,
+      pickerKey: Date.now(),
+    });
+    setShowFooterPicker(true);
+  };
+
+  const closeFooterPicker = () => {
+    setShowFooterPicker(false);
+  };
+
   const openStickerPicker = () => {
     setShowHeaderPicker(false);
     setShowBioPicker(false);
@@ -1556,6 +1746,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowSectionPicker(false);
     setShowRepoCommitPicker(false);
     setShowContributionPicker(false);
+    setShowFooterPicker(false);
     setShowStickerPicker(true);
   };
 
@@ -1702,6 +1893,26 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     closeContributionPicker();
   };
 
+  const handleFooterSelection = async ({ bannerId }) => {
+    const banner = getFooterBannerById(bannerId || defaultFooterBannerId);
+    const resolvedBannerId = banner?.id || defaultFooterBannerId;
+
+    if (footerPickerContext.itemId) {
+      updateCanvasItemById(footerPickerContext.itemId, (entry) => ({
+        ...entry,
+        data: {
+          ...entry.data,
+          bannerId: resolvedBannerId,
+          assetPath: buildFooterAssetPath(entry.id, resolvedBannerId),
+        },
+      }));
+    } else {
+      addFooterToCanvas({ bannerId: resolvedBannerId });
+    }
+
+    closeFooterPicker();
+  };
+
   const handleEditItem = (item) => {
     if (item.type === "header") {
       openHeaderPickerForEdit(item);
@@ -1730,6 +1941,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
     if (item.type === "contribution") {
       openContributionPickerForEdit(item);
+      return;
+    }
+
+    if (item.type === "footer") {
+      openFooterPickerForEdit(item);
     }
   };
 
@@ -1748,6 +1964,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       openRepoCommitPickerForAdd();
     } else if (blockId === "contribution") {
       openContributionPickerForAdd();
+    } else if (blockId === "footer") {
+      openFooterPickerForAdd();
     } else {
       setActiveBlock(blockId);
     }
@@ -1954,6 +2172,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             onSave={handleContributionSelection}
             initialData={contributionPickerContext.initialData}
             submitLabel={contributionPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+          />
+
+          <FooterVariantPicker
+            key={`footer-${footerPickerContext.pickerKey}`}
+            open={showFooterPicker}
+            onClose={closeFooterPicker}
+            onSave={handleFooterSelection}
+            initialData={footerPickerContext.initialData}
+            submitLabel={footerPickerContext.itemId ? "Update Item" : "Add to Canvas"}
           />
 
           <StickerPicker

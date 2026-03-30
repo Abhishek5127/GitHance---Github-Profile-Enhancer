@@ -27,6 +27,13 @@ const normalizeContributionAssetPath = (value) =>
     .replace(/^\.\//, "")
     .replace(/^\/+/, "") || CONTRIBUTION_GRAPH_ASSET_PATH;
 
+const normalizeFooterAssetPath = (value) =>
+  String(value || "")
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "");
+
 const encodeStickersParam = (value) => {
   const normalized = normalizeStickerAssignments(value);
   if (!Object.keys(normalized).length) return "";
@@ -522,6 +529,19 @@ ${content || "&nbsp;"}
       markdown += `
 <p align="center">
   <img src="./${contributionAssetPath}" alt="Contribution graph" />
+</p>
+
+`;
+      return;
+    }
+
+    if (block === "footer") {
+      const footerAssetPath = normalizeFooterAssetPath(item?.data?.assetPath);
+      if (!footerAssetPath) return;
+
+      markdown += `
+<p align="center">
+  <img src="./${footerAssetPath}" alt="Footer banner" />
 </p>
 
 `;
