@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { antonio, poppins, danfo } from "@/app/fonts";
+
 
 const ANALYZE_REPOSITORIES_PATH = "/analyze";
 
@@ -50,15 +52,15 @@ export default function Hero() {
       className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-4 pb-16 pt-12 text-white sm:px-6 sm:pb-20 sm:pt-16 lg:grid-cols-[1.1fr_0.9fr] lg:px-4"
     >
       <div className="max-w-3xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.36em] text-[#ffb37f]">
+        <p className={`text-xs font-semibold ${antonio.className} uppercase tracking-[0.36em] text-[#ffb37f]`}>
           GitHub README Generator + Developer Visibility Suite
         </p>
-        <h1 id="hero-heading" className="mt-4 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
+        <h1 id="hero-heading" className={`mt-4 text-4xl ${antonio.className} font-semibold leading-tight sm:text-5xl lg:text-6xl`}>
           AI-powered GitHub README generation,
-          <span className="block text-white/80">profile building, and repository analysis for developers.</span>
+          <span className={`block ${antonio.className} text-white/80`}>profile building, and repository analysis for developers.</span>
         </h1>
 
-        <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 sm:text-lg">
+        <p className={`mt-5 max-w-2xl text-base ${poppins.className} leading-7 text-white/70 sm:text-lg`}>
           GitHance helps developers create GitHub profile READMEs, generate project READMEs, preview repositories,
           compare profiles, and review security signals from one connected workflow built for discoverability and faster shipping.
         </p>
@@ -110,7 +112,7 @@ export default function Hero() {
           ))}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-4 sm:p-5">
+        <div className={`mt-6 rounded-2xl ${poppins.className} border border-white/10 bg-[#0f1115] p-4 sm:p-5`}>
           <p className="text-xs uppercase tracking-[0.24em] text-white/40">Active workflow</p>
           <h2 className="mt-3 text-lg font-semibold text-white">{active.title}</h2>
           <p className="mt-2 text-sm leading-6 text-white/60">{active.copy}</p>
@@ -125,7 +127,7 @@ export default function Hero() {
                 <Link
                   href={item.path}
                   key={item.label}
-                  className={`min-h-12 rounded-lg px-3 py-3 text-left text-xs font-semibold transition hover:scale-[1.02] sm:text-center ${colorMap[colorKey]}`}
+                  className={`min-h-12 flex justify-center items-center rounded-lg px-3 py-3 text-left text-xs font-semibold transition hover:scale-[1.02] sm:text-center ${colorMap[colorKey]}`}
                 >
                   {item.label}
                 </Link>

@@ -103,7 +103,7 @@ const HowItWorks = () => {
     >
       <div className="flex w-full flex-col">
         <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[#ffb37f]">How GitHance Works</p>
-        <h2 id="how-it-works-heading" className="mt-3 text-3xl sm:text-4xl lg:text-5xl">
+        <h2 id="how-it-works-heading" className={`mt-3 ${poppins.className} text-3xl sm:text-4xl lg:text-5xl`}>
           A GitHub workflow built for README generation, profile polish, and repository clarity.
         </h2>
         <div className="mb-8 mt-3 flex justify-end text-sm text-[#ff7a1a] sm:mb-10 sm:text-base">
