@@ -9,6 +9,10 @@ import { getRepoCommitStatItemById } from "./repoCommitCatalog";
 import { getSectionVariantById } from "./sectionCatalog";
 import { CONTRIBUTION_GRAPH_ASSET_PATH } from "./contributionGraphAssets";
 import { resolveProfileBuilderUsername } from "./profileComponents";
+import {
+  getSocialPlatformById,
+  normalizeSocialLinksData,
+} from "./socialLinksCatalog";
 import { normalizeStickerAssignments } from "./stickerCatalog";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
@@ -112,6 +116,76 @@ ${sections}`;
 <div align="${alignment}">
   <img src="${url}" alt="Tech Stack" />
 </div>`;
+}
+export function buildSocialLinksMarkdownSection(itemData = {}, options = {}) {
+  const { includeHeading = true, darkSurface = false } = options;
+  const normalized = normalizeSocialLinksData(itemData || {}, {
+    includeDefaults: true,
+  });
+  const title = String(normalized.title || "Connect With Me").trim() || "Connect With Me";
+  const alignment = ["left", "center", "right"].includes(
+    String(normalized.alignment || "").toLowerCase()
+  )
+    ? String(normalized.alignment || "").toLowerCase()
+    : "center";
+  const layout = String(normalized.layout || "straight").trim().toLowerCase() === "grid"
+    ? "grid"
+    : "straight";
+  const icons = normalized.items
+    .map((entry) => {
+      const platform = getSocialPlatformById(entry?.platformId);
+      const href = String(entry?.url || "").trim();
+      if (!platform?.iconUrl || !href) return "";
+
+      const safeHref = escapeHtmlAttribute(href);
+      const safeLabel = escapeHtmlAttribute(platform.label);
+      const iconSource = darkSurface ? platform.darkIconUrl || platform.iconUrl : platform.iconUrl;
+      const safeIcon = escapeHtmlAttribute(iconSource);
+      return `<a href="${safeHref}"><img src="${safeIcon}" alt="${safeLabel}" width="34" height="34" /></a>`;
+    })
+    .filter(Boolean);
+
+  if (!icons.length) {
+    return "";
+  }
+
+  const body =
+    layout === "grid"
+      ? (() => {
+          const columnCount = Math.max(1, Math.ceil(Math.sqrt(icons.length)));
+          const rowChunks = [];
+
+          for (let index = 0; index < icons.length; index += columnCount) {
+            rowChunks.push(icons.slice(index, index + columnCount));
+          }
+
+          const rows = rowChunks
+            .map((chunk) => {
+              const paddedChunk =
+                chunk.length >= columnCount
+                  ? chunk
+                  : [...chunk, ...Array.from({ length: columnCount - chunk.length }, () => "&nbsp;")];
+              const cells = paddedChunk
+                .map(
+                  (icon) => `<td align="center" valign="middle" width="52">${icon}</td>`
+                )
+                .join("\n");
+
+              return `  <tr>\n${cells}\n  </tr>`;
+            })
+            .join("\n");
+
+          return `<div align="${alignment}">\n<table cellpadding="8" cellspacing="0">\n${rows}\n</table>\n</div>`;
+        })()
+      : `<p align="${alignment}">\n  ${icons.join("&nbsp;&nbsp;\n  ")}\n</p>`;
+
+  if (!includeHeading) {
+    return body;
+  }
+
+  return `## ${title}
+
+${body}`;
 }
 
 export default function generateMarkdown(canvasItems, options = {}) {
@@ -294,6 +368,18 @@ ${focus.length ? `${focus.map((point) => `- ${point}`).join("\n")}` : ""}
       if (techStackSection) {
         markdown += `
 ${techStackSection}
+
+`;
+      }
+    }
+
+    if (block === "social") {
+      const socialSection = buildSocialLinksMarkdownSection(item.data || {}, {
+        includeHeading: true,
+      });
+      if (socialSection) {
+        markdown += `
+${socialSection}
 
 `;
       }
@@ -550,6 +636,10 @@ ${content || "&nbsp;"}
 
   return markdown.trim();
 }
+
+
+
+
 
 
 

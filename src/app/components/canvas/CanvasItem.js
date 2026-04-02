@@ -7,6 +7,7 @@ import ContributionGraph from "../blocks/ContributionGraph";
 import HeaderBlock from "../blocks/HeaderBlock";
 import BioBlock from "../BioBlock";
 import TechStackBlock from "../blocks/TechStackBlock";
+import SocialLinksBlock from "../blocks/SocialLinksBlock";
 import RepoCommitStatsBlock from "../blocks/RepoCommitStatsBlock";
 import SectionBlock from "../blocks/SectionBlock";
 import FooterBannerBlock from "../blocks/FooterBannerBlock";
@@ -19,6 +20,7 @@ const EDITABLE_ITEM_TYPES = [
   "header",
   "bio",
   "skills",
+  "social",
   "section",
   "commitStat",
   "contribution",
@@ -66,6 +68,9 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
 
       case "skills":
         return <TechStackBlock item={item} setItems={setItems} />;
+
+      case "social":
+        return <SocialLinksBlock item={item} setItems={setItems} />;
 
       case "commitStat":
       case "commits":

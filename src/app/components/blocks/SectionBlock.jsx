@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
@@ -6,6 +6,7 @@ import SafeImage from "@/app/components/seo/SafeImage";
 import HeaderBlock from "./HeaderBlock";
 import BioBlock from "../BioBlock";
 import TechStackBlock from "./TechStackBlock";
+import SocialLinksBlock from "./SocialLinksBlock";
 import RepoCommitStatsBlock from "./RepoCommitStatsBlock";
 import ContributionGraph from "./ContributionGraph";
 import FooterBannerBlock from "./FooterBannerBlock";
@@ -43,7 +44,7 @@ function SectionSlot({
   const canEditSlotItem =
     Boolean(onEditItem) &&
     slotItem &&
-    ["header", "bio", "skills", "commitStat", "contribution", "footer"].includes(slotItem.type);
+    ["header", "bio", "skills", "social", "commitStat", "contribution", "footer"].includes(slotItem.type);
 
   const renderSlotItem = () => {
     if (!slotItem) {
@@ -65,6 +66,8 @@ function SectionSlot({
         return <BioBlock item={slotItem} />;
       case "skills":
         return <TechStackBlock item={slotItem} />;
+      case "social":
+        return <SocialLinksBlock item={slotItem} />;
       case "commitStat":
       case "commits":
         return <RepoCommitStatsBlock item={slotItem} />;
@@ -372,6 +375,8 @@ export default function SectionBlock({
     </div>
   );
 }
+
+
 
 
 

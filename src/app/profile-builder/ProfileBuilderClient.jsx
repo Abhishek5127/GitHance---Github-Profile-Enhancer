@@ -9,6 +9,7 @@ import generateMarkdown from "../lib/genrateMarkdown";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
 import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker";
+import SocialLinksVariantPicker from "../components/pickers/SocialLinksVariantPicker";
 import RepoCommitVariantPicker from "../components/pickers/RepoCommitVariantPicker";
 import SectionVariantPicker from "../components/pickers/SectionVariantPicker";
 import ContributionGraphVariantPicker from "../components/pickers/ContributionGraphVariantPicker";
@@ -30,6 +31,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
 import { buildTechStackPayload } from "../lib/techStackCatalog";
+import { buildSocialLinksPayload } from "../lib/socialLinksCatalog";
 import { REPO_COMMIT_STAT_ITEMS } from "../lib/repoCommitCatalog";
 import { resolveProfileBuilderUsername } from "../lib/profileComponents";
 import {
@@ -132,6 +134,12 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       { id: "git" },
     ],
   });
+  const socialLinksDefaults = buildSocialLinksPayload({
+    title: "Connect With Me",
+    alignment: "center",
+    layout: "straight",
+    items: [],
+  });
   const defaultFooterBannerId = FOOTER_BANNER_ITEMS[0]?.id || "banner-1";
 
   const [canvasItems, setCanvasItems] = useState([]);
@@ -171,6 +179,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   });
   const [showContributionPicker, setShowContributionPicker] = useState(false);
   const [showFooterPicker, setShowFooterPicker] = useState(false);
+  const [showSocialPicker, setShowSocialPicker] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [activeStickerId, setActiveStickerId] = useState("");
   const [showMobileLibrary, setShowMobileLibrary] = useState(false);
@@ -181,6 +190,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     pickerKey: 0,
   });
   const [footerPickerContext, setFooterPickerContext] = useState({
+    itemId: null,
+    initialData: null,
+    pickerKey: 0,
+  });
+  const [socialPickerContext, setSocialPickerContext] = useState({
     itemId: null,
     initialData: null,
     pickerKey: 0,
@@ -1207,6 +1221,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           content: bioDefaults.content,
         },
         skills: buildTechStackPayload(techStackDefaults),
+        social: buildSocialLinksPayload(socialLinksDefaults),
         sections: {
           variantId: "equal-2",
           slots: [null, null],
@@ -1338,6 +1353,19 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       type: "skills",
       data: buildTechStackPayload({
         ...techStackDefaults,
+        ...overrides,
+      }),
+    };
+
+    setCanvasItems((prev) => [...prev, newItem]);
+  };
+
+  const addSocialLinksToCanvas = (overrides = {}) => {
+    const newItem = {
+      id: `canvas-social-${Date.now()}`,
+      type: "social",
+      data: buildSocialLinksPayload({
+        ...socialLinksDefaults,
         ...overrides,
       }),
     };
@@ -1487,6 +1515,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setHeaderPickerContext({
       itemId: null,
       initialVariant: null,
@@ -1506,6 +1535,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setHeaderPickerContext({
       itemId: item.id,
       initialVariant: item.variant || null,
@@ -1527,6 +1557,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setBioPickerContext({
       itemId: null,
       initialData: null,
@@ -1545,6 +1576,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setBioPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -1565,6 +1597,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setTechStackPickerContext({
       itemId: null,
       initialData: null,
@@ -1583,6 +1616,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setTechStackPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -1595,6 +1629,48 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowTechStackPicker(false);
   };
 
+  const openSocialPickerForAdd = () => {
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowRepoCommitPicker(false);
+    setShowSectionPicker(false);
+    setShowContributionPicker(false);
+    setShowFooterPicker(false);
+    setShowSocialPicker(false);
+    setShowStickerPicker(false);
+    setSocialPickerContext({
+      itemId: null,
+      initialData: null,
+      pickerKey: Date.now(),
+    });
+    setShowSocialPicker(true);
+  };
+
+  const openSocialPickerForEdit = (item) => {
+    if (item.type !== "social") return;
+
+    setShowHeaderPicker(false);
+    setShowBioPicker(false);
+    setShowTechStackPicker(false);
+    setShowRepoCommitPicker(false);
+    setShowSectionPicker(false);
+    setShowContributionPicker(false);
+    setShowFooterPicker(false);
+    setShowSocialPicker(false);
+    setShowStickerPicker(false);
+    setSocialPickerContext({
+      itemId: item.id,
+      initialData: item.data || null,
+      pickerKey: Date.now(),
+    });
+    setShowSocialPicker(true);
+  };
+
+  const closeSocialPicker = () => {
+    setShowSocialPicker(false);
+  };
+
   const openSectionPickerForAdd = () => {
     setShowHeaderPicker(false);
     setShowBioPicker(false);
@@ -1603,6 +1679,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setSectionPickerContext({
       itemId: null,
       initialVariantId: null,
@@ -1621,6 +1698,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setSectionPickerContext({
       itemId: item.id,
       initialVariantId: item?.data?.variantId || null,
@@ -1641,6 +1719,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setRepoCommitPickerContext({
       itemId: null,
       initialItemIds: [],
@@ -1659,6 +1738,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setRepoCommitPickerContext({
       itemId: item.id,
       initialItemIds: [String(item?.data?.statId || "contribution")],
@@ -1679,6 +1759,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setContributionPickerContext({
       itemId: null,
       initialData: null,
@@ -1697,6 +1778,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setContributionPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -1718,6 +1800,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setFooterPickerContext({
       itemId: null,
       initialData: null,
@@ -1737,6 +1820,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowContributionPicker(false);
     setShowStickerPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setFooterPickerContext({
       itemId: item.id,
       initialData: item.data || null,
@@ -1747,6 +1831,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
 
   const closeFooterPicker = () => {
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
   };
 
   const openStickerPicker = () => {
@@ -1757,6 +1842,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setShowRepoCommitPicker(false);
     setShowContributionPicker(false);
     setShowFooterPicker(false);
+    setShowSocialPicker(false);
     setShowStickerPicker(true);
   };
 
@@ -1812,6 +1898,25 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     }
 
     closeTechStackPicker();
+  };
+
+  const handleSocialLinksSelect = (data) => {
+    const payload = buildSocialLinksPayload(data);
+
+    if (socialPickerContext.itemId) {
+      updateCanvasItemById(socialPickerContext.itemId, (item) => ({
+        ...item,
+        data: {
+          ...socialLinksDefaults,
+          ...item.data,
+          ...payload,
+        },
+      }));
+    } else {
+      addSocialLinksToCanvas(payload);
+    }
+
+    closeSocialPicker();
   };
 
   const handleSectionSelection = async ({ variantId }) => {
@@ -1939,6 +2044,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       return;
     }
 
+    if (item.type === "social") {
+      openSocialPickerForEdit(item);
+      return;
+    }
+
     if (item.type === "section") {
       openSectionPickerForEdit(item);
       return;
@@ -1966,6 +2076,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       openBioPickerForAdd();
     } else if (blockId === "skills") {
       openTechStackPickerForAdd();
+    } else if (blockId === "social") {
+      openSocialPickerForAdd();
     } else if (blockId === "stickers") {
       openStickerPicker();
     } else if (blockId === "sections") {
@@ -2156,6 +2268,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             submitLabel={techStackPickerContext.itemId ? "Update Item" : "Add to Canvas"}
           />
 
+          <SocialLinksVariantPicker
+            key={`social-${socialPickerContext.pickerKey}`}
+            open={showSocialPicker}
+            onClose={closeSocialPicker}
+            onSave={handleSocialLinksSelect}
+            initialData={socialPickerContext.initialData}
+            submitLabel={socialPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+          />
+
           <SectionVariantPicker
             key={`sections-${sectionPickerContext.pickerKey}`}
             open={showSectionPicker}
@@ -2202,6 +2323,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
+
+
+
 
 
 
