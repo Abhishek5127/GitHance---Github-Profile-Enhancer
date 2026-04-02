@@ -1,13 +1,16 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { buildBioPayload } from "@/app/services/githubData.service";
+import ReadmeRenderer from "@/app/components/blocks/ReadmeRenderer";
 import SafeImage from "@/app/components/seo/SafeImage";
+import { buildTechStackMarkdownSection } from "@/app/lib/genrateMarkdown";
 import {
   TECH_STACK_ALIGNMENTS,
   TECH_STACK_CATEGORY_LABELS,
   TECH_STACK_CATEGORY_ORDER,
+  TECH_STACK_LAYOUTS,
   buildTechStackPayload,
   getTechIconUrl,
   inferTechStackDataFromRepos,
@@ -31,6 +34,11 @@ const CATEGORY_FILTERS = [
 const ALIGNMENT_OPTIONS = TECH_STACK_ALIGNMENTS.map((alignment) => ({
   id: alignment,
   label: alignment.charAt(0).toUpperCase() + alignment.slice(1),
+}));
+
+const LAYOUT_OPTIONS = TECH_STACK_LAYOUTS.map((layout) => ({
+  id: layout,
+  label: layout === "square-grid" ? "Square Grid" : "Categorized",
 }));
 
 const ALIGNMENT_JUSTIFY_CLASS = {
@@ -109,6 +117,7 @@ export default function TechStackVariantPicker({
 
   const [variant, setVariant] = useState("categorized");
   const [alignment, setAlignment] = useState("left");
+  const [layout, setLayout] = useState("categorized");
   const [items, setItems] = useState([]);
 
   const [query, setQuery] = useState("");
@@ -127,6 +136,7 @@ export default function TechStackVariantPicker({
 
     setVariant(normalized.variant || "categorized");
     setAlignment(normalized.alignment || "left");
+    setLayout(normalized.layout || "categorized");
     setItems(normalized.items || []);
     setQuery("");
     setActiveCategory("all");
@@ -145,6 +155,24 @@ export default function TechStackVariantPicker({
       }),
     [query, activeCategory]
   );
+
+  const previewMarkdown = useMemo(() => {
+    if (!items.length) return "";
+
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    return buildTechStackMarkdownSection(
+      {
+        variant,
+        alignment,
+        layout,
+        items,
+      },
+      {
+        includeHeading: true,
+        baseUrl,
+      }
+    );
+  }, [alignment, items, layout, variant]);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") return undefined;
@@ -324,6 +352,7 @@ export default function TechStackVariantPicker({
     const payload = buildTechStackPayload({
       variant,
       alignment,
+      layout,
       items,
     });
 
@@ -348,7 +377,7 @@ export default function TechStackVariantPicker({
                 Tech Stack Variant Picker
               </h3>
               <p className="mt-1 text-sm text-white/60">
-                Drag technologies into category buckets. Drag selected items to Trash to remove.
+                Drag technologies into category buckets, then choose whether the README renders them as categorized rows or a square grid.
               </p>
             </div>
 
@@ -372,6 +401,18 @@ export default function TechStackVariantPicker({
                 {ALIGNMENT_OPTIONS.map((option) => (
                   <option key={option.id} value={option.id}>
                     Align {option.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={layout}
+                onChange={(event) => setLayout(event.target.value)}
+                className="rounded-xl border border-white/15 bg-[#111824] px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                {LAYOUT_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -607,48 +648,14 @@ export default function TechStackVariantPicker({
                     Tech Stack
                   </h4>
 
-                  <div className="mt-5 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1">
-                    {TECH_STACK_CATEGORY_ORDER.map((category) => {
-                      const categoryItems = groupedItems[category] || [];
-                      if (!categoryItems.length) return null;
-
-                      return (
-                        <div
-                          key={`preview-${category}`}
-                          className="rounded-xl border border-white/10 bg-white/5 p-3"
-                        >
-                          <p className="mb-2 text-sm font-semibold text-white/90">
-                            {TECH_STACK_CATEGORY_LABELS[category]}:
-                          </p>
-                          <div
-                            className={`flex flex-wrap content-start gap-3 ${iconAlignmentClass}`}
-                          >
-                            {categoryItems.map((item) => (
-                              <div
-                                key={`${category}-${item.id}-${item.name}`}
-                                className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5"
-                                title={item.name}
-                              >
-                                <SafeImage
-                                  src={getTechIconUrl(item)}
-                                  alt={item.name}
-                                  width={34}
-                                  height={34}
-                                  className="h-8 w-8 object-contain"
-                                  onErrorHide
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {!items.length ? (
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/65">
+                  <div className="mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-white/5 p-4 pr-3">
+                    {previewMarkdown ? (
+                      <ReadmeRenderer readme={previewMarkdown} compact />
+                    ) : (
+                      <div className="text-sm text-white/65">
                         No technologies selected yet.
                       </div>
-                    ) : null}
+                    )}
                   </div>
                 </div>
               </div>
@@ -685,5 +692,3 @@ export default function TechStackVariantPicker({
     </div>
   );
 }
-
-

@@ -4,6 +4,7 @@ export const PROFILE_TEMPLATES = [
   { id: "bio", title: "Short Bio" },
   { id: "skills", title: "Tech Stack" },
   { id: "social", title: "Social Links" },
+  { id: "graphics", title: "Graphic Components" },
   { id: "stickers", title: "Stickers" },
   { id: "sections", title: "Sections" },
   { id: "commits", title: "Repo Commit Stats" },

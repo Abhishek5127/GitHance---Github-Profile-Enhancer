@@ -7,14 +7,17 @@ const TECH_CATEGORY_CONFIG = [
 
 const DEFAULT_THEME = "midnight";
 const DEFAULT_VARIANT = "categorized";
+const DEFAULT_LAYOUT = "categorized";
 const DEFAULT_ALIGNMENT = "left";
 const TECH_STACK_ALIGNMENT_OPTIONS = new Set(["left", "center", "right"]);
+const TECH_STACK_LAYOUT_OPTIONS = new Set(["categorized", "square-grid"]);
 
 export const TECH_STACK_CATEGORY_ORDER = TECH_CATEGORY_CONFIG.map(
   (category) => category.id
 );
 
 export const TECH_STACK_ALIGNMENTS = ["left", "center", "right"];
+export const TECH_STACK_LAYOUTS = ["categorized", "square-grid"];
 
 export const TECH_STACK_CATEGORY_LABELS = TECH_CATEGORY_CONFIG.reduce(
   (result, category) => {
@@ -43,6 +46,11 @@ const normalizeAlignment = (value) =>
   TECH_STACK_ALIGNMENT_OPTIONS.has(String(value || "").trim().toLowerCase())
     ? String(value || "").trim().toLowerCase()
     : DEFAULT_ALIGNMENT;
+
+const normalizeLayout = (value) =>
+  TECH_STACK_LAYOUT_OPTIONS.has(String(value || "").trim().toLowerCase())
+    ? String(value || "").trim().toLowerCase()
+    : DEFAULT_LAYOUT;
 
 const tech = ({ id, name, category, iconId = id, aliases = [] }) => ({
   id,
@@ -846,6 +854,9 @@ export function normalizeTechStackData(
       ? rawData.theme.trim()
       : DEFAULT_THEME;
   const alignment = normalizeAlignment(rawData?.alignment || rawData?.align);
+  const layout = normalizeLayout(
+    rawData?.layout || rawData?.structure || rawData?.display
+  );
 
   const collected = [];
 
@@ -890,6 +901,7 @@ export function normalizeTechStackData(
     variant,
     theme,
     alignment,
+    layout,
     items: normalizedItems,
     stack,
     ...categories,
@@ -904,6 +916,7 @@ export function buildTechStackPayload(rawData = {}) {
     variant: normalized.variant,
     theme: normalized.theme,
     alignment: normalized.alignment,
+    layout: normalized.layout,
     items: cloneItems(normalized.items),
     stack: [...normalized.stack],
     languages: cloneItems(categories.languages),
@@ -1042,6 +1055,7 @@ export function inferTechStackDataFromRepos(repos = [], options = {}) {
     variant: DEFAULT_VARIANT,
     theme: DEFAULT_THEME,
     alignment: DEFAULT_ALIGNMENT,
+    layout: DEFAULT_LAYOUT,
     items: inferredItems,
   });
 }

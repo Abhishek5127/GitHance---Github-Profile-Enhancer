@@ -7,6 +7,7 @@ import HeaderBlock from "./HeaderBlock";
 import BioBlock from "../BioBlock";
 import TechStackBlock from "./TechStackBlock";
 import SocialLinksBlock from "./SocialLinksBlock";
+import GraphicComponentBlock from "./GraphicComponentBlock";
 import RepoCommitStatsBlock from "./RepoCommitStatsBlock";
 import ContributionGraph from "./ContributionGraph";
 import FooterBannerBlock from "./FooterBannerBlock";
@@ -44,7 +45,7 @@ function SectionSlot({
   const canEditSlotItem =
     Boolean(onEditItem) &&
     slotItem &&
-    ["header", "bio", "skills", "social", "commitStat", "contribution", "footer"].includes(slotItem.type);
+    ["header", "bio", "skills", "social", "graphic", "commitStat", "contribution", "footer"].includes(slotItem.type);
 
   const renderSlotItem = () => {
     if (!slotItem) {
@@ -68,6 +69,8 @@ function SectionSlot({
         return <TechStackBlock item={slotItem} />;
       case "social":
         return <SocialLinksBlock item={slotItem} />;
+      case "graphic":
+        return <GraphicComponentBlock item={slotItem} />;
       case "commitStat":
       case "commits":
         return <RepoCommitStatsBlock item={slotItem} />;
@@ -375,9 +378,3 @@ export default function SectionBlock({
     </div>
   );
 }
-
-
-
-
-
-

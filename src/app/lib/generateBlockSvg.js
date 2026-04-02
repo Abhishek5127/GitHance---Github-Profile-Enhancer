@@ -1,4 +1,4 @@
-﻿export const RENDER_THEMES = {
+export const RENDER_THEMES = {
   midnight: {
     bg: "#0b0d0f",
     panel: "#14181f",
@@ -692,6 +692,156 @@ export function generateStackSvg({ variant, stack = [], theme = "midnight", radi
 </svg>`;
 }
 
+export function generateDecorativeSvg({
+  variant = "gradient-line",
+  primaryColor = "#53D0FF",
+  secondaryColor = "#FF7A1A",
+  accentColor = "#D946EF",
+  thickness = 10,
+}) {
+  const normalizeHexColor = (value, fallback) => {
+    const raw = String(value || "")
+      .trim()
+      .replace(/^#/, "");
+
+    if (/^[0-9a-f]{3}$/i.test(raw)) {
+      return `#${raw
+        .split("")
+        .map((char) => `${char}${char}`)
+        .join("")
+        .toUpperCase()}`;
+    }
+
+    if (/^[0-9a-f]{6}$/i.test(raw)) {
+      return `#${raw.toUpperCase()}`;
+    }
+
+    return fallback;
+  };
+
+  const safeVariant = String(variant || "gradient-line").trim().toLowerCase();
+  const primary = normalizeHexColor(primaryColor, "#53D0FF");
+  const secondary = normalizeHexColor(secondaryColor, "#FF7A1A");
+  const accent = normalizeHexColor(accentColor, "#D946EF");
+  const lineThickness = clamp(Math.round(Number(thickness) || 10), 4, 18);
+  const width = 900;
+  const height = safeVariant === "wave-divider" ? 96 : safeVariant === "diamond-divider" ? 88 : 72;
+  const centerY = Math.round(height / 2);
+  const startX = 72;
+  const endX = width - 72;
+  const barY = Math.round(centerY - lineThickness / 2);
+  const radius = Math.max(4, Math.round(lineThickness / 2));
+
+  const defs = `
+  <defs>
+    <linearGradient id="decor-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${primary}" />
+      <stop offset="100%" stop-color="${secondary}" />
+    </linearGradient>
+    <linearGradient id="decor-rgb" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${primary}" />
+      <stop offset="34%" stop-color="${secondary}" />
+      <stop offset="68%" stop-color="${accent}" />
+      <stop offset="100%" stop-color="${primary}" />
+    </linearGradient>
+    <filter id="decor-glow" x="-25%" y="-400%" width="150%" height="900%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>`;
+
+  if (safeVariant === "solid-line") {
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <rect x="${startX}" y="${barY}" width="${endX - startX}" height="${lineThickness}" rx="${radius}" fill="${primary}" filter="url(#decor-glow)" />
+</svg>`;
+  }
+
+  if (safeVariant === "rgb-line") {
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <rect x="${startX}" y="${barY}" width="${endX - startX}" height="${lineThickness}" rx="${radius}" fill="url(#decor-rgb)" opacity="0.9" filter="url(#decor-glow)" />
+  <rect x="${startX + 24}" y="${centerY - Math.max(1, Math.floor(lineThickness / 6))}" width="${endX - startX - 48}" height="${Math.max(2, Math.floor(lineThickness / 3))}" rx="999" fill="#F8FAFC" fill-opacity="0.42" />
+</svg>`;
+  }
+
+  if (safeVariant === "dot-divider") {
+    const radii = [4, 6, 8, 10, 12, 10, 8, 6, 4];
+    const colors = [primary, secondary, accent, secondary, primary, accent, secondary, primary, secondary];
+    const gap = 76;
+    const originX = width / 2 - ((radii.length - 1) * gap) / 2;
+    const dots = radii
+      .map((dotRadius, index) => {
+        const x = originX + index * gap;
+        return `<circle cx="${x}" cy="${centerY}" r="${dotRadius}" fill="${colors[index]}" filter="url(#decor-glow)" />`;
+      })
+      .join("");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <line x1="${startX + 72}" y1="${centerY}" x2="${endX - 72}" y2="${centerY}" stroke="${primary}" stroke-width="2" stroke-opacity="0.18" />
+  ${dots}
+</svg>`;
+  }
+
+  if (safeVariant === "diamond-divider") {
+    const diamondSize = 30 + lineThickness;
+    const diamondX = width / 2 - diamondSize / 2;
+    const diamondY = centerY - diamondSize / 2;
+    const sideLineWidth = width / 2 - 182;
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <rect x="${startX}" y="${centerY - Math.max(1, Math.floor(lineThickness / 6))}" width="${sideLineWidth}" height="${Math.max(2, Math.floor(lineThickness / 3))}" rx="999" fill="${primary}" fill-opacity="0.68" />
+  <rect x="${width / 2 + 92}" y="${centerY - Math.max(1, Math.floor(lineThickness / 6))}" width="${sideLineWidth}" height="${Math.max(2, Math.floor(lineThickness / 3))}" rx="999" fill="${secondary}" fill-opacity="0.68" />
+  <rect x="${diamondX}" y="${diamondY}" width="${diamondSize}" height="${diamondSize}" rx="8" transform="rotate(45 ${width / 2} ${centerY})" fill="url(#decor-gradient)" filter="url(#decor-glow)" />
+  <circle cx="${width / 2}" cy="${centerY}" r="${Math.max(4, Math.floor(lineThickness / 2))}" fill="${accent}" />
+</svg>`;
+  }
+
+  if (safeVariant === "wave-divider") {
+    const top = centerY - lineThickness * 1.4;
+    const bottom = centerY + lineThickness * 1.4;
+    const path = `M ${startX} ${centerY} C 132 ${top}, 204 ${bottom}, 276 ${centerY} S 420 ${top}, 492 ${centerY} S 636 ${bottom}, 708 ${centerY} S 816 ${top}, ${endX} ${centerY}`;
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <path d="${path}" stroke="url(#decor-rgb)" stroke-width="${lineThickness}" stroke-linecap="round" fill="none" filter="url(#decor-glow)" />
+</svg>`;
+  }
+
+  if (safeVariant === "segment-bar") {
+    const segmentCount = 10;
+    const gap = 14;
+    const segmentWidth = Math.floor((endX - startX - gap * (segmentCount - 1)) / segmentCount);
+    const segments = Array.from({ length: segmentCount }).map((_, index) => {
+      const x = startX + index * (segmentWidth + gap);
+      const fill = index % 3 === 0 ? primary : index % 3 === 1 ? secondary : accent;
+      const opacity = index % 2 === 0 ? 1 : 0.72;
+      return `<rect x="${x}" y="${barY}" width="${segmentWidth}" height="${lineThickness + (index % 2 === 0 ? 4 : 0)}" rx="${radius}" fill="${fill}" fill-opacity="${opacity}" filter="url(#decor-glow)" />`;
+    });
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  ${segments.join("")}
+</svg>`;
+  }
+
+  return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <rect x="${startX}" y="${barY}" width="${endX - startX}" height="${lineThickness}" rx="${radius}" fill="url(#decor-gradient)" filter="url(#decor-glow)" />
+</svg>`;
+}
 export function generateTrophySvg({
   title = "Highlights",
   achievements = [],
@@ -771,8 +921,3 @@ export function buildTrophyUrl({
     },
   });
 }
-
-
-
-
-

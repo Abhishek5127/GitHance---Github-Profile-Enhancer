@@ -111,7 +111,7 @@ export default function Hero() {
             </button>
           ))}
         </div>
-
+        
         <div className={`mt-6 rounded-2xl ${poppins.className} border border-white/10 bg-[#0f1115] p-4 sm:p-5`}>
           <p className="text-xs uppercase tracking-[0.24em] text-white/40">Active workflow</p>
           <h2 className="mt-3 text-lg font-semibold text-white">{active.title}</h2>

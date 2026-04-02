@@ -2,6 +2,7 @@ import {
   generateHeaderSvg,
   generateBioSvg,
   generateStackSvg,
+  generateDecorativeSvg,
   generateTrophySvg,
 } from "@/app/lib/generateBlockSvg";
 import { getGithubStatsForUser } from "@/app/lib/githubStats";
@@ -232,6 +233,14 @@ export async function GET(request) {
   } else if (type === "stack") {
     const stack = searchParams.getAll("s");
     svg = generateStackSvg({ variant, stack, theme });
+  } else if (type === "decor") {
+    svg = generateDecorativeSvg({
+      variant,
+      primaryColor: searchParams.get("pc") || searchParams.get("primary") || "#53D0FF",
+      secondaryColor: searchParams.get("sc") || searchParams.get("secondary") || "#FF7A1A",
+      accentColor: searchParams.get("ac") || searchParams.get("accent") || "#D946EF",
+      thickness: Number(searchParams.get("t") || searchParams.get("thickness") || 10),
+    });
   } else if (type === "trophy") {
     const title = searchParams.get("title") || "Highlights";
     const columns = Number(searchParams.get("columns") || 4);

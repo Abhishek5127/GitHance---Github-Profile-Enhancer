@@ -14,6 +14,10 @@ import {
   normalizeSocialLinksData,
 } from "./socialLinksCatalog";
 import { normalizeStickerAssignments } from "./stickerCatalog";
+import {
+  getGraphicComponentVariantById,
+  normalizeGraphicComponentData,
+} from "./graphicComponentCatalog";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
 
@@ -61,8 +65,52 @@ export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
   )
     ? String(normalizedStack.alignment || "").toLowerCase()
     : "left";
+  const layout =
+    String(normalizedStack.layout || "categorized").trim().toLowerCase() ===
+    "square-grid"
+      ? "square-grid"
+      : "categorized";
 
   if (normalizedStack.items.length) {
+    if (layout === "square-grid") {
+      const columnCount = Math.max(2, Math.ceil(Math.sqrt(normalizedStack.items.length)));
+      const iconCells = normalizedStack.items.map((tech) => {
+        const iconUrl = getTechIconUrl(tech);
+        const safeName = escapeHtmlAttribute(tech.name);
+
+        if (iconUrl) {
+          return `<td align="center" valign="middle" width="84" height="84"><img src="${iconUrl}" alt="${safeName}" width="44" height="44" /></td>`;
+        }
+
+        return `<td align="center" valign="middle" width="84" height="84"><sub>${safeName}</sub></td>`;
+      });
+      const rows = [];
+
+      for (let index = 0; index < iconCells.length; index += columnCount) {
+        const chunk = iconCells.slice(index, index + columnCount);
+        const paddedChunk =
+          chunk.length >= columnCount
+            ? chunk
+            : [
+                ...chunk,
+                ...Array.from({ length: columnCount - chunk.length }, () =>
+                  '<td align="center" valign="middle" width="84" height="84">&nbsp;</td>'
+                ),
+              ];
+
+        rows.push(`  <tr>\n${paddedChunk.join("\n")}\n  </tr>`);
+      }
+
+      const body = `<div align="${alignment}">\n<table cellpadding="8" cellspacing="0">\n${rows.join("\n")}\n</table>\n</div>`;
+      if (!includeHeading) {
+        return body;
+      }
+
+      return `## Tech Stack
+
+${body}`;
+    }
+
     const sections = TECH_STACK_CATEGORY_ORDER.map((category) => {
       const categoryItems = normalizedStack[category] || [];
       if (!categoryItems.length) return "";
@@ -116,6 +164,32 @@ ${sections}`;
 <div align="${alignment}">
   <img src="${url}" alt="Tech Stack" />
 </div>`;
+}
+
+export function buildGraphicComponentMarkdownSection(itemData = {}, options = {}) {
+  const { baseUrl = "" } = options;
+  const normalized = normalizeGraphicComponentData(itemData || {});
+  const alignment = ["left", "center", "right"].includes(
+    String(normalized.alignment || "").toLowerCase()
+  )
+    ? String(normalized.alignment || "").toLowerCase()
+    : "center";
+  const variant = getGraphicComponentVariantById(normalized.variant);
+  const url = buildRenderUrl({
+    baseUrl,
+    type: "decor",
+    variant: normalized.variant,
+    params: {
+      pc: normalized.primaryColor,
+      sc: normalized.secondaryColor,
+      ac: normalized.accentColor,
+      t: normalized.thickness,
+    },
+  });
+
+  return `<p align="${alignment}">
+  <img src="${url}" alt="${escapeHtmlAttribute(variant?.title || "Graphic component")}" />
+</p>`;
 }
 export function buildSocialLinksMarkdownSection(itemData = {}, options = {}) {
   const { includeHeading = true, darkSurface = false } = options;
@@ -385,6 +459,18 @@ ${socialSection}
       }
     }
 
+    if (item.type === "graphic" || block === "graphic") {
+      const graphicSection = buildGraphicComponentMarkdownSection(item.data || {}, {
+        baseUrl: resolveBaseUrl(),
+      });
+      if (graphicSection) {
+        markdown += `
+${graphicSection}
+
+`;
+      }
+    }
+
     if (item.type === "section" || block === "section") {
       const variant = getSectionVariantById(item?.data?.variantId);
       const supportsBorderToggle = variant?.supportsBorderToggle !== false;
@@ -636,10 +722,3 @@ ${content || "&nbsp;"}
 
   return markdown.trim();
 }
-
-
-
-
-
-
-
