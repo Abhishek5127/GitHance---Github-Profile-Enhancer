@@ -11,6 +11,7 @@ import {
   buildGraphicComponentPayload,
   normalizeGraphicColor,
   normalizeGraphicComponentData,
+  normalizeGraphicLineWidth,
   normalizeGraphicThickness,
 } from "@/app/lib/graphicComponentCatalog";
 
@@ -53,10 +54,12 @@ export default function GraphicComponentPicker({
   const [variant, setVariant] = useState(() => initialSnapshot.variant);
   const [alignment, setAlignment] = useState(() => initialSnapshot.alignment);
   const [primaryColor, setPrimaryColor] = useState(() => initialSnapshot.primaryColor);
-  const [secondaryColor, setSecondaryColor] = useState(() => initialSnapshot.secondaryColor);
+  const [secondaryColor, setSecondaryColor] = useState(
+    () => initialSnapshot.secondaryColor
+  );
   const [accentColor, setAccentColor] = useState(() => initialSnapshot.accentColor);
   const [thickness, setThickness] = useState(() => initialSnapshot.thickness);
-
+  const [lineWidth, setLineWidth] = useState(() => initialSnapshot.lineWidth);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") return undefined;
@@ -89,10 +92,20 @@ export default function GraphicComponentPicker({
           secondaryColor,
           accentColor,
           thickness,
+          lineWidth,
         },
         { baseUrl }
       ),
-    [accentColor, alignment, baseUrl, primaryColor, secondaryColor, thickness, variant]
+    [
+      accentColor,
+      alignment,
+      baseUrl,
+      lineWidth,
+      primaryColor,
+      secondaryColor,
+      thickness,
+      variant,
+    ]
   );
 
   const handleClose = () => {
@@ -108,6 +121,7 @@ export default function GraphicComponentPicker({
         secondaryColor: normalizeGraphicColor(secondaryColor),
         accentColor: normalizeGraphicColor(accentColor),
         thickness: normalizeGraphicThickness(thickness),
+        lineWidth: normalizeGraphicLineWidth(lineWidth),
       })
     );
     handleClose();
@@ -128,7 +142,8 @@ export default function GraphicComponentPicker({
                 Graphic Components Picker
               </h3>
               <p className="mt-1 text-sm text-white/60">
-                Add decorative separators like custom color lines, rgb bars, wave dividers, and lightweight visual accents.
+                Add decorative separators like custom color lines, animated leaves,
+                pulse dividers, rgb bars, and other lightweight visual accents.
               </p>
             </div>
 
@@ -162,6 +177,8 @@ export default function GraphicComponentPicker({
                           sc: secondaryColor,
                           ac: accentColor,
                           t: thickness,
+                          align: alignment,
+                          span: lineWidth,
                         },
                       });
 
@@ -226,6 +243,24 @@ export default function GraphicComponentPicker({
                           </option>
                         ))}
                       </select>
+                    </label>
+
+                    <label className="block">
+                      <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.2em] text-white/45">
+                        <span>Line Width</span>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/70">
+                          {normalizeGraphicLineWidth(lineWidth)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="100"
+                        step="1"
+                        value={normalizeGraphicLineWidth(lineWidth)}
+                        onChange={(event) => setLineWidth(Number(event.target.value))}
+                        className="mt-3 w-full accent-cyan-300"
+                      />
                     </label>
 
                     <label className="block">

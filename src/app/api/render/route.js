@@ -240,6 +240,8 @@ export async function GET(request) {
       secondaryColor: searchParams.get("sc") || searchParams.get("secondary") || "#FF7A1A",
       accentColor: searchParams.get("ac") || searchParams.get("accent") || "#D946EF",
       thickness: Number(searchParams.get("t") || searchParams.get("thickness") || 10),
+      alignment: searchParams.get("align") || searchParams.get("alignment") || "center",
+      lineWidth: Number(searchParams.get("span") || searchParams.get("lineWidth") || 96),
     });
   } else if (type === "trophy") {
     const title = searchParams.get("title") || "Highlights";
@@ -282,3 +284,4 @@ export async function GET(request) {
     },
   });
 }
+

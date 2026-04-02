@@ -34,6 +34,26 @@ export const GRAPHIC_COMPONENT_VARIANTS = [
     title: "Segment Bar",
     description: "A modular bar made from alternating blocks.",
   },
+  {
+    id: "animated-lines",
+    title: "Animated Lines",
+    description: "Layered streaks that slide gently across the divider.",
+  },
+  {
+    id: "pulse-line",
+    title: "Pulse Line",
+    description: "A glowing line with an animated traveling pulse.",
+  },
+  {
+    id: "leaf-trail",
+    title: "Leaf Trail",
+    description: "A flowing vine divider with softly animated leaves.",
+  },
+  {
+    id: "spark-line",
+    title: "Spark Line",
+    description: "Tiny particles shimmer and race along the line.",
+  },
 ];
 
 export const GRAPHIC_COMPONENT_ALIGNMENTS = ["left", "center", "right"];
@@ -44,6 +64,7 @@ const DEFAULT_PRIMARY_COLOR = "#53D0FF";
 const DEFAULT_SECONDARY_COLOR = "#FF7A1A";
 const DEFAULT_ACCENT_COLOR = "#D946EF";
 const DEFAULT_THICKNESS = 10;
+const DEFAULT_LINE_WIDTH = 96;
 
 const VARIANT_IDS = new Set(GRAPHIC_COMPONENT_VARIANTS.map((entry) => entry.id));
 const ALIGNMENT_IDS = new Set(GRAPHIC_COMPONENT_ALIGNMENTS);
@@ -85,6 +106,10 @@ export function normalizeGraphicThickness(value) {
   return clamp(Math.round(Number(value) || DEFAULT_THICKNESS), 4, 18);
 }
 
+export function normalizeGraphicLineWidth(value) {
+  return clamp(Math.round(Number(value) || DEFAULT_LINE_WIDTH), 50, 100);
+}
+
 export function getGraphicComponentVariantById(value) {
   const normalized = normalizeGraphicVariant(value);
   return (
@@ -107,6 +132,13 @@ export function normalizeGraphicComponentData(data = {}) {
       DEFAULT_ACCENT_COLOR
     ),
     thickness: normalizeGraphicThickness(data?.thickness || data?.size),
+    lineWidth: normalizeGraphicLineWidth(
+      data?.lineWidth ||
+        data?.lineLength ||
+        data?.length ||
+        data?.widthPercent ||
+        data?.span
+    ),
   };
 }
 

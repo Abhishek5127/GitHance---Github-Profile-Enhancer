@@ -184,6 +184,8 @@ export function buildGraphicComponentMarkdownSection(itemData = {}, options = {}
       sc: normalized.secondaryColor,
       ac: normalized.accentColor,
       t: normalized.thickness,
+      align: normalized.alignment,
+      span: normalized.lineWidth,
     },
   });
 
@@ -722,3 +724,4 @@ ${content || "&nbsp;"}
 
   return markdown.trim();
 }
+

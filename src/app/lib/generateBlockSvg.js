@@ -698,6 +698,8 @@ export function generateDecorativeSvg({
   secondaryColor = "#FF7A1A",
   accentColor = "#D946EF",
   thickness = 10,
+  alignment = "center",
+  lineWidth = 96,
 }) {
   const normalizeHexColor = (value, fallback) => {
     const raw = String(value || "")
@@ -720,15 +722,41 @@ export function generateDecorativeSvg({
   };
 
   const safeVariant = String(variant || "gradient-line").trim().toLowerCase();
+  const safeAlignment = ["left", "center", "right"].includes(
+    String(alignment || "").trim().toLowerCase()
+  )
+    ? String(alignment || "").trim().toLowerCase()
+    : "center";
   const primary = normalizeHexColor(primaryColor, "#53D0FF");
   const secondary = normalizeHexColor(secondaryColor, "#FF7A1A");
   const accent = normalizeHexColor(accentColor, "#D946EF");
   const lineThickness = clamp(Math.round(Number(thickness) || 10), 4, 18);
+  const safeLineWidth = clamp(Math.round(Number(lineWidth) || 96), 50, 100);
   const width = 900;
-  const height = safeVariant === "wave-divider" ? 96 : safeVariant === "diamond-divider" ? 88 : 72;
+  const height =
+    safeVariant === "leaf-trail"
+      ? 120
+      : safeVariant === "wave-divider"
+        ? 96
+        : safeVariant === "diamond-divider"
+          ? 88
+          : safeVariant === "animated-lines" || safeVariant === "spark-line"
+            ? 84
+            : safeVariant === "pulse-line"
+              ? 80
+              : 72;
   const centerY = Math.round(height / 2);
-  const startX = 72;
-  const endX = width - 72;
+  const canvasPadding = 24;
+  const availableWidth = width - canvasPadding * 2;
+  const spanWidth = Math.max(220, Math.round((availableWidth * safeLineWidth) / 100));
+  const startX =
+    safeAlignment === "left"
+      ? canvasPadding
+      : safeAlignment === "right"
+        ? width - canvasPadding - spanWidth
+        : Math.round((width - spanWidth) / 2);
+  const endX = startX + spanWidth;
+  const centerX = Math.round((startX + endX) / 2);
   const barY = Math.round(centerY - lineThickness / 2);
   const radius = Math.max(4, Math.round(lineThickness / 2));
 
@@ -743,6 +771,11 @@ export function generateDecorativeSvg({
       <stop offset="34%" stop-color="${secondary}" />
       <stop offset="68%" stop-color="${accent}" />
       <stop offset="100%" stop-color="${primary}" />
+    </linearGradient>
+    <linearGradient id="decor-leaf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${primary}" />
+      <stop offset="50%" stop-color="${accent}" />
+      <stop offset="100%" stop-color="${secondary}" />
     </linearGradient>
     <filter id="decor-glow" x="-25%" y="-400%" width="150%" height="900%">
       <feGaussianBlur stdDeviation="6" result="blur" />
@@ -766,15 +799,25 @@ export function generateDecorativeSvg({
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
   ${defs}
   <rect x="${startX}" y="${barY}" width="${endX - startX}" height="${lineThickness}" rx="${radius}" fill="url(#decor-rgb)" opacity="0.9" filter="url(#decor-glow)" />
-  <rect x="${startX + 24}" y="${centerY - Math.max(1, Math.floor(lineThickness / 6))}" width="${endX - startX - 48}" height="${Math.max(2, Math.floor(lineThickness / 3))}" rx="999" fill="#F8FAFC" fill-opacity="0.42" />
+  <rect x="${startX + 24}" y="${centerY - Math.max(1, Math.floor(lineThickness / 6))}" width="${Math.max(0, endX - startX - 48)}" height="${Math.max(2, Math.floor(lineThickness / 3))}" rx="999" fill="#F8FAFC" fill-opacity="0.42" />
 </svg>`;
   }
 
   if (safeVariant === "dot-divider") {
     const radii = [4, 6, 8, 10, 12, 10, 8, 6, 4];
-    const colors = [primary, secondary, accent, secondary, primary, accent, secondary, primary, secondary];
-    const gap = 76;
-    const originX = width / 2 - ((radii.length - 1) * gap) / 2;
+    const colors = [
+      primary,
+      secondary,
+      accent,
+      secondary,
+      primary,
+      accent,
+      secondary,
+      primary,
+      secondary,
+    ];
+    const gap = clamp(Math.floor(spanWidth / (radii.length + 1)), 40, 96);
+    const originX = centerX - ((radii.length - 1) * gap) / 2;
     const dots = radii
       .map((dotRadius, index) => {
         const x = originX + index * gap;
@@ -785,31 +828,44 @@ export function generateDecorativeSvg({
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
   ${defs}
-  <line x1="${startX + 72}" y1="${centerY}" x2="${endX - 72}" y2="${centerY}" stroke="${primary}" stroke-width="2" stroke-opacity="0.18" />
+  <line x1="${startX}" y1="${centerY}" x2="${endX}" y2="${centerY}" stroke="${primary}" stroke-width="2" stroke-opacity="0.18" />
   ${dots}
 </svg>`;
   }
 
   if (safeVariant === "diamond-divider") {
     const diamondSize = 30 + lineThickness;
-    const diamondX = width / 2 - diamondSize / 2;
+    const connectorGap = Math.max(30, Math.round(diamondSize * 0.9));
+    const sideLineWidth = Math.max(
+      0,
+      Math.floor((spanWidth - diamondSize - connectorGap * 2) / 2)
+    );
+    const diamondX = centerX - diamondSize / 2;
     const diamondY = centerY - diamondSize / 2;
-    const sideLineWidth = width / 2 - 182;
 
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
   ${defs}
   <rect x="${startX}" y="${centerY - Math.max(1, Math.floor(lineThickness / 6))}" width="${sideLineWidth}" height="${Math.max(2, Math.floor(lineThickness / 3))}" rx="999" fill="${primary}" fill-opacity="0.68" />
-  <rect x="${width / 2 + 92}" y="${centerY - Math.max(1, Math.floor(lineThickness / 6))}" width="${sideLineWidth}" height="${Math.max(2, Math.floor(lineThickness / 3))}" rx="999" fill="${secondary}" fill-opacity="0.68" />
-  <rect x="${diamondX}" y="${diamondY}" width="${diamondSize}" height="${diamondSize}" rx="8" transform="rotate(45 ${width / 2} ${centerY})" fill="url(#decor-gradient)" filter="url(#decor-glow)" />
-  <circle cx="${width / 2}" cy="${centerY}" r="${Math.max(4, Math.floor(lineThickness / 2))}" fill="${accent}" />
+  <rect x="${endX - sideLineWidth}" y="${centerY - Math.max(1, Math.floor(lineThickness / 6))}" width="${sideLineWidth}" height="${Math.max(2, Math.floor(lineThickness / 3))}" rx="999" fill="${secondary}" fill-opacity="0.68" />
+  <rect x="${diamondX}" y="${diamondY}" width="${diamondSize}" height="${diamondSize}" rx="8" transform="rotate(45 ${centerX} ${centerY})" fill="url(#decor-gradient)" filter="url(#decor-glow)" />
+  <circle cx="${centerX}" cy="${centerY}" r="${Math.max(4, Math.floor(lineThickness / 2))}" fill="${accent}" />
 </svg>`;
   }
 
   if (safeVariant === "wave-divider") {
-    const top = centerY - lineThickness * 1.4;
-    const bottom = centerY + lineThickness * 1.4;
-    const path = `M ${startX} ${centerY} C 132 ${top}, 204 ${bottom}, 276 ${centerY} S 420 ${top}, 492 ${centerY} S 636 ${bottom}, 708 ${centerY} S 816 ${top}, ${endX} ${centerY}`;
+    const amplitude = lineThickness * 1.4;
+    const segmentWidth = spanWidth / 4;
+    const path = Array.from({ length: 4 }).reduce(
+      (result, _, index) => {
+        const segmentStart = startX + segmentWidth * index;
+        const segmentEnd = segmentStart + segmentWidth;
+        const firstDirection = index % 2 === 0 ? -1 : 1;
+        const secondDirection = firstDirection * -1;
+        return `${result} C ${segmentStart + segmentWidth * 0.35} ${centerY + amplitude * firstDirection}, ${segmentStart + segmentWidth * 0.65} ${centerY + amplitude * secondDirection}, ${segmentEnd} ${centerY}`;
+      },
+      `M ${startX} ${centerY}`
+    );
 
     return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -821,10 +877,13 @@ export function generateDecorativeSvg({
   if (safeVariant === "segment-bar") {
     const segmentCount = 10;
     const gap = 14;
-    const segmentWidth = Math.floor((endX - startX - gap * (segmentCount - 1)) / segmentCount);
+    const segmentWidth = Math.floor(
+      (endX - startX - gap * (segmentCount - 1)) / segmentCount
+    );
     const segments = Array.from({ length: segmentCount }).map((_, index) => {
       const x = startX + index * (segmentWidth + gap);
-      const fill = index % 3 === 0 ? primary : index % 3 === 1 ? secondary : accent;
+      const fill =
+        index % 3 === 0 ? primary : index % 3 === 1 ? secondary : accent;
       const opacity = index % 2 === 0 ? 1 : 0.72;
       return `<rect x="${x}" y="${barY}" width="${segmentWidth}" height="${lineThickness + (index % 2 === 0 ? 4 : 0)}" rx="${radius}" fill="${fill}" fill-opacity="${opacity}" filter="url(#decor-glow)" />`;
     });
@@ -836,12 +895,106 @@ export function generateDecorativeSvg({
 </svg>`;
   }
 
+  if (safeVariant === "animated-lines") {
+    const trackYs = [centerY - 14, centerY, centerY + 14];
+    const tracks = trackYs
+      .map((y, index) => {
+        const stroke = index === 0 ? primary : index === 1 ? accent : secondary;
+        const duration = 3.4 + index * 0.8;
+        const dash = 34 + index * 8;
+        return `<line x1="${startX}" y1="${y}" x2="${endX}" y2="${y}" stroke="${stroke}" stroke-width="${Math.max(2, Math.floor(lineThickness / 3))}" stroke-linecap="round" stroke-opacity="0.8" stroke-dasharray="${dash} 22">
+    <animate attributeName="stroke-dashoffset" from="0" to="-${dash + 22}" dur="${duration}s" repeatCount="indefinite" />
+  </line>`;
+      })
+      .join("\n");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  ${tracks}
+</svg>`;
+  }
+
+  if (safeVariant === "pulse-line") {
+    const pulseWidth = 92;
+    const pulseHeight = lineThickness + 10;
+    const pulseY = centerY - pulseHeight / 2;
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <rect x="${startX}" y="${barY}" width="${endX - startX}" height="${lineThickness}" rx="${radius}" fill="url(#decor-gradient)" fill-opacity="0.38" />
+  <rect x="${startX}" y="${barY}" width="${endX - startX}" height="${Math.max(2, Math.floor(lineThickness / 4))}" rx="999" fill="#F8FAFC" fill-opacity="0.18" />
+  <rect x="${startX - pulseWidth}" y="${pulseY}" width="${pulseWidth}" height="${pulseHeight}" rx="999" fill="url(#decor-rgb)" filter="url(#decor-glow)">
+    <animate attributeName="x" from="${startX - pulseWidth}" to="${endX}" dur="3.2s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0;1;1;0" dur="3.2s" repeatCount="indefinite" />
+  </rect>
+</svg>`;
+  }
+
+  if (safeVariant === "leaf-trail") {
+    const vinePath = `M ${startX} ${centerY + 6} C ${Math.round(startX + spanWidth * 0.18)} ${centerY - 14}, ${Math.round(startX + spanWidth * 0.32)} ${centerY + 20}, ${Math.round(startX + spanWidth * 0.48)} ${centerY + 4} S ${Math.round(startX + spanWidth * 0.78)} ${centerY - 10}, ${endX} ${centerY + 6}`;
+    const leafs = [
+      { x: 0.16, y: -8, rotate: -28, scale: 1, fill: primary, begin: 0 },
+      { x: 0.32, y: 18, rotate: 24, scale: 0.96, fill: accent, begin: 0.4 },
+      { x: 0.5, y: -16, rotate: -18, scale: 1.08, fill: secondary, begin: 0.8 },
+      { x: 0.68, y: 14, rotate: 20, scale: 0.92, fill: primary, begin: 1.2 },
+      { x: 0.84, y: -12, rotate: -24, scale: 1.02, fill: accent, begin: 1.6 },
+    ]
+      .map(
+        (leaf, index) => `<g transform="translate(${Math.round(startX + spanWidth * leaf.x)} ${centerY + leaf.y}) rotate(${leaf.rotate}) scale(${leaf.scale})">
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-8 0 0;8 0 0;-8 0 0" dur="${3 + index * 0.35}s" begin="${leaf.begin}s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.78;1;0.78" dur="${3.2 + index * 0.3}s" begin="${leaf.begin}s" repeatCount="indefinite" />
+    <path d="M 0 0 C 10 -9 22 -9 32 0 C 22 9 10 9 0 0 Z" fill="${leaf.fill}" filter="url(#decor-glow)" />
+    <path d="M 0 0 C 12 0 22 0 32 0" stroke="#F8FAFC" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.55" />
+  </g>
+</g>`
+      )
+      .join("\n");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <path d="${vinePath}" stroke="url(#decor-leaf)" stroke-width="${Math.max(3, Math.floor(lineThickness * 0.52))}" stroke-linecap="round" fill="none" filter="url(#decor-glow)" />
+  <path d="${vinePath}" stroke="#F8FAFC" stroke-width="1.2" stroke-linecap="round" fill="none" stroke-opacity="0.12" />
+  ${leafs}
+</svg>`;
+  }
+
+  if (safeVariant === "spark-line") {
+    const sparkYs = [centerY - 6, centerY + 4, centerY - 2, centerY + 8];
+    const sparks = sparkYs
+      .map((y, index) => {
+        const sparkColor =
+          index % 3 === 0 ? primary : index % 3 === 1 ? secondary : accent;
+        const duration = 2.8 + index * 0.55;
+        const delay = index * 0.35;
+        const radiusValue =
+          Math.max(3, Math.floor(lineThickness / 2)) + (index % 2);
+        return `<circle cx="${startX - 40}" cy="${y}" r="${radiusValue}" fill="${sparkColor}" filter="url(#decor-glow)">
+    <animate attributeName="cx" from="${startX - 40}" to="${endX + 10}" dur="${duration}s" begin="${delay}s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0;1;1;0" dur="${duration}s" begin="${delay}s" repeatCount="indefinite" />
+    <animate attributeName="r" values="1;${radiusValue};1" dur="${duration}s" begin="${delay}s" repeatCount="indefinite" />
+  </circle>`;
+      })
+      .join("\n");
+
+    return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  <rect x="${startX}" y="${barY}" width="${endX - startX}" height="${Math.max(3, Math.floor(lineThickness * 0.55))}" rx="999" fill="url(#decor-gradient)" fill-opacity="0.4" />
+  ${sparks}
+</svg>`;
+  }
+
   return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
   ${defs}
   <rect x="${startX}" y="${barY}" width="${endX - startX}" height="${lineThickness}" rx="${radius}" fill="url(#decor-gradient)" filter="url(#decor-glow)" />
 </svg>`;
 }
+
 export function generateTrophySvg({
   title = "Highlights",
   achievements = [],
@@ -921,3 +1074,5 @@ export function buildTrophyUrl({
     },
   });
 }
+
+
