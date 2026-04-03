@@ -1,96 +1,14 @@
 import { NextResponse } from "next/server";
 import { bootstrapGithubStatsFromEvents } from "@/app/lib/githubStats";
 import { createGithubAppJwt, isGithubAppConfigured } from "@/app/lib/githubAppAuth";
+import {
+  buildGithubRestHeaders,
+  fetchGithubRecentEvents,
+  resolveGithubUsername,
+} from "@/app/lib/githubPublicData";
 
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
-
-function toHeaders(token = "") {
-  const headers = {
-    Accept: "application/vnd.github+json",
-  };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  return headers;
-}
-
-async function fetchJson(url, token = "") {
-  const response = await fetch(url, {
-    headers: toHeaders(token),
-  });
-
-  const body = await response.text();
-  let data = null;
-
-  try {
-    data = body ? JSON.parse(body) : null;
-  } catch {
-    data = null;
-  }
-
-  if (!response.ok) {
-    return {
-      ok: false,
-      status: response.status,
-      data,
-    };
-  }
-
-  return {
-    ok: true,
-    status: response.status,
-    data,
-  };
-}
-
-async function resolveUsername({ username, token }) {
-  const cleanedUsername = String(username || "")
-    .trim()
-    .toLowerCase();
-  if (cleanedUsername) return cleanedUsername;
-
-  if (!token) return "";
-
-  const me = await fetchJson(`${GITHUB_API}/user`, token);
-  if (!me.ok) return "";
-
-  return String(me.data?.login || "")
-    .trim()
-    .toLowerCase();
-}
-
-function dedupeEvents(events = []) {
-  const seen = new Set();
-  const list = [];
-
-  events.forEach((event) => {
-    const eventId = String(event?.id || "").trim();
-    if (!eventId || seen.has(eventId)) return;
-    seen.add(eventId);
-    list.push(event);
-  });
-
-  return list;
-}
-
-async function fetchRecentEvents({ username, token }) {
-  const urls = token
-    ? [
-        `${GITHUB_API}/users/${username}/events?per_page=100`,
-        `${GITHUB_API}/users/${username}/events/public?per_page=100`,
-      ]
-    : [`${GITHUB_API}/users/${username}/events/public?per_page=100`];
-
-  const results = await Promise.all(urls.map((url) => fetchJson(url, token)));
-  const merged = results
-    .filter((result) => result.ok && Array.isArray(result.data))
-    .flatMap((result) => result.data);
-
-  return dedupeEvents(merged);
-}
 
 async function resolveInstallationId({ username, installationId }) {
   const explicit = Number(installationId);
@@ -105,11 +23,9 @@ async function resolveInstallationId({ username, installationId }) {
   try {
     const appJwt = createGithubAppJwt();
     const response = await fetch(`${GITHUB_API}/app/installations?per_page=100`, {
-      headers: {
+      headers: buildGithubRestHeaders(appJwt, {
         Authorization: `Bearer ${appJwt}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": GITHUB_API_VERSION,
-      },
+      }),
     });
 
     const payload = await response.json().catch(() => null);
@@ -150,7 +66,7 @@ export async function POST(req) {
       force = false,
     } = await req.json();
 
-    const resolvedUsername = await resolveUsername({
+    const resolvedUsername = await resolveGithubUsername({
       username,
       token,
     });
@@ -165,21 +81,25 @@ export async function POST(req) {
       );
     }
 
-    const events = await fetchRecentEvents({
-      username: resolvedUsername,
-      token,
-    });
-
     const resolvedInstallationId = await resolveInstallationId({
       username: resolvedUsername,
       installationId,
     });
 
+    const events = await fetchGithubRecentEvents({
+      username: resolvedUsername,
+      token,
+      maxPages: 3,
+      perPage: 100,
+    });
+
+    const shouldForceRefresh = Boolean(force) || resolvedInstallationId === null;
+
     const result = await bootstrapGithubStatsFromEvents({
       username: resolvedUsername,
       installationId: resolvedInstallationId,
       events,
-      force: Boolean(force),
+      force: shouldForceRefresh,
     });
 
     if (!result.ok) {

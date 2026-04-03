@@ -5,7 +5,7 @@ import {
   generateDecorativeSvg,
   generateTrophySvg,
 } from "@/app/lib/generateBlockSvg";
-import { getGithubStatsForUser } from "@/app/lib/githubStats";
+import { bootstrapGithubStatsFromEvents, getGithubStatsForUser } from "@/app/lib/githubStats";
 import renderContributionSvg from "@/app/lib/renderers/contributionSvg";
 import renderStreakSvg from "@/app/lib/renderers/streakSvg";
 import renderRepoSvg from "@/app/lib/renderers/repoSvg";
@@ -21,29 +21,10 @@ import {
   normalizeStickerLayers,
 } from "@/app/lib/stickerCatalog";
 import { NextResponse } from "next/server";
+import { fetchGithubContributionCalendar, fetchGithubRecentEvents } from "@/app/lib/githubPublicData";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
-const CONTRIBUTION_CALENDAR_QUERY = `
-  query ContributionCalendar($login: String!, $from: DateTime!, $to: DateTime!) {
-    user(login: $login) {
-      contributionsCollection(from: $from, to: $to) {
-        contributionCalendar {
-          totalContributions
-          weeks {
-            contributionDays {
-              date
-              contributionCount
-            }
-          }
-        }
-      }
-    }
-  }
-`;
 
 function parseStickerLayers(searchParams) {
   const raw = searchParams.get("layers");
@@ -68,17 +49,6 @@ function parseStickerLayers(searchParams) {
   }
 
   return [];
-}
-
-function toContributionIsoDate(value) {
-  const parsed = new Date(value || "");
-  if (Number.isNaN(parsed.getTime())) return "";
-
-  return new Date(
-    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
-  )
-    .toISOString()
-    .slice(0, 10);
 }
 
 function resolveAppOrigin(request) {
@@ -130,60 +100,20 @@ async function fetchContributionHeatmapData(username) {
   const accessToken = String(
     process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN || process.env.GH_TOKEN || ""
   ).trim();
+  const result = await fetchGithubContributionCalendar({
+    username: normalizedUsername,
+    token: accessToken,
+  });
 
-  if (!accessToken) {
+  if (!result?.ok || !result?.data) {
     return { username: normalizedUsername, totalContributions: 0, days: [] };
   }
 
-  const now = new Date();
-  const from = new Date(now.getTime() - 370 * DAY_MS);
-
-  try {
-    const response = await fetch(GITHUB_GRAPHQL_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: CONTRIBUTION_CALENDAR_QUERY,
-        variables: {
-          login: normalizedUsername,
-          from: from.toISOString(),
-          to: now.toISOString(),
-        },
-      }),
-      cache: "no-store",
-    });
-
-    const payload = await response.json().catch(() => null);
-    if (!response.ok || payload?.errors?.length) {
-      return { username: normalizedUsername, totalContributions: 0, days: [] };
-    }
-
-    const calendar =
-      payload?.data?.user?.contributionsCollection?.contributionCalendar || null;
-    const weeks = Array.isArray(calendar?.weeks) ? calendar.weeks : [];
-
-    const days = weeks
-      .flatMap((week) =>
-        Array.isArray(week?.contributionDays) ? week.contributionDays : []
-      )
-      .map((entry) => ({
-        date: toContributionIsoDate(entry?.date),
-        count: Math.max(0, Math.floor(Number(entry?.contributionCount || 0))),
-      }))
-      .filter((entry) => entry.date);
-
-    return {
-      username: normalizedUsername,
-      totalContributions: Number(calendar?.totalContributions || 0),
-      days,
-    };
-  } catch {
-    return { username: normalizedUsername, totalContributions: 0, days: [] };
-  }
+  return {
+    username: String(result.data?.username || normalizedUsername).trim().toLowerCase(),
+    totalContributions: Number(result.data?.totalContributions || 0),
+    days: Array.isArray(result.data?.days) ? result.data.days : [],
+  };
 }
 
 function hasMeaningfulStats(stats) {
@@ -196,6 +126,66 @@ function hasMeaningfulStats(stats) {
     Boolean(String(stats.last_repo || "").trim()) ||
     Boolean(String(stats.top_repo_recent || "").trim())
   );
+}
+
+function statsUpdatedEpoch(stats) {
+  const parsed = Date.parse(String(stats?.last_updated || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeSnapshotStats(snapshotStats, username, installationId) {
+  if (!snapshotStats) return null;
+
+  return {
+    ...snapshotStats,
+    github_username:
+      String(snapshotStats.github_username || "").trim() || String(username || "").trim(),
+    installation_id:
+      Number(snapshotStats.installation_id || 0) || Number(installationId || 0) || null,
+  };
+}
+
+function shouldPreferSnapshotStats(snapshotStats, currentStats) {
+  if (!hasMeaningfulStats(snapshotStats)) return false;
+  if (!hasMeaningfulStats(currentStats)) return true;
+
+  const snapshotUpdatedEpoch = statsUpdatedEpoch(snapshotStats);
+  const currentUpdatedEpoch = statsUpdatedEpoch(currentStats);
+
+  if (snapshotUpdatedEpoch && snapshotUpdatedEpoch > currentUpdatedEpoch) {
+    return true;
+  }
+
+  return (
+    Number(snapshotStats.total_commits || 0) > Number(currentStats.total_commits || 0) ||
+    Number(snapshotStats.recent_commits_30 || 0) > Number(currentStats.recent_commits_30 || 0) ||
+    Number(snapshotStats.active_days_30 || 0) > Number(currentStats.active_days_30 || 0)
+  );
+}
+
+async function fetchStatsFallback(username, installationId) {
+  const normalizedUsername = String(username || "").trim().toLowerCase();
+  if (!normalizedUsername) return null;
+
+  const events = await fetchGithubRecentEvents({
+    username: normalizedUsername,
+    maxPages: 3,
+    perPage: 100,
+  });
+  if (!events.length) return null;
+
+  const result = await bootstrapGithubStatsFromEvents({
+    username: normalizedUsername,
+    installationId,
+    events,
+    force: true,
+  });
+
+  if (!result?.ok || !result?.stats) {
+    return null;
+  }
+
+  return result.stats;
 }
 
 function parseStatsSnapshot(searchParams) {
@@ -362,31 +352,41 @@ export async function GET(request) {
     const preferSnapshot = isTruthyParam(searchParams.get("prefer_snapshot"));
 
     let resolvedStats = null;
+    const normalizedSnapshotStats = normalizeSnapshotStats(
+      snapshotStats,
+      username,
+      installationId
+    );
 
-    if (preferSnapshot && snapshotStats) {
-      resolvedStats = {
-        ...snapshotStats,
-        github_username:
-          String(snapshotStats.github_username || "").trim() || String(username || "").trim(),
-        installation_id:
-          Number(snapshotStats.installation_id || 0) ||
-          Number(installationId || 0) ||
-          null,
-      };
+    if (preferSnapshot && normalizedSnapshotStats) {
+      resolvedStats = normalizedSnapshotStats;
     } else {
       const stats = await getGithubStatsForUser({
         username,
         installationId,
       });
 
-      resolvedStats = hasMeaningfulStats(stats)
-        ? stats
-        : snapshotStats
-          ? {
-              ...stats,
-              ...snapshotStats,
-            }
-          : stats;
+      if (hasMeaningfulStats(stats)) {
+        resolvedStats =
+          normalizedSnapshotStats &&
+          shouldPreferSnapshotStats(normalizedSnapshotStats, stats)
+            ? {
+                ...stats,
+                ...normalizedSnapshotStats,
+              }
+            : stats;
+      } else if (normalizedSnapshotStats) {
+        resolvedStats = {
+          ...stats,
+          ...normalizedSnapshotStats,
+        };
+      } else {
+        resolvedStats = (await fetchStatsFallback(username, installationId)) || stats;
+      }
+    }
+
+    if (!resolvedStats) {
+      resolvedStats = normalizedSnapshotStats || {};
     }
 
     if (type === "contribution") {

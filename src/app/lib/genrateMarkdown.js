@@ -63,6 +63,31 @@ const encodeStickerLayersParam = (value) => {
   }
 };
 
+const encodeStatsSnapshotParam = (value) => {
+  if (!value || typeof value !== "object") return "";
+
+  try {
+    return encodeURIComponent(
+      JSON.stringify({
+        github_username: String(value.github_username || ""),
+        total_commits: Number(value.total_commits || 0),
+        current_streak: Number(value.current_streak || 0),
+        longest_streak: Number(value.longest_streak || 0),
+        last_repo: String(value.last_repo || ""),
+        active_days_30: Number(value.active_days_30 || 0),
+        active_days_90: Number(value.active_days_90 || 0),
+        top_repo_recent: String(value.top_repo_recent || ""),
+        recent_commits_7: Number(value.recent_commits_7 || 0),
+        recent_commits_30: Number(value.recent_commits_30 || 0),
+        last_updated: String(value.last_updated || ""),
+        installation_id: Number(value.installation_id || 0) || null,
+      })
+    );
+  } catch {
+    return "";
+  }
+};
+
 export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
   const {
     includeHeading = true,
@@ -570,6 +595,7 @@ ${content || "&nbsp;"}
         .toLowerCase();
       const selectedStat = getRepoCommitStatItemById(statId);
       const stickersParam = encodeStickersParam(item?.data?.stickers);
+      const statsSnapshotParam = encodeStatsSnapshotParam(item?.data?.statsSnapshot);
 
       if (username && selectedStat) {
         const statUrl = buildRenderUrl({
@@ -585,6 +611,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             ...(selectedStat.metric ? { metric: selectedStat.metric } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -613,6 +640,7 @@ ${content || "&nbsp;"}
       const username = resolveProfileBuilderUsername(item.data?.username);
       const installationId = Number(item.data?.installationId || 0) || null;
       const stickersParam = encodeStickersParam(item?.data?.stickers);
+      const statsSnapshotParam = encodeStatsSnapshotParam(item?.data?.statsSnapshot);
 
       if (username) {
         const contributionUrl = buildRenderUrl({
@@ -622,6 +650,7 @@ ${content || "&nbsp;"}
           params: {
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -632,6 +661,7 @@ ${content || "&nbsp;"}
           params: {
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -643,6 +673,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "last_repo",
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -654,6 +685,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "total_commits",
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -665,6 +697,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "active_days",
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -676,6 +709,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "top_repo",
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });

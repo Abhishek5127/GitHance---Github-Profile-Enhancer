@@ -235,6 +235,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         body: JSON.stringify({
           username,
           installationId,
+          force: !installationId,
         }),
       });
 

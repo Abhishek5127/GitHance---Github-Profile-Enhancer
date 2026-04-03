@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -142,9 +142,6 @@ export default function RepoCommitStatsBlock({
   );
   const requestedInstallationId = Number(item?.data?.installationId || 0) || null;
   const persistedSnapshot = item?.data?.statsSnapshot || null;
-  const hasPersistedSnapshot = Boolean(
-    persistedSnapshot && typeof persistedSnapshot === "object"
-  );
   const requestedStatIds = useMemo(
     () => resolveRequestedStatIds(item),
     [item]
@@ -158,7 +155,7 @@ export default function RepoCommitStatsBlock({
   });
 
   useEffect(() => {
-    if (!username || hasPersistedSnapshot) return;
+    if (!username) return;
 
     let cancelled = false;
 
@@ -176,6 +173,7 @@ export default function RepoCommitStatsBlock({
           body: JSON.stringify({
             username,
             installationId: requestedInstallationId,
+            force: !requestedInstallationId,
           }),
         });
 
@@ -253,7 +251,7 @@ export default function RepoCommitStatsBlock({
     return () => {
       cancelled = true;
     };
-  }, [hasPersistedSnapshot, item?.id, requestedInstallationId, setItems, username]);
+  }, [item?.id, requestedInstallationId, setItems, username]);
 
   const statsBlocks = useMemo(() => {
     if (!username) return [];
