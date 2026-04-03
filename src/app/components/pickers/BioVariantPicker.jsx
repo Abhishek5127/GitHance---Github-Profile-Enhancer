@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -345,9 +345,15 @@ export default function BioVariantPicker({
   onSave,
   initialData,
   submitLabel = "Add to Canvas",
+  githubUsername = "",
+  githubToken = "",
 }) {
   const { data: session, status } = useSession();
   const editorRef = useRef(null);
+  const resolvedGithubUsername = String(githubUsername || session?.username || "")
+    .trim()
+    .toLowerCase();
+  const resolvedGithubToken = String(githubToken || session?.accessToken || "").trim();
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastState, setToastState] = useState(null);
   const toastTimerRef = useRef(null);
@@ -787,7 +793,7 @@ export default function BioVariantPicker({
     });
   };
 
-  // BUG FIX #5: applyBullets now toggles — if selected block is already an <li>,
+  // BUG FIX #5: applyBullets now toggles â€” if selected block is already an <li>,
   // convert it back to a <p> instead of silently skipping.
   const applyBullets = () => {
     if (!editorRef.current) return;
@@ -806,7 +812,7 @@ export default function BioVariantPicker({
 
       const tag = block.tagName.toLowerCase();
 
-      // BUG FIX #5: Toggle off — convert existing list item back to paragraph.
+      // BUG FIX #5: Toggle off â€” convert existing list item back to paragraph.
       if (tag === "li") {
         const next = replaceListItemWithBlock(block, "p");
         if (next) lastChanged = next;
@@ -861,15 +867,15 @@ export default function BioVariantPicker({
   const handleBuildWithAi = async () => {
     if (isGenerating) return;
 
-    if (status === "loading") {
+    if (status === "loading" && !resolvedGithubUsername) {
       console.error("Build with AI blocked: session is still loading.");
       showToast("Session is still loading. Please try again.");
       return;
     }
 
-    if (!session?.username) {
-      console.error("Build with AI blocked: missing linked GitHub username.");
-      showToast("Link a GitHub username in Account to use Build with AI");
+    if (!resolvedGithubUsername) {
+      console.error("Build with AI blocked: missing builder GitHub username.");
+      showToast("Enter a GitHub username in the builder to use Build with AI");
       return;
     }
 
@@ -883,8 +889,8 @@ export default function BioVariantPicker({
       setIsGenerating(true);
 
       const payload = await buildBioPayload({
-        username: session?.username || "",
-        token: session?.accessToken || "",
+        username: resolvedGithubUsername,
+        token: resolvedGithubToken,
         repoLimit: 50,
       });
 
@@ -1016,3 +1022,5 @@ export default function BioVariantPicker({
     </div>
   );
 }
+
+

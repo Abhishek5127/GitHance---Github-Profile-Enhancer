@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -112,8 +112,14 @@ export default function TechStackVariantPicker({
   onSave,
   initialData,
   submitLabel = "Add to Canvas",
+  githubUsername = "",
+  githubToken = "",
 }) {
   const { data: session, status } = useSession();
+  const resolvedGithubUsername = String(githubUsername || session?.username || "")
+    .trim()
+    .toLowerCase();
+  const resolvedGithubToken = String(githubToken || session?.accessToken || "").trim();
 
   const [variant, setVariant] = useState("categorized");
   const [alignment, setAlignment] = useState("left");
@@ -301,7 +307,7 @@ export default function TechStackVariantPicker({
   const handleAnalyzeRepositories = async () => {
     if (isScanning) return;
 
-    if (status === "loading") {
+    if (status === "loading" && !resolvedGithubUsername) {
       setFeedback({
         type: "info",
         message: "Session is still loading. Try again in a moment.",
@@ -309,10 +315,10 @@ export default function TechStackVariantPicker({
       return;
     }
 
-    if (!session?.username) {
+    if (!resolvedGithubUsername) {
       setFeedback({
         type: "error",
-        message: "Link a GitHub username in Account to scan repositories.",
+        message: "Enter a GitHub username in the builder to scan repositories.",
       });
       return;
     }
@@ -325,8 +331,8 @@ export default function TechStackVariantPicker({
       });
 
       const payload = await buildBioPayload({
-        username: session?.username || "",
-        token: session?.accessToken || "",
+        username: resolvedGithubUsername,
+        token: resolvedGithubToken,
         repoLimit: 50,
         forceRefresh: true,
       });
@@ -692,3 +698,5 @@ export default function TechStackVariantPicker({
     </div>
   );
 }
+
+

@@ -1,7 +1,6 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
 import { useDroppable } from "@dnd-kit/core";
 import SafeImage from "@/app/components/seo/SafeImage";
 import {
@@ -134,11 +133,11 @@ export default function RepoCommitStatsBlock({
   setItems,
   stickerAssignments = {},
   showStickerDropSlots = false,
+  defaultUsername = "",
 }) {
-  const { data: session } = useSession();
   const username = resolveProfileBuilderUsername(
-    item?.data?.username,
-    session?.username
+    defaultUsername,
+    item?.data?.username
   );
   const requestedInstallationId = Number(item?.data?.installationId || 0) || null;
   const persistedSnapshot = item?.data?.statsSnapshot || null;
@@ -327,7 +326,7 @@ export default function RepoCommitStatsBlock({
   if (!username) {
     return (
       <div className="rounded-xl border border-white/10 bg-[#0f1115] p-4 text-sm text-white/60">
-        Link a GitHub username in Account to preview live repository commit stats.
+        Enter a GitHub username above to preview live repository commit stats.
       </div>
     );
   }
@@ -437,6 +436,8 @@ export default function RepoCommitStatsBlock({
     </div>
   );
 }
+
+
 
 
 

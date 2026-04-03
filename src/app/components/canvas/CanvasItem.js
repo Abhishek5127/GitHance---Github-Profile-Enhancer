@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useDndContext } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
@@ -29,7 +29,7 @@ const EDITABLE_ITEM_TYPES = [
   "footer",
 ];
 
-export default function CanvasItem({ item, setItems, onEditItem }) {
+export default function CanvasItem({ item, setItems, onEditItem, defaultUsername = "" }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
   const { active } = useDndContext();
@@ -85,6 +85,7 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
             setItems={setItems}
             stickerAssignments={stickerAssignments}
             showStickerDropSlots={isStickerDragging && acceptsStickers}
+            defaultUsername={defaultUsername}
           />
         );
 
@@ -106,6 +107,7 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
             setItems={setItems}
             stickerAssignments={stickerAssignments}
             showStickerDropSlots={isStickerDragging && acceptsStickers}
+            defaultUsername={defaultUsername}
           />
         );
 
@@ -163,3 +165,5 @@ export default function CanvasItem({ item, setItems, onEditItem }) {
     </div>
   );
 }
+
+

@@ -66,6 +66,7 @@ export default function Canvas({
   items,
   setItems,
   onEditItem,
+  defaultUsername = "",
 }) {
   const [readmeDataContent, setreadmeDataContent] = useState("");
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
@@ -181,10 +182,12 @@ export default function Canvas({
             item={item}
             setItems={setItems}
             onEditItem={onEditItem}
+            defaultUsername={defaultUsername}
           />
         ))}
       </SortableContext>
     </div>
   );
 }
+
 

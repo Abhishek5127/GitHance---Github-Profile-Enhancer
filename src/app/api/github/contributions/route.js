@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { resolveSessionGithubUsername, resolveSessionUserId } from "@/app/lib/auth/session";
 import { fetchGithubContributionCalendar } from "@/app/lib/githubPublicData";
 
 function normalizeUsername(value) {
   return String(value || "")
     .trim()
+    .replace(/^@+/, "")
     .toLowerCase();
 }
 
@@ -26,25 +24,11 @@ export const revalidate = 0;
 
 export async function POST(req) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!resolveSessionUserId(session)) {
-      return jsonError(401, "Authentication required");
-    }
-
     const body = await req.json().catch(() => ({}));
-    const sessionUsername = normalizeUsername(resolveSessionGithubUsername(session));
-    const requestedUsername = normalizeUsername(body?.username || sessionUsername);
-
-    if (!sessionUsername) {
-      return jsonError(403, "Link a GitHub username in your account settings first.");
-    }
+    const requestedUsername = normalizeUsername(body?.username);
 
     if (!requestedUsername) {
       return jsonError(400, "username is required");
-    }
-
-    if (requestedUsername !== sessionUsername) {
-      return jsonError(403, "You can only read contribution data for your linked GitHub account");
     }
 
     const accessToken = String(
@@ -66,7 +50,7 @@ export async function POST(req) {
     return NextResponse.json(
       {
         ok: true,
-        username: requestedUsername,
+        username: normalizeUsername(result.data?.username || requestedUsername),
         totalContributions: Number(result.data?.totalContributions || 0),
         days: Array.isArray(result.data?.days) ? result.data.days : [],
         fetchedAt: String(result.data?.fetchedAt || new Date().toISOString()),

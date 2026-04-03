@@ -1,10 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import generateMarkdown from "../lib/genrateMarkdown";
 import { saveReadmePreviewPayload } from "../lib/readmePreview";
-import { openAuthRedirect } from "../lib/authNavigation";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
 import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker";
@@ -102,8 +101,35 @@ const collisionDetectionStrategy = (args) => {
   return closestCorners(args);
 };
 
+function normalizeBuilderGithubUsername(value) {
+  const sanitized = String(value || "").trim().replace(/^@+/, "");
+  return resolveProfileBuilderUsername(sanitized);
+}
+
+function extractBuilderUsernameFromItems(items = []) {
+  let resolvedUsername = "";
+
+  const visit = (entry) => {
+    if (resolvedUsername || !entry || typeof entry !== "object") return;
+
+    const directUsername = normalizeBuilderGithubUsername(entry?.data?.username);
+    if (directUsername) {
+      resolvedUsername = directUsername;
+      return;
+    }
+
+    if (entry.type === "section") {
+      const slots = Array.isArray(entry?.data?.slots) ? entry.data.slots : [];
+      slots.forEach((slot) => visit(slot));
+    }
+  };
+
+  (Array.isArray(items) ? items : []).forEach((entry) => visit(entry));
+  return resolvedUsername;
+}
+
 export default function Page() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const bioDefaults = {
     content: `## About Me
 
@@ -206,24 +232,19 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     initialData: null,
     pickerKey: 0,
   });
-  const sessionUsername = resolveProfileBuilderUsername(session?.username);
+  const linkedGithubUsername = resolveProfileBuilderUsername(session?.username);
+  const [builderUsernameInput, setBuilderUsernameInput] = useState("");
+  const builderUsername = normalizeBuilderGithubUsername(builderUsernameInput);
   const resolveCanvasUsername = (value = "") =>
-    resolveProfileBuilderUsername(value, sessionUsername);
+    resolveProfileBuilderUsername(builderUsername, value);
   const [markdown, setMarkdown] = useState([]);
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
   const [publishFeedback, setPublishFeedback] = useState({ tone: "info", message: "" });
-  const isSignedIn = status === "authenticated" && Boolean(session?.userId);
-  const canLaunchPreview = isSignedIn && Boolean(sessionUsername);
-  const previewButtonLabel = !isSignedIn
-    ? "Sign in to Continue"
-    : !sessionUsername
-      ? "Link GitHub Username"
-      : "Open Preview";
-  const previewButtonTitle = !isSignedIn
-    ? "Sign in required to continue"
-    : !sessionUsername
-      ? "Link a GitHub username before previewing"
-      : "Open the GitHub-style README preview";
+  const canLaunchPreview = Boolean(builderUsername);
+  const previewButtonLabel = canLaunchPreview ? "Open Preview" : "Enter GitHub Username";
+  const previewButtonTitle = canLaunchPreview
+    ? "Open the GitHub-style README preview"
+    : "Enter a GitHub username to preview this README";
 
   const bootstrapCommitStatsSnapshot = async (username, installationId = null) => {
     if (!username) return null;
@@ -554,13 +575,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const updateProfileReadme = async () => {
     setPublishFeedback({ tone: "info", message: "" });
 
-    if (status !== "authenticated") {
-      openAuthRedirect("/profile-builder");
-      return;
-    }
-
-    if (!sessionUsername) {
-      window.location.assign("/account?callbackUrl=%2Fprofile-builder");
+    if (!builderUsername) {
+      setPublishFeedback({
+        tone: "info",
+        message: "Enter a GitHub username to preview your profile README.",
+      });
       return;
     }
 
@@ -572,13 +591,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       setCanvasItems(enrichedItems);
 
       const latestMarkdown = generateMarkdown(enrichedItems);
+      const previewUsername = resolveCanvasUsername();
       setMarkdown(latestMarkdown);
 
       saveReadmePreviewPayload({
         markdown: latestMarkdown,
-        title: `${sessionUsername} profile README`,
-        owner: sessionUsername,
-        repo: sessionUsername,
+        title: `${previewUsername} profile README`,
+        owner: previewUsername,
+        repo: previewUsername,
         source: "profile-builder",
         backHref: "/profile-builder",
         backLabel: "Back to Profile Builder",
@@ -598,14 +618,26 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   }, [canvasItems]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!linkedGithubUsername) return;
+    setBuilderUsernameInput((prev) => prev || linkedGithubUsername);
+  }, [linkedGithubUsername]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
       const rawDraft = window.localStorage.getItem(PROFILE_BUILDER_DRAFT_STORAGE_KEY);
       if (!rawDraft) return;
 
       const parsedDraft = JSON.parse(rawDraft);
       if (!Array.isArray(parsedDraft?.items)) return;
+
+      const draftUsername =
+        normalizeBuilderGithubUsername(parsedDraft?.builderUsername) ||
+        extractBuilderUsernameFromItems(parsedDraft.items);
+
+      if (draftUsername) {
+        setBuilderUsernameInput(draftUsername);
+      }
 
       setCanvasItems(parsedDraft.items);
     } catch (error) {
@@ -624,17 +656,18 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         JSON.stringify({
           updatedAt: new Date().toISOString(),
           items: canvasItems,
+          builderUsername,
         })
       );
     } catch (error) {
       console.error("Failed to save builder draft", error);
     }
-  }, [canvasItems, isDraftHydrated]);
+  }, [builderUsername, canvasItems, isDraftHydrated]);
 
   useEffect(() => {
-    if (!session?.username || !isDraftHydrated) return;
+    if (!isDraftHydrated) return;
 
-    if (canvasItems.length > 0) {
+    if (canvasItems.length > 0 || !builderUsername) {
       setReadme("");
       return;
     }
@@ -644,9 +677,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         const res = await fetch("/api/Profile-Readme", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: session.username }),
+          body: JSON.stringify({ username: builderUsername }),
         });
-
         const html = await res.text();
         setReadme(html);
       } catch (error) {
@@ -655,7 +687,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     };
 
     fetchReadme();
-  }, [canvasItems.length, isDraftHydrated, session?.username]);
+  }, [builderUsername, canvasItems.length, isDraftHydrated]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -946,12 +978,12 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           slots: [null, null],
         },
         commits: {
-          username: sessionUsername,
+          username: builderUsername,
           installationId: null,
           statId: "contribution",
         },
         contribution: {
-          username: sessionUsername,
+          username: builderUsername,
           variant: CONTRIBUTION_DEFAULT_VARIANT,
           range: CONTRIBUTION_DEFAULT_RANGE,
         },
@@ -1122,7 +1154,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const addCommitStatsItemsToCanvas = async ({
     itemIds = [],
   } = {}) => {
-    const username = sessionUsername;
+    const username = builderUsername;
     const selectedIds = (Array.isArray(itemIds) ? itemIds : [])
       .map((value) => String(value || "").trim().toLowerCase())
       .filter(Boolean);
@@ -1153,7 +1185,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     variant = CONTRIBUTION_DEFAULT_VARIANT,
     range = CONTRIBUTION_DEFAULT_RANGE,
   } = {}) => {
-    const username = sessionUsername;
+    const username = builderUsername;
     const normalizedVariant = normalizeContributionVariant(variant);
     const normalizedRange = normalizeContributionRange(range);
     const snapshot = await bootstrapContributionSnapshot(username);
@@ -1996,6 +2028,40 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
                 </div>
               </div>
 
+              <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+                <label className="rounded-3xl border border-white/10 bg-[#0d1117] p-4">
+                  <span className="text-xs uppercase tracking-[0.2em] text-white/45">GitHub Username</span>
+                  <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                    <span className="text-lg font-semibold text-white/38">@</span>
+                    <input
+                      type="text"
+                      value={builderUsernameInput}
+                      onChange={(event) =>
+                        setBuilderUsernameInput(normalizeBuilderGithubUsername(event.target.value))
+                      }
+                      placeholder="octocat"
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      className="w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-white/28"
+                    />
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-white/62">
+                    This username drives profile README fetches, commit stats, contribution graphs, and preview export. You do not need to sign in just to build.
+                  </p>
+                </label>
+
+                <div className="rounded-3xl border border-white/10 bg-[#0d1117] p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Account Record</p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {linkedGithubUsername ? `@${linkedGithubUsername}` : "No linked username"}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-white/62">
+                    Linking is optional here and mainly useful for account history and Pro checkout continuity.
+                  </p>
+                </div>
+              </div>
+
               {publishFeedback.message ? (
                 <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
                   publishFeedback.tone === "success"
@@ -2014,6 +2080,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
               items={canvasItems}
               setItems={setCanvasItems}
               onEditItem={handleEditItem}
+              defaultUsername={builderUsername}
             />
           </div>
 
@@ -2049,6 +2116,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             onSave={handleBioSelect}
             initialData={bioPickerContext.initialData}
             submitLabel={bioPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+            githubUsername={builderUsername}
+            githubToken={session?.accessToken || ""}
           />
 
           <TechStackVariantPicker
@@ -2058,6 +2127,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             onSave={handleTechStackSelect}
             initialData={techStackPickerContext.initialData}
             submitLabel={techStackPickerContext.itemId ? "Update Item" : "Add to Canvas"}
+            githubUsername={builderUsername}
+            githubToken={session?.accessToken || ""}
           />
 
           <SocialLinksVariantPicker
@@ -2124,6 +2195,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
+
+
+
+
+
 
 
 

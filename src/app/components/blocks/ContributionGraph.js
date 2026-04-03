@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSession } from "next-auth/react";
 import { useDroppable } from "@dnd-kit/core";
 import Image from "next/image";
 import SafeImage from "@/app/components/seo/SafeImage";
@@ -50,11 +49,11 @@ export default function ContributionGraph({
   setItems,
   stickerAssignments = {},
   showStickerDropSlots = false,
+  defaultUsername = "",
 }) {
-  const { data: session } = useSession();
   const username = resolveProfileBuilderUsername(
-    item?.data?.username,
-    session?.username
+    defaultUsername,
+    item?.data?.username
   );
   const variant = normalizeContributionVariant(item?.data?.variant);
   const range = normalizeContributionRange(item?.data?.range);
@@ -575,6 +574,8 @@ export default function ContributionGraph({
     </div>
   );
 }
+
+
 
 
 
