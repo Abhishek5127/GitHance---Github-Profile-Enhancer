@@ -10,9 +10,9 @@ const sections = [
   {
     id: 0,
     index: 1,
-    title: "Connect GitHub",
+    title: "Link GitHub",
     description:
-      "Securely connect GitHub with OAuth so GitHance can load repositories, profile data, and the context needed for README and profile workflows.",
+      "Sign in with email, link the GitHub username you want to use, and let GitHance load repositories, profile data, and the context needed for README and profile work.",
   },
   {
     id: 1,
@@ -26,14 +26,14 @@ const sections = [
     index: 3,
     title: "Generate focused insights",
     description:
-      "Turn repository data into clear explanations, README recommendations, and profile-friendly highlights that are easier for developers to publish confidently.",
+      "Turn repository data into clear explanations, README recommendations, and profile-friendly highlights that are easier for developers to export confidently.",
   },
   {
     id: 3,
     index: 4,
-    title: "Improve and share",
+    title: "Review and export",
     description:
-      "Review the output, refine the wording, and publish better documentation and developer-facing GitHub surfaces without rebuilding everything from scratch.",
+      "Review the output, refine the wording, and export better documentation and developer-facing GitHub surfaces without rebuilding everything from scratch.",
   },
 ];
 
@@ -104,10 +104,10 @@ const HowItWorks = () => {
       <div className="flex w-full flex-col">
         <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[#ffb37f]">How GitHance Works</p>
         <h2 id="how-it-works-heading" className={`mt-3 ${poppins.className} text-3xl sm:text-4xl lg:text-5xl`}>
-          A GitHub workflow built for README generation, profile polish, and repository clarity.
+          A GitHub workspace built for README generation, profile polish, and repository clarity.
         </h2>
         <div className="mb-8 mt-3 flex justify-end text-sm text-[#ff7a1a] sm:mb-10 sm:text-base">
-          GitHub workflow for modern developer branding
+          GitHub workspace for modern developer branding
         </div>
 
         <div className="flex flex-col items-start gap-10 lg:flex-row lg:justify-around lg:gap-8">

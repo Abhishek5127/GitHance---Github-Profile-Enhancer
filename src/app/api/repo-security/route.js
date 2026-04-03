@@ -15,6 +15,7 @@ import {
   isLikelyTextContent,
 } from "@/app/lib/security/config";
 import { filterDeveloperFiles } from "@/app/lib/security/filterDeveloperFiles";
+import { resolveSessionGithubUsername, resolveSessionUserId } from "@/app/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -146,7 +147,7 @@ function initializeFetchSkippedSummary() {
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.username) {
+    if (!resolveSessionUserId(session)) {
       return Response.json({ error: "Authentication required" }, { status: 401 });
     }
 
@@ -160,7 +161,7 @@ export async function POST(req) {
       );
     }
 
-    const sessionUsername = normalizeUsername(session.username);
+    const sessionUsername = normalizeUsername(resolveSessionGithubUsername(session));
     const requestedUsername = normalizeUsername(username);
 
     if (!requestedUsername || requestedUsername !== sessionUsername) {
@@ -170,10 +171,9 @@ export async function POST(req) {
       );
     }
 
-    const token = String(session?.accessToken || "").trim();
-    if (!token) {
-      return Response.json({ error: "Auth token missing, login again" }, { status: 401 });
-    }
+    const token = String(
+      process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN || process.env.GH_TOKEN || ""
+    ).trim();
 
     const maxRepoTreeItems = parsePositiveInt(
       process.env.DEV_SEC_MAX_TREE_ITEMS,
@@ -197,8 +197,8 @@ export async function POST(req) {
     );
 
     const headers = {
-      Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
     const repoData = await fetchRepoInfoAndTree({
@@ -293,3 +293,4 @@ export async function POST(req) {
     );
   }
 }
+

@@ -7,14 +7,14 @@ import {
 } from "@/app/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "GitHub Repository Analyzer and README Workflow Preview",
+  title: "GitHub Repository Analyzer and README Preview",
   description:
     "Preview your current GitHub repositories, see README readiness, and launch README generation or repository security analysis from one searchable workspace.",
   path: "/analyze",
   keywords: [
     "GitHub repository analyzer",
     "repository preview tool",
-    "README workflow",
+    "README preview",
     "repository security scanner",
   ],
 });
@@ -23,11 +23,11 @@ const analyzeSchema = createSoftwareApplicationSchema({
   name: "GitHance Repository Analyzer",
   path: "/analyze",
   description:
-    "A GitHub repository analyzer that previews repositories, checks README coverage, and launches README creation or security analysis workflows.",
+    "A GitHub repository analyzer that previews repositories, checks README coverage, and launches README creation or security analysis from one workspace.",
   keywords: [
     "GitHub repository analyzer",
     "repository README checker",
-    "README workflow preview",
+    "README preview workspace",
   ],
   featureList: [
     "Repository preview for current GitHub repositories",

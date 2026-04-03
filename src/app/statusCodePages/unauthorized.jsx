@@ -84,12 +84,12 @@ const Unauthorized = () => {
 
           <p className="mt-5 max-w-2xl text-[#bfb6a8] md:text-lg">
             This space is reserved for authenticated visitors. Step through by
-            signing in with GitHub to continue.
+            signing in with your GitHance account to continue.
           </p>
 
           <div className="mt-9 flex flex-wrap gap-3">
             <button
-              onClick={() => signIn("github", { callbackUrl: "/profile" })}
+              onClick={() => signIn(undefined, { callbackUrl: "/profile" })}
               className="rounded-md border cursor-pointer border-[#e1c59e]/70 bg-[#e1c59e] px-6 py-3 text-sm font-semibold tracking-[0.12em] text-[#1a1713] transition hover:bg-[#edd5b2]"
             >
               SIGN IN
@@ -104,7 +104,7 @@ const Unauthorized = () => {
 
           <div className="mt-10 border-t border-[#6f665b]/35 pt-5">
             <p className="font-serif text-sm italic text-[#aa9f90]">
-              "Permission denied until identity is proven."
+              &ldquo;Permission denied until identity is proven.&rdquo;
             </p>
           </div>
         </div>

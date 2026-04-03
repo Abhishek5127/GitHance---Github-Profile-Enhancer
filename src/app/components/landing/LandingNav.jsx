@@ -23,12 +23,12 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
   const { data: session, status } = useSession();
   const { isPro, loading: billingLoading } = useBilling();
   const pathname = usePathname();
-  const isAuthenticated = status === "authenticated" && Boolean(session);
+  const isAuthenticated = status === "authenticated" && Boolean(session?.userId);
 
   const isActiveRoute = (href) => pathname === href || pathname?.startsWith(`${href}/`);
 
-  const handleGitHubSignIn = () => {
-    signIn("github", { callbackUrl: signInCallbackUrl });
+  const handleSignIn = () => {
+    signIn(undefined, { callbackUrl: signInCallbackUrl });
   };
 
   const handleLogout = () => {
@@ -85,18 +85,26 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
           ) : null}
 
           {isAuthenticated ? (
-            <button
-              onClick={handleLogout}
-              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs font-bold text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
-            >
-              Logout
-            </button>
+            <>
+              <Link
+                href="/account"
+                className="hidden rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white sm:inline-flex"
+              >
+                {session?.username ? `@${session.username}` : "Account"}
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs font-bold text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
+              >
+                Logout
+              </button>
+            </>
           ) : (
             <button
-              onClick={handleGitHubSignIn}
+              onClick={handleSignIn}
               className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
             >
-              <Image src={assets.Github} height={40} width={40} alt="GitHub icon" className="hidden sm:block" />
+              <Image src={assets.Github} height={40} width={40} alt="GitHance icon" className="hidden sm:block" />
               Sign in
             </button>
           )}
@@ -143,15 +151,24 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
                 )
               ) : null}
               {isAuthenticated ? (
-                <button
-                  onClick={handleLogout}
-                  className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
-                >
-                  Logout
-                </button>
+                <>
+                  <Link
+                    href="/account"
+                    onClick={() => setOpen(false)}
+                    className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
+                  >
+                    {session?.username ? `@${session.username}` : "Account"}
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
+                  >
+                    Logout
+                  </button>
+                </>
               ) : (
                 <button
-                  onClick={handleGitHubSignIn}
+                  onClick={handleSignIn}
                   className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
                 >
                   Sign in

@@ -34,7 +34,7 @@ export default function FeaturePaywallCard({
         ) : (
           <button
             type="button"
-            onClick={() => signIn("github", { callbackUrl: "/pricing" })}
+            onClick={() => signIn(undefined, { callbackUrl: "/pricing" })}
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
           >
             Sign in to upgrade

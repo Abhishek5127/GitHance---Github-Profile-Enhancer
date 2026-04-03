@@ -5,9 +5,9 @@ import { assets } from "@/app/assets/assets";
 const steps = [
   {
     id: "01",
-    title: "Connect your GitHub context",
-    detail: "Authenticate once, pull repository metadata, and bring profile signals into a single workspace.",
-    badge: "OAuth sync",
+    title: "Link your GitHub account",
+    detail: "Sign in with email, link the GitHub username you want to use, and pull repository context into one workspace.",
+    badge: "Account link",
     icon: assets.Github,
   },
   {
@@ -26,9 +26,9 @@ const steps = [
   },
   {
     id: "04",
-    title: "Publish and keep it alive",
-    detail: "Ship updates confidently and keep profile assets aligned as repositories and contribution signals change.",
-    badge: "Repeatable",
+    title: "Preview and export",
+    detail: "Inspect a GitHub-style preview, then copy or download the README without pushing workflow files into your repository.",
+    badge: "Export ready",
     icon: assets.Repair,
   },
 ];
@@ -40,7 +40,7 @@ const summary = [
   },
   {
     label: "Workspace",
-    value: "Builder, analyzer, preview, publish flow",
+    value: "Builder, analyzer, preview, export flow",
   },
   {
     label: "Outcome",
@@ -62,14 +62,14 @@ export default function Workflow() {
               A shipping loop for GitHub presence, not a one-time generator.
             </h2>
             <p className="mt-5 max-w-lg text-sm leading-7 text-white/65 sm:text-base">
-              GitHance is built around a repeatable cycle: connect GitHub, analyze repositories, shape profile and README surfaces, then keep everything current as the work evolves.
+              GitHance is built around a repeatable cycle: link your GitHub account, analyze repositories, shape profile and README surfaces, then preview and export when the markdown is ready.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3 text-sm text-white/60">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">GitHub OAuth</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Account link</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Repository insight</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Live preview</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Clean publish flow</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Export ready</span>
             </div>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">

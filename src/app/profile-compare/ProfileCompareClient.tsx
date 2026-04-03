@@ -673,7 +673,7 @@ export default function ProfileCompareClient() {
     event.preventDefault();
 
     if (status !== "authenticated") {
-      await signIn("github", { callbackUrl: "/profile-compare" });
+      await signIn(undefined, { callbackUrl: "/profile-compare" });
       return;
     }
 
@@ -815,3 +815,4 @@ export default function ProfileCompareClient() {
     </div>
   );
 }
+

@@ -348,7 +348,6 @@ export default function AnalyzePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: session.username,
-          token: session.accessToken,
           page: nextPage,
           perPage: REPOS_PER_PAGE,
           includeReadme: true,
@@ -374,7 +373,7 @@ export default function AnalyzePage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [session?.accessToken, session?.username]);
+  }, [session?.username]);
 
   useEffect(() => {
     if (status !== "authenticated" || !session?.username) {
@@ -437,7 +436,7 @@ export default function AnalyzePage() {
 
             <div className="mt-8 flex flex-wrap gap-3 text-sm text-white/60">
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                {status === "authenticated" ? session?.username : "GitHub sign-in required"}
+                {status === "authenticated" ? (session?.username ? `@${session.username}` : "GitHub link required") : "Sign in required"}
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
                 {listingMode === "authenticated"
@@ -467,7 +466,11 @@ export default function AnalyzePage() {
 
             {status !== "authenticated" ? (
               <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-5 text-sm leading-7 text-white/65">
-                Sign in with GitHub to load your repositories and unlock both README generation and security analysis actions.
+                Sign in, then link your GitHub username in Account to load repositories and unlock both README generation and security analysis actions.
+              </div>
+            ) : !session?.username ? (
+              <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-5 text-sm leading-7 text-white/65">
+                Link a GitHub username in Account to load repositories for this workspace.
               </div>
             ) : showRepositorySkeletons ? (
               <div className="mt-6 space-y-3">
@@ -497,19 +500,19 @@ export default function AnalyzePage() {
               Sign In Required
             </p>
             <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">
-              Connect GitHub to see your current repositories.
+              Sign in and link a GitHub username to see your repositories.
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
-              This workspace is designed for your own repositories so you can decide, repo by repo, whether to build a README or inspect security posture next.
+              This workspace is designed for the GitHub username linked to your account so you can decide, repo by repo, whether to build a README or inspect security posture next.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={() => signIn("github", { callbackUrl: "/analyze" })}
+                onClick={() => signIn(undefined, { callbackUrl: "/analyze" })}
                 className="rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
               >
-                Sign in with GitHub
+                Open sign in
               </button>
               <Link
                 href="/"
@@ -521,7 +524,32 @@ export default function AnalyzePage() {
           </section>
         ) : null}
 
-        {status === "authenticated" ? (
+        {status === "authenticated" && !session?.username ? (
+          <section className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,22,28,0.96),rgba(11,13,15,0.98))] p-7 shadow-[0_28px_90px_rgba(0,0,0,0.35)] sm:p-9">
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[#ffb37f]">GitHub Link Required</p>
+            <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">Link the GitHub username this account should use.</h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
+              Repository loading now runs from the GitHub username linked to your email account. Once linked, this workspace can load repositories again, including private repos when an authenticated listing is available.
+            </p>
+
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link
+                href="/account?callbackUrl=%2Fanalyze"
+                className="rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
+              >
+                Link GitHub Username
+              </Link>
+              <Link
+                href="/"
+                className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+              >
+                Return home
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
+        {status === "authenticated" && session?.username ? (
           <>
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <StatCard
@@ -672,6 +700,7 @@ export default function AnalyzePage() {
     </div>
   );
 }
+
 
 
 

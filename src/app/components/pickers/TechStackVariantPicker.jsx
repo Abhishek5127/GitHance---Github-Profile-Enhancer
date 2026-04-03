@@ -309,10 +309,10 @@ export default function TechStackVariantPicker({
       return;
     }
 
-    if (!session?.username && !session?.accessToken) {
+    if (!session?.username) {
       setFeedback({
         type: "error",
-        message: "Sign in with GitHub to scan repositories.",
+        message: "Link a GitHub username in Account to scan repositories.",
       });
       return;
     }
@@ -326,7 +326,7 @@ export default function TechStackVariantPicker({
 
       const payload = await buildBioPayload({
         username: session?.username || "",
-        token: session?.accessToken,
+        token: session?.accessToken || "",
         repoLimit: 50,
         forceRefresh: true,
       });

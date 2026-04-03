@@ -7,17 +7,17 @@ import {
 } from "./techStackCatalog";
 import { getRepoCommitStatItemById } from "./repoCommitCatalog";
 import { getSectionVariantById } from "./sectionCatalog";
-import { CONTRIBUTION_GRAPH_ASSET_PATH } from "./contributionGraphAssets";
 import { resolveProfileBuilderUsername } from "./profileComponents";
 import {
   getSocialPlatformById,
   normalizeSocialLinksData,
 } from "./socialLinksCatalog";
-import { normalizeStickerAssignments } from "./stickerCatalog";
+import { normalizeStickerAssignments, normalizeStickerLayers } from "./stickerCatalog";
 import {
   getGraphicComponentVariantById,
   normalizeGraphicComponentData,
 } from "./graphicComponentCatalog";
+import { getFooterBannerById } from "./footerBannerCatalog";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
 
@@ -28,23 +28,33 @@ const escapeHtmlAttribute = (value) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-const normalizeContributionAssetPath = (value) =>
-  String(value || CONTRIBUTION_GRAPH_ASSET_PATH)
-    .trim()
-    .replaceAll("\\", "/")
-    .replace(/^\.\//, "")
-    .replace(/^\/+/, "") || CONTRIBUTION_GRAPH_ASSET_PATH;
+const resolveAbsoluteAssetUrl = (baseUrl, assetValue) => {
+  const rawValue =
+    typeof assetValue === "string" ? assetValue : String(assetValue?.src || "");
+  const normalized = String(rawValue || "").trim();
+  if (!normalized) return "";
+  if (/^https?:\/\//i.test(normalized)) return normalized;
 
-const normalizeFooterAssetPath = (value) =>
-  String(value || "")
-    .trim()
-    .replaceAll("\\", "/")
-    .replace(/^\.\//, "")
-    .replace(/^\/+/, "");
+  const origin = String(baseUrl || "").replace(/\/$/, "");
+  if (!origin) return normalized;
+
+  return normalized.startsWith("/") ? `${origin}${normalized}` : `${origin}/${normalized}`;
+};
 
 const encodeStickersParam = (value) => {
   const normalized = normalizeStickerAssignments(value);
   if (!Object.keys(normalized).length) return "";
+
+  try {
+    return JSON.stringify(normalized);
+  } catch {
+    return "";
+  }
+};
+
+const encodeStickerLayersParam = (value) => {
+  const normalized = normalizeStickerLayers(value);
+  if (!normalized.length) return "";
 
   try {
     return JSON.stringify(normalized);
@@ -699,10 +709,28 @@ ${content || "&nbsp;"}
     }
 
     if (block === "contribution") {
-      const contributionAssetPath = normalizeContributionAssetPath(item?.data?.assetPath);
+      const baseUrl = resolveBaseUrl();
+      const username = resolveProfileBuilderUsername(item.data?.username);
+      const stickersParam = encodeStickersParam(item?.data?.stickers);
+      const stickerLayersParam = encodeStickerLayersParam(item?.data?.stickerLayers);
+
+      if (!username) return;
+
+      const contributionUrl = buildRenderUrl({
+        baseUrl,
+        type: "contribution-heatmap",
+        variant: item?.data?.variant || "classic",
+        params: {
+          user: username,
+          range: item?.data?.range || "yearly",
+          ...(stickersParam ? { stickers: stickersParam } : {}),
+          ...(stickerLayersParam ? { layers: stickerLayersParam } : {}),
+        },
+      });
+
       markdown += `
 <p align="center">
-  <img src="./${contributionAssetPath}" alt="Contribution graph" />
+  <img src="${contributionUrl}" alt="Contribution graph" />
 </p>
 
 `;
@@ -710,12 +738,14 @@ ${content || "&nbsp;"}
     }
 
     if (block === "footer") {
-      const footerAssetPath = normalizeFooterAssetPath(item?.data?.assetPath);
-      if (!footerAssetPath) return;
+      const baseUrl = resolveBaseUrl();
+      const banner = getFooterBannerById(item?.data?.bannerId);
+      const footerImageUrl = resolveAbsoluteAssetUrl(baseUrl, banner?.image);
+      if (!footerImageUrl) return;
 
       markdown += `
 <p align="center">
-  <img src="./${footerAssetPath}" alt="Footer banner" />
+  <img src="${footerImageUrl}" alt="${escapeHtmlAttribute(banner?.alt || banner?.title || "Footer banner")}" />
 </p>
 
 `;

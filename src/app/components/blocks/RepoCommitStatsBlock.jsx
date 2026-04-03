@@ -140,7 +140,6 @@ export default function RepoCommitStatsBlock({
     item?.data?.username,
     session?.username
   );
-  const token = session?.accessToken || "";
   const requestedInstallationId = Number(item?.data?.installationId || 0) || null;
   const persistedSnapshot = item?.data?.statsSnapshot || null;
   const hasPersistedSnapshot = Boolean(
@@ -159,7 +158,7 @@ export default function RepoCommitStatsBlock({
   });
 
   useEffect(() => {
-    if (!username || !token || hasPersistedSnapshot) return;
+    if (!username || hasPersistedSnapshot) return;
 
     let cancelled = false;
 
@@ -176,7 +175,6 @@ export default function RepoCommitStatsBlock({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username,
-            token,
             installationId: requestedInstallationId,
           }),
         });
@@ -255,7 +253,7 @@ export default function RepoCommitStatsBlock({
     return () => {
       cancelled = true;
     };
-  }, [hasPersistedSnapshot, item?.id, requestedInstallationId, setItems, token, username]);
+  }, [hasPersistedSnapshot, item?.id, requestedInstallationId, setItems, username]);
 
   const statsBlocks = useMemo(() => {
     if (!username) return [];
@@ -331,7 +329,7 @@ export default function RepoCommitStatsBlock({
   if (!username) {
     return (
       <div className="rounded-xl border border-white/10 bg-[#0f1115] p-4 text-sm text-white/60">
-        Sign in to preview live repository commit stats.
+        Link a GitHub username in Account to preview live repository commit stats.
       </div>
     );
   }

@@ -1,69 +1,152 @@
 import NextAuth from "next-auth";
-import GitHubProvider from "next-auth/providers/github";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { NextAuthOptions } from "next-auth";
-import { upsertGithubUserIdentity } from "@/app/lib/githubStats";
+import {
+  consumeOtpChallenge,
+  createUser,
+  findUserByEmail,
+  normalizeDisplayName,
+  normalizeEmail,
+  normalizeGithubUsername,
+} from "@/app/lib/auth/users";
+import { verifyPassword } from "@/app/lib/auth/passwords";
+
+function toSessionUser(user: {
+  userId?: string;
+  email?: string;
+  name?: string;
+  githubUsername?: string;
+} | null) {
+  if (!user) return null;
+
+  const userId = normalizeEmail(user.userId || user.email || "");
+  if (!userId) return null;
+
+  return {
+    id: userId,
+    userId,
+    email: userId,
+    name: normalizeDisplayName(user.name || "") || userId,
+    githubUsername: normalizeGithubUsername(user.githubUsername || ""),
+  };
+}
 
 export const authOptions: NextAuthOptions = {
+  session: {
+    strategy: "jwt",
+  },
+  pages: {
+    signIn: "/auth",
+  },
   providers: [
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-      authorization: {
-        params: {
-          scope: "read:user user:email repo admin:repo_hook workflow",
-        },
+    CredentialsProvider({
+      name: "Email",
+      credentials: {
+        intent: { label: "Intent", type: "text" },
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+        otp: { label: "OTP", type: "text" },
+        challengeId: { label: "Challenge Id", type: "text" },
+      },
+      async authorize(credentials) {
+        const intent = String(credentials?.intent || "login").trim().toLowerCase();
+        const email = normalizeEmail(credentials?.email || "");
+        const password = String(credentials?.password || "");
+        const otp = String(credentials?.otp || "");
+        const challengeId = String(credentials?.challengeId || "");
+
+        if (!email || !otp || !challengeId) {
+          return null;
+        }
+
+        if (intent === "signup") {
+          const existingUser = await findUserByEmail(email);
+          if (existingUser) {
+            return null;
+          }
+
+          const challengeMeta = await consumeOtpChallenge({
+            challengeId,
+            email,
+            code: otp,
+            purpose: "signup",
+          });
+
+          const passwordHash = String(challengeMeta?.passwordHash || "").trim();
+          if (!passwordHash) {
+            return null;
+          }
+
+          const createdUser = await createUser({
+            email,
+            passwordHash,
+            name: String(challengeMeta?.displayName || email.split("@")[0]),
+          });
+
+          return toSessionUser(createdUser);
+        }
+
+        const user = await findUserByEmail(email);
+        if (!user || !verifyPassword(password, user.passwordHash)) {
+          return null;
+        }
+
+        await consumeOtpChallenge({
+          challengeId,
+          email,
+          code: otp,
+          purpose: "login",
+        });
+
+        return toSessionUser(user);
       },
     }),
   ],
 
   callbacks: {
-    async jwt({ token, account, profile }) {
-      if (account) {
-        token.accessToken = account.access_token;
-        token.oauthScope =
-          typeof account.scope === "string" && account.scope.trim()
-            ? account.scope.trim()
-            : undefined;
-        const githubProfile = profile as
-          | {
-              login?: string;
-              name?: string;
-              email?: string;
-              avatar_url?: string;
-              id?: number;
-            }
-          | null
-          | undefined;
-
-        const login =
-          githubProfile?.login ??
-          (token as { username?: string } | null | undefined)?.username;
-        if (login) {
-          token.username = login;
-        }
-
-        if (login) {
-          try {
-            await upsertGithubUserIdentity({
-              username: login,
-              name: githubProfile?.name || "",
-              email: githubProfile?.email || "",
-              avatarUrl: githubProfile?.avatar_url || "",
-              githubId: githubProfile?.id || null,
-              source: "auth_signin",
-            });
-          } catch {
-            // Ignore profile persistence failures so auth flow never breaks.
-          }
+    async jwt({ token, user, trigger, session }) {
+      if (user) {
+        const sessionUser = toSessionUser(user as Record<string, string>);
+        if (sessionUser) {
+          token.userId = sessionUser.userId;
+          token.email = sessionUser.email;
+          token.name = sessionUser.name;
+          token.username = sessionUser.githubUsername;
+          token.githubUsername = sessionUser.githubUsername;
         }
       }
+
+      if (trigger === "update" && session) {
+        const sessionUpdate = session as {
+          name?: string;
+          username?: string;
+          githubUsername?: string;
+        };
+
+        token.name =
+          normalizeDisplayName(sessionUpdate.name || String(token.name || "")) ||
+          String(token.name || "");
+
+        const nextGithubUsername = normalizeGithubUsername(
+          sessionUpdate.githubUsername ||
+            sessionUpdate.username ||
+            String(token.githubUsername || token.username || "")
+        );
+
+        token.username = nextGithubUsername;
+        token.githubUsername = nextGithubUsername;
+      }
+
       return token;
     },
 
     async session({ session, token }) {
-      session.accessToken = token.accessToken as string;
-      session.username = token.username as string;
-      session.oauthScope = token.oauthScope as string | undefined;
+      session.user = session.user || {};
+      session.user.email = String(token.email || session.user.email || "");
+      session.user.name = String(token.name || session.user.name || "");
+      session.userId = String(token.userId || token.email || "");
+      session.username = String(token.username || "");
+      session.githubUsername = String(token.githubUsername || token.username || "");
       return session;
     },
   },

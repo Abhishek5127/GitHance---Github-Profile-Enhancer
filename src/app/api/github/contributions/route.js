@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { resolveSessionGithubUsername, resolveSessionUserId } from "@/app/lib/auth/session";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
@@ -56,25 +57,16 @@ export const revalidate = 0;
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!resolveSessionUserId(session)) {
       return jsonError(401, "Authentication required");
     }
 
-    const accessToken = String(session?.accessToken || "").trim();
-    if (!accessToken) {
-      return jsonError(401, "Missing GitHub access token. Please sign in again.");
-    }
-
     const body = await req.json().catch(() => ({}));
-    const sessionUsername = normalizeUsername(
-      session?.username || session?.user?.name
-    );
-    const requestedUsername = normalizeUsername(
-      body?.username || sessionUsername
-    );
+    const sessionUsername = normalizeUsername(resolveSessionGithubUsername(session));
+    const requestedUsername = normalizeUsername(body?.username || sessionUsername);
 
     if (!sessionUsername) {
-      return jsonError(403, "Unable to resolve authenticated GitHub username");
+      return jsonError(403, "Link a GitHub username in your account settings first.");
     }
 
     if (!requestedUsername) {
@@ -82,7 +74,15 @@ export async function POST(req) {
     }
 
     if (requestedUsername !== sessionUsername) {
-      return jsonError(403, "You can only read contribution data for your own account");
+      return jsonError(403, "You can only read contribution data for your linked GitHub account");
+    }
+
+    const accessToken = String(
+      process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN || process.env.GH_TOKEN || ""
+    ).trim();
+
+    if (!accessToken) {
+      return jsonError(503, "GitHub contribution preview requires a server GitHub token.");
     }
 
     const now = new Date();

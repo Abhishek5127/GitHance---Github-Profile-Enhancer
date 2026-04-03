@@ -32,7 +32,9 @@ export function BillingProvider({ children }) {
   });
 
   const refreshBilling = useCallback(async () => {
-    if (status !== "authenticated" || !session?.username) {
+    const billingUserId = String(session?.userId || session?.user?.email || "").trim();
+
+    if (status !== "authenticated" || !billingUserId) {
       setState({
         loading: false,
         subscription: DEFAULT_FREE_SUBSCRIPTION,
@@ -72,7 +74,7 @@ export function BillingProvider({ children }) {
       });
       return null;
     }
-  }, [session?.username, status]);
+  }, [session?.user?.email, session?.userId, status]);
 
   useEffect(() => {
     if (status === "loading") {

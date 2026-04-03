@@ -13,7 +13,7 @@ const modes = [
     label: "Profile",
     title: "Build a GitHub profile README that feels intentional.",
     copy: "Shape developer-first sections, live contribution visuals, and a profile README that communicates your strengths clearly.",
-    detail: "Profile builder, profile comparison, and repository analysis work together inside one GitHub optimization workflow.",
+    detail: "Profile builder, profile comparison, and repository analysis work together inside one account-linked GitHub workspace.",
     blocklist: [
       { label: "Analyze Profile", path: "/profile" },
       { label: "Compare Profiles", path: "/profile-compare" },
@@ -26,7 +26,7 @@ const modes = [
     label: "README",
     title: "Generate cleaner GitHub READMEs from real repository context.",
     copy: "Move from repository preview to README creation with AI guidance that is grounded in your codebase, structure, and documentation gaps.",
-    detail: "Repository preview, README generation, and security review stay one click apart so documentation never drifts far from the code.",
+    detail: "Repository preview, README generation, and security review stay one click apart so documentation stays close to the code.",
     blocklist: [
       { label: "Build Profile README", path: "/profile-builder" },
       { label: "Repository README", path: ANALYZE_REPOSITORIES_PATH },
@@ -62,7 +62,7 @@ export default function Hero() {
 
         <p className={`mt-5 max-w-2xl text-base ${poppins.className} leading-7 text-white/70 sm:text-lg`}>
           GitHance helps developers create GitHub profile READMEs, generate project READMEs, preview repositories,
-          compare profiles, and review security signals from one connected workflow built for discoverability and faster shipping.
+          compare profiles, and review security signals from one account-linked workspace built for discoverability and faster shipping.
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
@@ -113,7 +113,7 @@ export default function Hero() {
         </div>
         
         <div className={`mt-6 rounded-2xl ${poppins.className} border border-white/10 bg-[#0f1115] p-4 sm:p-5`}>
-          <p className="text-xs uppercase tracking-[0.24em] text-white/40">Active workflow</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-white/40">Active path</p>
           <h2 className="mt-3 text-lg font-semibold text-white">{active.title}</h2>
           <p className="mt-2 text-sm leading-6 text-white/60">{active.copy}</p>
           <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-xs leading-5 text-white/60">

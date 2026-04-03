@@ -9,13 +9,15 @@ import {
   getSubscriptionForUser,
   markBillingOrderState,
 } from "@/app/lib/billing/subscriptions";
+import { resolveBillingUserId } from "@/app/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 
 export async function GET(request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.username) {
+    const billingUserId = resolveBillingUserId(session);
+    if (!billingUserId) {
       return NextResponse.json({ ok: false, error: "Authentication required" }, { status: 401 });
     }
 
@@ -25,7 +27,10 @@ export async function GET(request) {
     }
 
     const localOrder = await getBillingOrderById(orderId);
-    if (!localOrder || String(localOrder?.userId || "").trim().toLowerCase() !== String(session.username || "").trim().toLowerCase()) {
+    if (
+      !localOrder ||
+      String(localOrder?.userId || "").trim().toLowerCase() !== billingUserId
+    ) {
       return NextResponse.json({ ok: false, error: "Order not found" }, { status: 404 });
     }
 
@@ -47,7 +52,7 @@ export async function GET(request) {
     if (remoteStatus === "PAID") {
       await activateProSubscriptionFromOrder({
         orderId,
-        userId: session.username,
+        userId: billingUserId,
         cfOrderId: remoteOrder?.cf_order_id || "",
         amount: orderAmount,
         currency: orderCurrency,
@@ -56,7 +61,7 @@ export async function GET(request) {
       });
     }
 
-    const subscription = await getSubscriptionForUser(session.username);
+    const subscription = await getSubscriptionForUser(billingUserId);
 
     return NextResponse.json({
       ok: true,

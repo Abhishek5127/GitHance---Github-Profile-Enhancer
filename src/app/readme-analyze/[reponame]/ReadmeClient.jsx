@@ -10,6 +10,7 @@ import ReadmeRenderer from "@/app/components/blocks/ReadmeRenderer";
 import Unauthorized from "@/app/statusCodePages/unauthorized";
 import ReadmeBlock from "../readme-analyze-components/ReadmeBlock";
 import { analyzeReadme, README_SECTION_DEFINITIONS } from "@/app/lib/readme/analyzeReadme";
+import { saveReadmePreviewPayload } from "@/app/lib/readmePreview";
 
 const DEFAULT_SECTIONS = README_SECTION_DEFINITIONS.reduce((result, section) => {
   result[section.key] = section.key === "roadmap" ? false : true;
@@ -149,7 +150,7 @@ function SectionCoverageCard({ sectionCoverage = [] }) {
         {coveredSections}/{safeCoverage.length || 0} sections detected
       </h3>
       <p className="mt-2 text-sm text-white/70">
-        GitHance checks your markdown structure and highlights gaps before you publish.
+        GitHance checks your markdown structure and highlights gaps before you export.
       </p>
 
       <div className="mt-4 h-2.5 overflow-hidden rounded-full border border-white/10 bg-black/20">
@@ -288,20 +289,20 @@ function EditorPane({
   onChange,
   onReset,
   onCopy,
-  onPublish,
-  isPublishing,
+  onPreview,
+  isOpeningPreview,
   canReset,
   canCopy,
-  canPublish,
+  canPreview,
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/45">Step 2: Edit Markdown</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">Refine the draft before publishing</h3>
+          <h3 className="mt-1 text-xl font-semibold text-white">Refine the draft before preview</h3>
           <p className="mt-1 text-sm text-white/70">
-            Make final wording changes here. You can safely copy, reset, or publish anytime.
+            Make final wording changes here. You can safely copy, reset, or open the GitHub-style preview anytime.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -311,7 +312,7 @@ function EditorPane({
             disabled={!canReset}
             className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white/75 transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Reset to GitHub README
+            Reset to Repo README
           </button>
           <button
             type="button"
@@ -323,11 +324,11 @@ function EditorPane({
           </button>
           <button
             type="button"
-            onClick={onPublish}
-            disabled={!canPublish || isPublishing}
+            onClick={onPreview}
+            disabled={!canPreview || isOpeningPreview}
             className="rounded-xl bg-cyan-300 px-3 py-2 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isPublishing ? "Publishing..." : "Publish to GitHub"}
+            {isOpeningPreview ? "Opening..." : "Open GitHub Preview"}
           </button>
         </div>
       </div>
@@ -348,7 +349,7 @@ function PreviewPane({ value }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/45">Step 3: Preview</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">Rendered markdown</h3>
+          <h3 className="mt-1 text-xl font-semibold text-white">Inline markdown preview</h3>
         </div>
       </div>
 
@@ -375,7 +376,7 @@ export default function ReadmeClient({ reponame }) {
   const [editorValue, setEditorValue] = useState("");
   const [options, setOptions] = useState(DEFAULT_OPTIONS);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
+  const [isOpeningPreview, setIsOpeningPreview] = useState(false);
   const [feedback, setFeedback] = useState({ tone: "info", message: "" });
 
   useEffect(() => {
@@ -513,53 +514,30 @@ export default function ReadmeClient({ reponame }) {
     setFeedback({ tone: "info", message: "Editor reset to the repository's current README state." });
   };
 
-  const handlePublish = async () => {
+  const handleOpenPreview = async () => {
     if (!session?.username || !editorValue.trim()) return;
 
     try {
-      setIsPublishing(true);
+      setIsOpeningPreview(true);
       setFeedback({ tone: "info", message: "" });
 
-      const response = await fetch("/api/publish-readme", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner: session.username,
-          repo: reponame,
-          readmeContent: editorValue,
-          readmeMessage: readmeExists
-            ? "Update README via GitHance README Lab"
-            : "Create README via GitHance README Lab",
-        }),
+      saveReadmePreviewPayload({
+        markdown: editorValue,
+        title: workspaceData?.repository?.name || reponame || "README",
+        owner: session.username,
+        repo: reponame,
+        source: "readme-lab",
+        backHref: previewHref,
+        backLabel: "Back to README Lab",
       });
 
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || "Failed to publish README");
-      }
-
-      setOriginalReadme(editorValue);
-      setWorkspaceData((current) =>
-        current
-          ? {
-              ...current,
-              readme: {
-                ...(current.readme || {}),
-                exists: true,
-                content: editorValue,
-                path: current?.readme?.path || "README.md",
-              },
-            }
-          : current
-      );
-      setFeedback({ tone: "success", message: "README published to GitHub successfully." });
+      window.location.assign("/readme-preview");
     } catch (error) {
       setFeedback({
         tone: "error",
-        message: error?.message || "Failed to publish README",
+        message: error?.message || "Failed to open README preview",
       });
-    } finally {
-      setIsPublishing(false);
+      setIsOpeningPreview(false);
     }
   };
 
@@ -599,11 +577,46 @@ export default function ReadmeClient({ reponame }) {
     return <Unauthorized />;
   }
 
+  if (!session?.username) {
+    return (
+      <AnalyticsShell
+        context="README"
+        title={reponame || "README Lab"}
+        subtitle="Link a GitHub username to analyze repositories and generate README drafts inside this workspace."
+        navSections={buildNavSections(reponame)}
+        activeNavId="overview"
+        user={session?.user?.email ? { name: session.user.email, subtitle: "GitHance account" } : null}
+      >
+        <section className="analytics-card p-6">
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">GitHub Link Required</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Link the GitHub username this account should use.</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-white/70">
+            README analysis now runs from the GitHub username linked to your email account. Once linked, this workspace can load repository context and generate export-ready markdown again.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href={`/account?callbackUrl=${encodeURIComponent(previewHref)}`}
+              className="rounded-full bg-[#ff7a1a] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
+            >
+              Link GitHub Username
+            </Link>
+            <Link
+              href="/analyze"
+              className="rounded-full border border-white/15 bg-black/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-black/30 hover:text-white"
+            >
+              Back to repositories
+            </Link>
+          </div>
+        </section>
+      </AnalyticsShell>
+    );
+  }
+
   return (
     <AnalyticsShell
       context="README"
       title={reponame || "README Lab"}
-      subtitle="Analyze the repository README, generate missing content with GitHance, and refine markdown before publishing."
+      subtitle="Analyze the repository README, generate missing content with GitHance, and move into a GitHub-style preview before export."
       navSections={buildNavSections(reponame)}
       activeNavId="overview"
       user={user}
@@ -635,7 +648,7 @@ export default function ReadmeClient({ reponame }) {
               href="#preview"
               className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
             >
-              4. Preview + Publish
+              4. Open Full Preview
             </a>
             {isSecurityLocked ? (
               <Link
@@ -683,11 +696,11 @@ export default function ReadmeClient({ reponame }) {
                 onChange={setEditorValue}
                 onReset={handleReset}
                 onCopy={handleCopy}
-                onPublish={handlePublish}
-                isPublishing={isPublishing}
+                onPreview={handleOpenPreview}
+                isOpeningPreview={isOpeningPreview}
                 canReset={editorValue !== originalReadme}
                 canCopy={Boolean(editorValue.trim())}
-                canPublish={Boolean(editorValue.trim())}
+                canPreview={Boolean(editorValue.trim())}
               />
               <div id="preview">
                 <PreviewPane value={editorValue} />

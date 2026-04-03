@@ -33,8 +33,8 @@ const servicePillars = [
     accent: "text-blue-100",
   },
   {
-    title: "Theme Auto Sync",
-    detail: "Automatically keep README visuals aligned with your current GitHub theme and fresh commits.",
+    title: "GitHub-style Preview",
+    detail: "Inspect the final README exactly how it will render on GitHub before you copy or download it.",
     icon: assets.AutoUpdate,
     accent: "text-emerald-100",
   },
@@ -58,8 +58,8 @@ const productFlow = [
   },
   {
     id: "04",
-    title: "Sync",
-    detail: "Auto-update README output to stay on-brand with theme and activity.",
+    title: "Export",
+    detail: "Open the final preview, then copy or download the README when it is ready.",
   },
 ];
 
@@ -68,7 +68,7 @@ export const revalidate = 86400;
 export const metadata = buildMetadata({
   title: "AI GitHub Tools for README Generation and Profile Optimization",
   description:
-    "Explore the GitHance product: AI-powered GitHub README generation, repository analysis, profile README building, and developer visibility workflows in one SaaS platform.",
+    "Explore the GitHance product: AI-powered GitHub README generation, repository analysis, profile README building, and developer visibility tools in one SaaS platform.",
   path: "/product",
   keywords: [
     "GitHub tools",
@@ -83,7 +83,7 @@ const schemas = [
     name: "GitHance Product",
     path: "/product",
     description:
-      "GitHance combines repository security analysis, profile comparison, README generation, and theme-synced automation in one web application.",
+      "GitHance combines repository security analysis, profile comparison, README generation, and GitHub-style preview/export in one web application.",
     featureList: servicePillars.map((pillar) => pillar.title),
     keywords: ["GitHub tools", "README generator", "developer productivity SaaS"],
   }),
@@ -113,11 +113,11 @@ export default function ProductPage() {
                 Product
               </p>
               <h1 className={`${antonio.className} mt-5 text-5xl leading-[0.95] sm:text-6xl lg:text-7xl`}>
-                GitHub growth engine with template carousel and service automation.
+                GitHub growth engine with template carousel and export-ready tooling.
               </h1>
               <p className={`${poppins.className} mt-5 max-w-2xl text-sm leading-7 text-white/68 sm:text-base`}>
-                GitHance connects security analysis, profile comparison, README generation, and theme-aware updates
-                in one product surface so your profile and repositories stay current without manual churn.
+                GitHance connects security analysis, profile comparison, README generation, and GitHub-style preview/export
+                in one product surface so your profile and repositories stay sharp without manual churn.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -180,8 +180,8 @@ export default function ProductPage() {
                 </div>
               </div>
               <p className={`${poppins.className} mt-4 text-sm leading-6 text-white/62`}>
-                Swipe templates, compare profiles, run security checks, and keep your README synced to your active
-                theme.
+                Swipe templates, compare profiles, run security checks, and move straight into a GitHub-style README preview
+                before export.
               </p>
             </div>
           </section>
@@ -223,7 +223,7 @@ export default function ProductPage() {
             Turn any repository into a conversion-ready README.
           </h2>
           <p className={`${poppins.className} mt-4 max-w-2xl text-sm leading-7 text-white/72 sm:text-base`}>
-            Choose a template from the carousel, apply profile insights, and publish a README that stays synced as your
+            Choose a template from the carousel, apply profile insights, and export a README that is ready to copy or download as your
             project evolves.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">

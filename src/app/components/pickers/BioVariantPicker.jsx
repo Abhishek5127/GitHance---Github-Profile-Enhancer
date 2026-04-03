@@ -363,7 +363,7 @@ export default function BioVariantPicker({
       setToastState(null);
       setIsGenerating(false);
     }
-  }, [open]); // Only re-initialize when the panel opens, not on every initialData change.
+  }, [initialData, open]);
 
   useEffect(() => {
     return () => {
@@ -768,7 +768,6 @@ export default function BioVariantPicker({
   const toggleItalic = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
-    // eslint-disable-next-line no-execCommand
     document.execCommand("italic", false, null);
   };
 
@@ -776,7 +775,6 @@ export default function BioVariantPicker({
   const toggleUnderline = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
-    // eslint-disable-next-line no-execCommand
     document.execCommand("underline", false, null);
   };
 
@@ -869,9 +867,9 @@ export default function BioVariantPicker({
       return;
     }
 
-    if (!session?.accessToken) {
-      console.error("Build with AI blocked: missing GitHub session token.");
-      showToast("Sign in with GitHub to use Build with AI");
+    if (!session?.username) {
+      console.error("Build with AI blocked: missing linked GitHub username.");
+      showToast("Link a GitHub username in Account to use Build with AI");
       return;
     }
 
@@ -886,7 +884,7 @@ export default function BioVariantPicker({
 
       const payload = await buildBioPayload({
         username: session?.username || "",
-        token: session?.accessToken,
+        token: session?.accessToken || "",
         repoLimit: 50,
       });
 

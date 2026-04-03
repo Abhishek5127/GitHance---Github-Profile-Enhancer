@@ -8,6 +8,7 @@ import {
   normalizeGitHubId,
 } from "@/app/lib/repo/fetchRepositorySnapshot";
 import { analyzeReadme } from "@/app/lib/readme/analyzeReadme";
+import { resolveSessionGithubUsername, resolveSessionUserId } from "@/app/lib/auth/session";
 
 function jsonError(status, error) {
   return NextResponse.json({ success: false, error }, { status });
@@ -16,29 +17,28 @@ function jsonError(status, error) {
 export async function POST(request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!resolveSessionUserId(session)) {
       return jsonError(401, "Authentication required");
     }
 
-    const ownerFromSession = normalizeGitHubId(
-      session?.username || session?.user?.name || ""
-    ).toLowerCase();
-    const accessToken = String(session?.accessToken || "").trim();
-
-    if (!ownerFromSession || !accessToken) {
-      return jsonError(401, "Missing GitHub session. Please sign in again.");
+    const ownerFromSession = normalizeGitHubId(resolveSessionGithubUsername(session)).toLowerCase();
+    if (!ownerFromSession) {
+      return jsonError(403, "Link a GitHub username in your account settings first.");
     }
 
     const body = await request.json().catch(() => ({}));
     const owner = normalizeGitHubId(body?.owner || ownerFromSession).toLowerCase();
     const repo = normalizeGitHubId(body?.repo || body?.reponame);
+    const accessToken = String(
+      process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN || process.env.GH_TOKEN || ""
+    ).trim();
 
     if (!repo) {
       return jsonError(400, "Repository name is required");
     }
 
     if (owner !== ownerFromSession) {
-      return jsonError(403, "You can only inspect repositories from your authenticated account");
+      return jsonError(403, "You can only inspect repositories from your linked GitHub account");
     }
 
     const { repoInfo, branch, tree } = await fetchRepositorySnapshot({

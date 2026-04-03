@@ -36,10 +36,15 @@ async function parseGitHubResponse(response) {
 }
 
 function toHeaders(token = "") {
-  return {
-    Authorization: `Bearer ${token}`,
+  const headers = {
     Accept: GITHUB_ACCEPT,
   };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
 }
 
 function normalizeLicense(license) {
@@ -240,3 +245,4 @@ export async function fetchRepositoryFileContext({
     content,
   };
 }
+

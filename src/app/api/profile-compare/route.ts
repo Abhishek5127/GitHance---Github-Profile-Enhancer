@@ -4,10 +4,11 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { BILLING_FEATURES } from "@/app/lib/billing/plans";
 import { BillingAccessError, requirePro } from "@/app/lib/billing/entitlements";
 import { compareProfiles } from "@/app/profile-compare/profileCompareServerService";
+import { resolveSessionUserId } from "@/app/lib/auth/session";
 
 export const runtime = "nodejs";
 
-function getErrorStatus(message: string) {
+function getErrorStatus(message) {
   const normalizedMessage = String(message || "").toLowerCase();
 
   if (normalizedMessage.includes("required") || normalizedMessage.includes("different")) {
@@ -25,10 +26,10 @@ function getErrorStatus(message: string) {
   return 502;
 }
 
-export async function POST(request: Request) {
+export async function POST(request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.username) {
+    if (!resolveSessionUserId(session)) {
       return NextResponse.json(
         {
           ok: false,
@@ -48,7 +49,6 @@ export async function POST(request: Request) {
       forceRefresh = false,
     } = await request.json();
 
-    const sessionToken = String(session?.accessToken || "").trim();
     const serverToken = String(
       process.env.GITHUB_TOKEN ||
         process.env.GITHUB_ACCESS_TOKEN ||
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     const comparison = await compareProfiles(leftUsername, rightUsername, {
       forceRefresh: Boolean(forceRefresh),
-      token: sessionToken || serverToken,
+      token: serverToken,
     });
 
     return NextResponse.json({

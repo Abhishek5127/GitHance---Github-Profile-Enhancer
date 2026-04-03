@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { resolveSessionGithubUsername, resolveSessionUserId } from "@/app/lib/auth/session";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -202,7 +203,7 @@ const YEARLY_CONTRIBUTIONS_QUERY = `
 
 function toHeaders(token) {
   return {
-    Authorization: `Bearer ${token}`,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": GITHUB_API_VERSION,
   };
@@ -2220,6 +2221,47 @@ async function fetchOwnedRepos(token) {
     data: deduped,
   };
 }
+async function fetchPublicOwnedRepos(username) {
+  let page = 1;
+  const repos = [];
+
+  while (page <= MAX_REPO_PAGES) {
+    const url = `${GITHUB_REST_URL}/users/${encodeURIComponent(username)}/repos?per_page=${REPOS_PER_PAGE}&page=${page}&sort=updated&direction=desc&type=owner`;
+    const response = await fetchGithubJson(url, "");
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        data: repos,
+      };
+    }
+
+    const pageRepos = Array.isArray(response.data) ? response.data : [];
+    repos.push(...pageRepos);
+
+    if (pageRepos.length < REPOS_PER_PAGE) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  const deduped = [];
+  const seen = new Set();
+
+  repos.forEach((repo) => {
+    const key = String(repo?.id || "").trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    deduped.push(repo);
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    data: deduped,
+  };
+}
 
 async function fetchRecentEvents({ username, token }) {
   const urls = [
@@ -2252,23 +2294,22 @@ export const revalidate = 0;
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!resolveSessionUserId(session)) {
       return jsonError(401, "Authentication required");
     }
 
-    const accessToken = String(session?.accessToken || "").trim();
-    if (!accessToken) {
-      return jsonError(401, "Missing GitHub access token. Please sign in again.");
-    }
+    const accessToken = String(
+      process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN || process.env.GH_TOKEN || ""
+    ).trim();
 
     const body = await req.json().catch(() => ({}));
     const sessionUsername = normalizeUsername(
-      session?.username || session?.user?.name || ""
+      resolveSessionGithubUsername(session)
     );
     const requestedUsername = normalizeUsername(body?.username || sessionUsername);
 
     if (!sessionUsername) {
-      return jsonError(403, "Unable to resolve authenticated GitHub username");
+      return jsonError(403, "Link a GitHub username in your account settings first.");
     }
 
     if (!requestedUsername) {
@@ -2280,8 +2321,13 @@ export async function POST(req) {
     }
 
     const [profileResponse, reposResponse, events] = await Promise.all([
-      fetchGithubJson(`${GITHUB_REST_URL}/user`, accessToken),
-      fetchOwnedRepos(accessToken),
+      fetchGithubJson(
+        accessToken
+          ? `${GITHUB_REST_URL}/user`
+          : `${GITHUB_REST_URL}/users/${encodeURIComponent(requestedUsername)}`,
+        accessToken
+      ),
+      accessToken ? fetchOwnedRepos(accessToken) : fetchPublicOwnedRepos(requestedUsername),
       fetchRecentEvents({ username: requestedUsername, token: accessToken }),
     ]);
 
@@ -2298,15 +2344,17 @@ export async function POST(req) {
     const now = new Date();
     const from = new Date(now.getTime() - 365 * DAY_MS);
 
-    const contributionsResponse = await fetchGraphql({
-      token: accessToken,
-      query: YEARLY_CONTRIBUTIONS_QUERY,
-      variables: {
-        login: requestedUsername,
-        from: from.toISOString(),
-        to: now.toISOString(),
-      },
-    });
+    const contributionsResponse = accessToken
+      ? await fetchGraphql({
+          token: accessToken,
+          query: YEARLY_CONTRIBUTIONS_QUERY,
+          variables: {
+            login: requestedUsername,
+            from: from.toISOString(),
+            to: now.toISOString(),
+          },
+        })
+      : { ok: false, data: null };
 
     const contributionsCollection =
       contributionsResponse?.data?.user?.contributionsCollection || null;
@@ -2476,3 +2524,4 @@ export async function POST(req) {
     return jsonError(500, error?.message || "Failed to build dashboard analytics");
   }
 }
+

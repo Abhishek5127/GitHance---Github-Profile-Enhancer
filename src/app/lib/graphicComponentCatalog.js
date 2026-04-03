@@ -63,8 +63,8 @@ const DEFAULT_ALIGNMENT = "center";
 const DEFAULT_PRIMARY_COLOR = "#53D0FF";
 const DEFAULT_SECONDARY_COLOR = "#FF7A1A";
 const DEFAULT_ACCENT_COLOR = "#D946EF";
-const DEFAULT_THICKNESS = 10;
-const DEFAULT_LINE_WIDTH = 96;
+const DEFAULT_THICKNESS = 8;
+const DEFAULT_LINE_WIDTH = 98;
 
 const VARIANT_IDS = new Set(GRAPHIC_COMPONENT_VARIANTS.map((entry) => entry.id));
 const ALIGNMENT_IDS = new Set(GRAPHIC_COMPONENT_ALIGNMENTS);
@@ -103,7 +103,7 @@ export function normalizeGraphicAlignment(value) {
 }
 
 export function normalizeGraphicThickness(value) {
-  return clamp(Math.round(Number(value) || DEFAULT_THICKNESS), 4, 18);
+  return clamp(Math.round(Number(value) || DEFAULT_THICKNESS), 2, 18);
 }
 
 export function normalizeGraphicLineWidth(value) {
@@ -145,3 +145,4 @@ export function normalizeGraphicComponentData(data = {}) {
 export function buildGraphicComponentPayload(data = {}) {
   return normalizeGraphicComponentData(data);
 }
+

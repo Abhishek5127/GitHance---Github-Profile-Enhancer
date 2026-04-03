@@ -9,11 +9,12 @@ import {
   normalizeBillingCurrency,
 } from "@/app/lib/billing/plans";
 import { upsertBillingOrder } from "@/app/lib/billing/subscriptions";
+import { resolveBillingUserId } from "@/app/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 
-function createOrderId(username) {
-  const safeUsername = String(username || "")
+function createOrderId(userId) {
+  const safeUserId = String(userId || "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")
@@ -21,7 +22,7 @@ function createOrderId(username) {
     .replace(/^-|-$/g, "");
 
   const suffix = crypto.randomBytes(6).toString("hex");
-  return `githance-${safeUsername || "user"}-${Date.now()}-${suffix}`.slice(0, 45);
+  return `githance-${safeUserId || "user"}-${Date.now()}-${suffix}`.slice(0, 45);
 }
 
 function isUnsupportedMerchantCurrencyError(error) {
@@ -42,7 +43,8 @@ function isUnsupportedMerchantCurrencyError(error) {
 export async function POST(request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.username) {
+    const billingUserId = resolveBillingUserId(session);
+    if (!billingUserId) {
       return NextResponse.json({ ok: false, error: "Authentication required" }, { status: 401 });
     }
 
@@ -60,18 +62,20 @@ export async function POST(request) {
     const requestedPlanConfig = getProPlanConfig(requestedCurrency);
     let planConfig = requestedPlanConfig;
 
-    const orderId = createOrderId(session.username);
+    const orderId = createOrderId(billingUserId);
     const customerName =
-      String(session?.user?.name || "").trim() || String(session.username || "").trim();
+      String(session?.user?.name || "").trim() ||
+      String(session?.username || "").trim() ||
+      billingUserId;
 
     const createOrderForPlan = (config) =>
       createCashfreeOrder({
         orderId,
         amount: config.amount,
         currency: config.currency,
-        customerId: session.username,
+        customerId: billingUserId,
         customerName,
-        customerEmail: session?.user?.email || "",
+        customerEmail: session?.user?.email || billingUserId,
         customerPhone: process.env.CASHFREE_CUSTOMER_PHONE_FALLBACK || "9999999999",
         orderNote: `GitHance Pro subscription (${config.currency})`,
         source,
@@ -100,7 +104,7 @@ export async function POST(request) {
 
     await upsertBillingOrder({
       orderId,
-      userId: session.username,
+      userId: billingUserId,
       plan: "pro",
       amount: planConfig.amount,
       currency: planConfig.currency,

@@ -87,8 +87,8 @@ export default function UpgradeButton({
   };
 
   const handleUpgrade = async () => {
-    if (status !== "authenticated" || !session?.username) {
-      await signIn("github", {
+    if (status !== "authenticated" || !session?.userId) {
+      await signIn(undefined, {
         callbackUrl: getCurrentCallbackUrl(pathname),
       });
       return;

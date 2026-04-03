@@ -24,7 +24,7 @@ export const HOME_FAQS = [
   {
     question: "Does GitHance work for both profile READMEs and project READMEs?",
     answer:
-      "Yes. GitHance supports GitHub profile README building, repository README creation, repository preview workflows, and profile comparison in a connected developer workflow.",
+      "Yes. GitHance supports GitHub profile README building, repository README creation, repository preview, preview/export flows, and profile comparison inside one connected developer workspace.",
   },
 ];
 

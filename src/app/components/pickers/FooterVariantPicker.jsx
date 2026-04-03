@@ -74,7 +74,7 @@ export default function FooterVariantPicker({
               ) : null}
             </div>
             <p className="mt-3 text-xs leading-5 text-white/60">
-              On publish, this banner will be added to your repo under `assets/readme/` and linked from the generated README markdown.
+              On export, this banner is linked from a hosted URL in the generated README markdown, so you can copy or download the file without adding repo assets.
             </p>
           </div>
 

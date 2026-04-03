@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
-import LockIcon from "@/app/components/billing/LockIcon";
-import { useBilling } from "@/app/components/billing/BillingProvider";
 import generateMarkdown from "../lib/genrateMarkdown";
+import { saveReadmePreviewPayload } from "../lib/readmePreview";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
 import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker";
@@ -42,12 +40,7 @@ import {
 } from "../lib/sectionCatalog";
 import {
   CONTRIBUTION_GRAPH_ASSET_PATH,
-  CONTRIBUTION_GRAPH_CONFIG_PATH,
   CONTRIBUTION_GRAPH_MONTHLY_ASSET_PATH,
-  CONTRIBUTION_GRAPH_WORKFLOW_PATH,
-  CONTRIBUTION_GRAPH_SCRIPT_PATH,
-  buildContributionGraphWorkflow,
-  buildContributionGraphUpdaterScript,
 } from "../lib/contributionGraphAssets";
 import {
   canItemAcceptStickers,
@@ -60,9 +53,7 @@ import {
 import {
   normalizeContributionRange,
   normalizeContributionVariant,
-  renderContributionHeatmapSvg,
 } from "../lib/renderers/contributionHeatmapSvg";
-import { buildFooterBannerSvg } from "../lib/renderers/footerBannerSvg";
 import {
   FOOTER_BANNER_ITEMS,
   buildFooterAssetPath,
@@ -112,7 +103,6 @@ const collisionDetectionStrategy = (args) => {
 
 export default function Page() {
   const { data: session, status } = useSession();
-  const { isPro, loading: billingLoading, refreshBilling, subscription } = useBilling();
   const bioDefaults = {
     content: `## About Me
 
@@ -148,7 +138,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     primaryColor: "#53D0FF",
     secondaryColor: "#FF7A1A",
     accentColor: "#D946EF",
-    thickness: 10,
+    thickness: 8,
+    lineWidth: 98,
   });
   const defaultFooterBannerId = FOOTER_BANNER_ITEMS[0]?.id || "banner-1";
 
@@ -194,7 +185,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [activeStickerId, setActiveStickerId] = useState("");
   const [showMobileLibrary, setShowMobileLibrary] = useState(false);
-  const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(false);
   const [contributionPickerContext, setContributionPickerContext] = useState({
     itemId: null,
     initialData: null,
@@ -215,28 +205,27 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     initialData: null,
     pickerKey: 0,
   });
-  const token = session?.accessToken;
   const sessionUsername = resolveProfileBuilderUsername(session?.username);
   const resolveCanvasUsername = (value = "") =>
     resolveProfileBuilderUsername(value, sessionUsername);
   const [markdown, setMarkdown] = useState([]);
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
   const [publishFeedback, setPublishFeedback] = useState({ tone: "info", message: "" });
-  const isAuthenticated =
-    status === "authenticated" && Boolean(sessionUsername) && Boolean(token);
-
-  useEffect(() => {
-    if (billingLoading) return;
-    if (!isPro) {
-      setAutoUpdateEnabled(false);
-      return;
-    }
-
-    setAutoUpdateEnabled(Boolean(subscription?.autoUpdateEnabled));
-  }, [billingLoading, isPro, subscription?.autoUpdateEnabled]);
+  const isSignedIn = status === "authenticated" && Boolean(session?.userId);
+  const canLaunchPreview = isSignedIn && Boolean(sessionUsername);
+  const previewButtonLabel = !isSignedIn
+    ? "Sign in to Continue"
+    : !sessionUsername
+      ? "Link GitHub Username"
+      : "Open Preview";
+  const previewButtonTitle = !isSignedIn
+    ? "Sign in required to continue"
+    : !sessionUsername
+      ? "Link a GitHub username before previewing"
+      : "Open the GitHub-style README preview";
 
   const bootstrapCommitStatsSnapshot = async (username, installationId = null) => {
-    if (!username || !token) return null;
+    if (!username) return null;
 
     try {
       const response = await fetch("/api/github/stats/bootstrap", {
@@ -244,7 +233,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username,
-          token,
           installationId,
         }),
       });
@@ -507,119 +495,6 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     }
   };
 
-  const loadStickerDataUri = async (stickerId) => {
-    const normalizedStickerId = String(stickerId || "").trim();
-    if (!normalizedStickerId) return "";
-
-    const sticker = getStickerById(normalizedStickerId);
-    const stickerPath = String(sticker?.assetPath || "").trim();
-    if (!stickerPath) return "";
-
-    try {
-      const response = await fetch(stickerPath, { cache: "force-cache" });
-      if (!response.ok) return "";
-      const contentType = String(response.headers.get("content-type") || "")
-        .split(";")[0]
-        .trim()
-        .toLowerCase();
-      const lowerPath = stickerPath.toLowerCase();
-      const isSvg = contentType === "image/svg+xml" || lowerPath.endsWith(".svg");
-
-      if (isSvg) {
-        const raw = await response.text();
-        return `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`;
-      }
-
-      const buffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      const chunkSize = 0x8000;
-      let binary = "";
-
-      for (let index = 0; index < bytes.length; index += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-      }
-
-      const inferredType = lowerPath.endsWith(".png")
-        ? "image/png"
-        : lowerPath.endsWith(".jpg") || lowerPath.endsWith(".jpeg")
-          ? "image/jpeg"
-          : lowerPath.endsWith(".webp")
-            ? "image/webp"
-            : "application/octet-stream";
-      const mimeType = contentType || inferredType;
-      const base64 = btoa(binary);
-
-      return `data:${mimeType};base64,${base64}`;
-    } catch {
-      return "";
-    }
-  };
-
-  const arrayBufferToBase64 = (buffer) => {
-    const bytes = new Uint8Array(buffer);
-    const chunkSize = 0x8000;
-    let binary = "";
-
-    for (let index = 0; index < bytes.length; index += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-    }
-
-    return btoa(binary);
-  };
-
-  const loadFooterBannerDataUri = async (bannerId) => {
-    const banner = getFooterBannerById(bannerId);
-    const bannerSrc = typeof banner?.image === "string" ? banner.image : banner?.image?.src;
-    if (!banner?.id || !bannerSrc) return "";
-
-    try {
-      const response = await fetch(bannerSrc, { cache: "force-cache" });
-      if (!response.ok) return "";
-
-      const contentType =
-        String(response.headers.get("content-type") || "")
-          .split(";")[0]
-          .trim()
-          .toLowerCase() || String(banner?.mimeType || "application/octet-stream");
-      const buffer = await response.arrayBuffer();
-      const base64 = arrayBufferToBase64(buffer);
-
-      return `data:${contentType};base64,${base64}`;
-    } catch {
-      return "";
-    }
-  };
-
-  const buildStickerHrefMapForAssignments = async (stickers) => {
-    const normalizedStickers = normalizeStickerAssignments(stickers);
-    const stickerIds = [...new Set(Object.values(normalizedStickers).filter(Boolean))];
-    if (!stickerIds.length) return {};
-
-    const hrefEntries = await Promise.all(
-      stickerIds.map(async (stickerId) => {
-        const href = await loadStickerDataUri(stickerId);
-        return [stickerId, href];
-      })
-    );
-
-    return Object.fromEntries(hrefEntries.filter(([, href]) => Boolean(href)));
-  };
-
-  const buildStickerHrefMapForLayers = async (layers) => {
-    const normalizedLayers = normalizeStickerLayers(layers);
-    const stickerIds = [...new Set(normalizedLayers.map((layer) => layer.stickerId).filter(Boolean))];
-    if (!stickerIds.length) return {};
-
-    const hrefEntries = await Promise.all(
-      stickerIds.map(async (stickerId) => {
-        const href = await loadStickerDataUri(stickerId);
-        return [stickerId, href];
-      })
-    );
-
-    return Object.fromEntries(hrefEntries.filter(([, href]) => Boolean(href)));
-  };
-
   const enrichContributionBlocks = async (items) => {
     const contributionBlocks = collectCanvasItemsDeep(
       items,
@@ -677,217 +552,43 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const updateProfileReadme = async () => {
     setPublishFeedback({ tone: "info", message: "" });
 
-    if (status !== "authenticated" || !sessionUsername || !token) {
-      await signIn("github", { callbackUrl: "/profile-builder" });
+    if (status !== "authenticated") {
+      await signIn(undefined, { callbackUrl: "/profile-builder" });
       return;
     }
 
-    const commitEnrichedItems = await enrichCommitBlocks(canvasItems);
-    const contributionEnrichedItems = await enrichContributionBlocks(commitEnrichedItems);
-    const footerEnrichedItems = ensureFooterAssetPaths(contributionEnrichedItems);
-    const enrichedItems = ensureUniqueContributionAssetPaths(footerEnrichedItems);
-    setCanvasItems(enrichedItems);
-
-    const latestMarkdown = generateMarkdown(enrichedItems);
-    setMarkdown(latestMarkdown);
-
-    const contributionBlocks = collectCanvasItemsDeep(
-      enrichedItems,
-      (item) => item.type === "contribution"
-    );
-    const footerBlocks = collectCanvasItemsDeep(
-      enrichedItems,
-      (item) => item.type === "footer"
-    );
-    const shouldEnableAutoUpdate = Boolean(
-      autoUpdateEnabled && isPro && contributionBlocks.length
-    );
-    const publishFileMap = new Map();
-    const contributionGraphConfig = {
-      version: 2,
-      updatedAt: new Date().toISOString(),
-      graphs: [],
-    };
-
-    const upsertPublishFile = (entry) => {
-      if (!entry?.path) return;
-      publishFileMap.set(entry.path, entry);
-    };
-
-    for (const contributionBlock of contributionBlocks) {
-      const contributionUsername = resolveCanvasUsername(
-        contributionBlock?.data?.username
-      );
-      const contributionVariant = normalizeContributionVariant(
-        contributionBlock?.data?.variant || CONTRIBUTION_DEFAULT_VARIANT
-      );
-      const contributionRange = normalizeContributionRange(
-        contributionBlock?.data?.range || CONTRIBUTION_DEFAULT_RANGE
-      );
-      const contributionAssetPath =
-        String(contributionBlock?.data?.assetPath || "").trim() ||
-        buildContributionAssetPath(contributionBlock?.id, contributionRange, 0);
-      const contributionSnapshot = contributionBlock?.data?.contributionSnapshot || null;
-      const contributionStickers = normalizeStickerAssignments(
-        contributionBlock?.data?.stickers
-      );
-      const contributionStickerLayers = normalizeStickerLayers(
-        contributionBlock?.data?.stickerLayers
-      );
-
-      if (!contributionUsername) continue;
-
-      const [slotStickerHrefs, layerStickerHrefs] = await Promise.all([
-        buildStickerHrefMapForAssignments(contributionStickers),
-        buildStickerHrefMapForLayers(contributionStickerLayers),
-      ]);
-      const stickerHrefs = {
-        ...slotStickerHrefs,
-        ...layerStickerHrefs,
-      };
-
-      const contributionSvg = renderContributionHeatmapSvg({
-        username: contributionUsername,
-        days: Array.isArray(contributionSnapshot?.days)
-          ? contributionSnapshot.days
-          : [],
-        variant: contributionVariant,
-        range: contributionRange,
-        stickers: contributionStickers,
-        stickerLayers: contributionStickerLayers,
-        stickerHrefs,
-        title: "Contribution Graph",
-        width: contributionRange === "monthly" ? 560 : 1120,
-        height: contributionRange === "monthly" ? 228 : 320,
-      });
-
-      upsertPublishFile({
-        path: contributionAssetPath,
-        content: `${contributionSvg}\n`,
-        encoding: "utf8",
-        message: `chore(readme): refresh ${contributionRange} contribution graph asset`,
-      });
-
-      contributionGraphConfig.graphs.push({
-        id: String(contributionBlock?.id || "").trim() || contributionAssetPath,
-        username: contributionUsername,
-        variant: contributionVariant,
-        range: contributionRange,
-        outputPath: contributionAssetPath,
-        stickers: contributionStickers,
-        stickerLayers: contributionStickerLayers,
-        stickerHrefs,
-      });
+    if (!sessionUsername) {
+      window.location.assign("/account?callbackUrl=%2Fprofile-builder");
+      return;
     }
 
-    for (const footerBlock of footerBlocks) {
-      const banner = getFooterBannerById(footerBlock?.data?.bannerId || defaultFooterBannerId);
-      const footerAssetPath =
-        normalizeFooterAssetPathValue(footerBlock?.data?.assetPath) ||
-        buildFooterAssetPath(footerBlock?.id, banner?.id || defaultFooterBannerId);
+    try {
+      const commitEnrichedItems = await enrichCommitBlocks(canvasItems);
+      const contributionEnrichedItems = await enrichContributionBlocks(commitEnrichedItems);
+      const footerEnrichedItems = ensureFooterAssetPaths(contributionEnrichedItems);
+      const enrichedItems = ensureUniqueContributionAssetPaths(footerEnrichedItems);
+      setCanvasItems(enrichedItems);
 
-      if (!banner?.id || !footerAssetPath) continue;
+      const latestMarkdown = generateMarkdown(enrichedItems);
+      setMarkdown(latestMarkdown);
 
-      const footerImageHref = await loadFooterBannerDataUri(banner.id);
-      if (!footerImageHref) {
-        setPublishFeedback({
-          tone: "error",
-          message: `Failed to prepare ${banner.title} for GitHub publishing.`,
-        });
-        return;
-      }
-
-      const footerSvg = buildFooterBannerSvg({
-        title: banner.title,
-        alt: banner.alt,
-        imageHref: footerImageHref,
+      saveReadmePreviewPayload({
+        markdown: latestMarkdown,
+        title: `${sessionUsername} profile README`,
+        owner: sessionUsername,
+        repo: sessionUsername,
+        source: "profile-builder",
+        backHref: "/profile-builder",
+        backLabel: "Back to Profile Builder",
       });
 
-      upsertPublishFile({
-        path: footerAssetPath,
-        content: footerSvg,
-        encoding: "utf8",
-        message: `chore(readme): refresh ${banner.title.toLowerCase()} footer banner`,
-      });
-    }
-
-    if (contributionBlocks.length && shouldEnableAutoUpdate) {
-      upsertPublishFile({
-        path: CONTRIBUTION_GRAPH_CONFIG_PATH,
-        content: `${JSON.stringify(contributionGraphConfig, null, 2)}\n`,
-        encoding: "utf8",
-        message: "chore(readme): update contribution graph config",
-      });
-
-      upsertPublishFile({
-        path: CONTRIBUTION_GRAPH_WORKFLOW_PATH,
-        content: buildContributionGraphWorkflow({
-          configPath: CONTRIBUTION_GRAPH_CONFIG_PATH,
-          scriptPath: CONTRIBUTION_GRAPH_SCRIPT_PATH,
-        }),
-        encoding: "utf8",
-        message: "chore(readme): configure contribution graph workflow",
-      });
-
-      upsertPublishFile({
-        path: CONTRIBUTION_GRAPH_SCRIPT_PATH,
-        content: buildContributionGraphUpdaterScript({
-          configPath: CONTRIBUTION_GRAPH_CONFIG_PATH,
-        }),
-        encoding: "utf8",
-        message: "chore(readme): add contribution graph generator script",
-      });
-    }
-
-    const publishFiles = [...publishFileMap.values()];
-
-    const res = await fetch("/api/publish-readme", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        owner: session.username,
-        repo: session.username,
-        readmeContent: latestMarkdown,
-        files: publishFiles,
-        autoUpdateEnabled: shouldEnableAutoUpdate,
-      }),
-    });
-
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.success) {
+      window.location.assign("/readme-preview");
+    } catch (error) {
       setPublishFeedback({
         tone: "error",
-        message: data?.error || "Failed to publish README.",
+        message: error?.message || "Failed to prepare the README preview.",
       });
-      return;
     }
-
-    await refreshBilling();
-
-    if (Array.isArray(data?.warnings) && data.warnings.length) {
-      setPublishFeedback({
-        tone: "info",
-        message:
-          "README published, but the auto-update workflow needs the GitHub workflow scope before it can run automatically.",
-      });
-      return;
-    }
-
-    if (autoUpdateEnabled && !contributionBlocks.length) {
-      setPublishFeedback({
-        tone: "info",
-        message:
-          "README published successfully. Add a contribution graph block if you want to enable auto-update workflows.",
-      });
-      return;
-    }
-
-    setPublishFeedback({
-      tone: "success",
-      message: shouldEnableAutoUpdate
-        ? "README published and auto-update workflow configured."
-        : "README published to GitHub successfully.",
-    });
   };
 
   useEffect(() => {
@@ -2231,15 +1932,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           </button>
           <button
             className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
-              isAuthenticated
+              canLaunchPreview
                 ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
                 : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
             }`}
-            aria-disabled={!isAuthenticated}
-            title={isAuthenticated ? "Update README" : "Sign in required to update README"}
+            aria-disabled={!canLaunchPreview}
+            title={previewButtonTitle}
             onClick={updateProfileReadme}
           >
-            {isAuthenticated ? "Update README" : "Sign in to Update README"}
+            {previewButtonLabel}
           </button>
         </div>
       </div>
@@ -2251,15 +1952,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             <div className="hidden border-t border-white/10 p-4 lg:block">
               <button
                 className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
-                  isAuthenticated
+                  canLaunchPreview
                     ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
                     : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
                 }`}
-                aria-disabled={!isAuthenticated}
-                title={isAuthenticated ? "Update README" : "Sign in required to update README"}
+                aria-disabled={!canLaunchPreview}
+                title={previewButtonTitle}
                 onClick={updateProfileReadme}
               >
-                {isAuthenticated ? "Update README" : "Sign in to Update README"}
+                {previewButtonLabel}
               </button>
             </div>
           </div>
@@ -2281,44 +1982,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
                   </p>
                   <h2 className="mt-2 text-xl font-semibold sm:text-2xl">Profile README Builder</h2>
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68">
-                    Manual README publishing stays free. Githance Pro unlocks GitHub Actions based auto-update for contribution graph assets and recurring README refresh workflows.
+                    Build the README with drag-and-drop blocks, inspect a GitHub-style preview, then copy or download the markdown without pushing workflow files into your repository.
                   </p>
                 </div>
 
                 <div className="rounded-3xl border border-white/10 bg-[#0d1117] p-4 xl:max-w-md">
-                  <div className="flex items-start gap-3">
-                    <label className="mt-1 inline-flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={autoUpdateEnabled && isPro}
-                        onChange={(event) => setAutoUpdateEnabled(event.target.checked)}
-                        disabled={!isPro || billingLoading}
-                        className="h-4 w-4 rounded border border-white/20 bg-black/20 accent-[#ff7a1a]"
-                      />
-                    </label>
-                    <div>
-                      <div className="inline-flex items-center gap-2 text-sm font-semibold text-white">
-                        <LockIcon className="h-4 w-4 text-[#ffd6b7]" />
-                        Auto-update README assets
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-white/62">
-                        Publish the contribution graph workflow, generator script, and config so GitHub Actions can keep your README visuals fresh.
-                      </p>
-                      {!isPro ? (
-                        <div className="mt-3 flex flex-wrap gap-3">
-                          <Link
-                            href="/pricing#pro"
-                            className="rounded-full border border-[#ff7a1a]/35 bg-[#ff7a1a]/15 px-4 py-2 text-sm font-semibold text-[#ffd6b7] transition hover:bg-[#ff7a1a]/25"
-                          >
-                            Upgrade for auto-update
-                          </Link>
-                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
-                            Manual publish stays free
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Export Flow</p>
+                  <p className="mt-2 text-sm leading-6 text-white/62">
+                    Contribution graphs, commit stats, and footer visuals are rendered from hosted URLs so the exported README stays portable and your billing setup stays untouched.
+                  </p>
                 </div>
               </div>
 
@@ -2450,3 +2122,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
+
+
+
+

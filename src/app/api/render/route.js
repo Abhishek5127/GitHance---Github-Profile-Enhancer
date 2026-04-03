@@ -9,18 +9,182 @@ import { getGithubStatsForUser } from "@/app/lib/githubStats";
 import renderContributionSvg from "@/app/lib/renderers/contributionSvg";
 import renderStreakSvg from "@/app/lib/renderers/streakSvg";
 import renderRepoSvg from "@/app/lib/renderers/repoSvg";
+import { renderContributionHeatmapSvg } from "@/app/lib/renderers/contributionHeatmapSvg";
 import {
   appendStickerOverlayToSvg,
   buildSvgStickerOverlay,
 } from "@/app/lib/renderers/stickerSvg";
 import {
   getStickerBaseSizePx,
+  getStickerById,
   normalizeStickerAssignments,
+  normalizeStickerLayers,
 } from "@/app/lib/stickerCatalog";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
+const CONTRIBUTION_CALENDAR_QUERY = `
+  query ContributionCalendar($login: String!, $from: DateTime!, $to: DateTime!) {
+    user(login: $login) {
+      contributionsCollection(from: $from, to: $to) {
+        contributionCalendar {
+          totalContributions
+          weeks {
+            contributionDays {
+              date
+              contributionCount
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+function parseStickerLayers(searchParams) {
+  const raw = searchParams.get("layers");
+  if (!raw) return [];
+
+  const candidates = [raw];
+  try {
+    const decoded = decodeURIComponent(raw);
+    if (decoded && decoded !== raw) {
+      candidates.push(decoded);
+    }
+  } catch {
+    // Ignore URI decoding errors.
+  }
+
+  for (const value of candidates) {
+    try {
+      return normalizeStickerLayers(JSON.parse(value));
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  return [];
+}
+
+function toContributionIsoDate(value) {
+  const parsed = new Date(value || "");
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
+  )
+    .toISOString()
+    .slice(0, 10);
+}
+
+function resolveAppOrigin(request) {
+  const envUrl = String(process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
+  if (envUrl) {
+    if (/^https?:\/\/githance\.vercel\.app$/i.test(envUrl)) {
+      return "https://githance.in";
+    }
+
+    return envUrl;
+  }
+
+  const requestOrigin = new URL(request.url).origin.replace(/\/$/, "");
+  if (/^https?:\/\/githance\.vercel\.app$/i.test(requestOrigin)) {
+    return "https://githance.in";
+  }
+
+  return requestOrigin;
+}
+
+function buildStickerHrefMap(origin, stickers = {}, layers = []) {
+  const stickerIds = new Set([
+    ...Object.values(stickers || {}),
+    ...(Array.isArray(layers) ? layers.map((layer) => layer?.stickerId) : []),
+  ].filter(Boolean));
+
+  const hrefEntries = [];
+  stickerIds.forEach((stickerId) => {
+    const sticker = getStickerById(stickerId);
+    const assetPath = String(sticker?.assetPath || "").trim();
+    if (!assetPath) return;
+
+    try {
+      hrefEntries.push([stickerId, new URL(assetPath, origin).toString()]);
+    } catch {
+      // Ignore invalid asset URLs.
+    }
+  });
+
+  return Object.fromEntries(hrefEntries);
+}
+
+async function fetchContributionHeatmapData(username) {
+  const normalizedUsername = String(username || "").trim().toLowerCase();
+  if (!normalizedUsername) {
+    return { username: "", totalContributions: 0, days: [] };
+  }
+
+  const accessToken = String(
+    process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN || process.env.GH_TOKEN || ""
+  ).trim();
+
+  if (!accessToken) {
+    return { username: normalizedUsername, totalContributions: 0, days: [] };
+  }
+
+  const now = new Date();
+  const from = new Date(now.getTime() - 370 * DAY_MS);
+
+  try {
+    const response = await fetch(GITHUB_GRAPHQL_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: CONTRIBUTION_CALENDAR_QUERY,
+        variables: {
+          login: normalizedUsername,
+          from: from.toISOString(),
+          to: now.toISOString(),
+        },
+      }),
+      cache: "no-store",
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.errors?.length) {
+      return { username: normalizedUsername, totalContributions: 0, days: [] };
+    }
+
+    const calendar =
+      payload?.data?.user?.contributionsCollection?.contributionCalendar || null;
+    const weeks = Array.isArray(calendar?.weeks) ? calendar.weeks : [];
+
+    const days = weeks
+      .flatMap((week) =>
+        Array.isArray(week?.contributionDays) ? week.contributionDays : []
+      )
+      .map((entry) => ({
+        date: toContributionIsoDate(entry?.date),
+        count: Math.max(0, Math.floor(Number(entry?.contributionCount || 0))),
+      }))
+      .filter((entry) => entry.date);
+
+    return {
+      username: normalizedUsername,
+      totalContributions: Number(calendar?.totalContributions || 0),
+      days,
+    };
+  } catch {
+    return { username: normalizedUsername, totalContributions: 0, days: [] };
+  }
+}
 
 function hasMeaningfulStats(stats) {
   if (!stats) return false;
@@ -162,10 +326,35 @@ export async function GET(request) {
   const theme = searchParams.get("theme") || "midnight";
   const width = Number(searchParams.get("w") || searchParams.get("width") || 0);
   const height = Number(searchParams.get("h") || searchParams.get("height") || 0);
+  const appOrigin = resolveAppOrigin(request);
 
   let svg = "";
 
-  if (type === "contribution" || type === "streak" || type === "repo") {
+  if (type === "contribution-heatmap") {
+    const username = searchParams.get("user") || searchParams.get("username") || "";
+    const range = searchParams.get("range") || "yearly";
+    const contributionStickers = parseStickerAssignments(searchParams);
+    const contributionStickerLayers = parseStickerLayers(searchParams);
+    const contributionData = await fetchContributionHeatmapData(username);
+    const stickerHrefs = buildStickerHrefMap(
+      appOrigin,
+      contributionStickers,
+      contributionStickerLayers
+    );
+
+    svg = renderContributionHeatmapSvg({
+      username: contributionData.username || username,
+      days: contributionData.days,
+      variant,
+      range,
+      stickers: contributionStickers,
+      stickerLayers: contributionStickerLayers,
+      stickerHrefs,
+      title: "Contribution Graph",
+      width,
+      height,
+    });
+  } else if (type === "contribution" || type === "streak" || type === "repo") {
     const username = searchParams.get("user") || searchParams.get("username") || "";
     const installationId =
       searchParams.get("installation_id") || searchParams.get("installationId") || "";
@@ -239,9 +428,9 @@ export async function GET(request) {
       primaryColor: searchParams.get("pc") || searchParams.get("primary") || "#53D0FF",
       secondaryColor: searchParams.get("sc") || searchParams.get("secondary") || "#FF7A1A",
       accentColor: searchParams.get("ac") || searchParams.get("accent") || "#D946EF",
-      thickness: Number(searchParams.get("t") || searchParams.get("thickness") || 10),
+      thickness: Number(searchParams.get("t") || searchParams.get("thickness") || 8),
       alignment: searchParams.get("align") || searchParams.get("alignment") || "center",
-      lineWidth: Number(searchParams.get("span") || searchParams.get("lineWidth") || 96),
+      lineWidth: Number(searchParams.get("span") || searchParams.get("lineWidth") || 98),
     });
   } else if (type === "trophy") {
     const title = searchParams.get("title") || "Highlights";
@@ -253,7 +442,7 @@ export async function GET(request) {
   }
 
   const stickers = parseStickerAssignments(searchParams);
-  if (Object.keys(stickers).length) {
+  if (type !== "contribution-heatmap" && Object.keys(stickers).length) {
     const dimensions = getSvgDimensions(svg, width, height);
     const stickerSizeById = {};
     Object.values(stickers).forEach((stickerId) => {
@@ -284,4 +473,5 @@ export async function GET(request) {
     },
   });
 }
+
 

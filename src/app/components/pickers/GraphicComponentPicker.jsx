@@ -272,7 +272,7 @@ export default function GraphicComponentPicker({
                       </div>
                       <input
                         type="range"
-                        min="4"
+                        min="2"
                         max="18"
                         step="1"
                         value={normalizeGraphicThickness(thickness)}
@@ -337,3 +337,4 @@ export default function GraphicComponentPicker({
     </div>
   );
 }
+

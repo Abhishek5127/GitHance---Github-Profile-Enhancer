@@ -7,6 +7,7 @@ import {
   getSupportedProPlans,
 } from "@/app/lib/billing/plans";
 import { getSubscriptionForUser } from "@/app/lib/billing/subscriptions";
+import { resolveBillingUserId } from "@/app/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,8 @@ function buildFeatures(subscription) {
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.username) {
+    const billingUserId = resolveBillingUserId(session);
+    if (!billingUserId) {
       return NextResponse.json({
         ok: true,
         subscription: {
@@ -43,7 +45,7 @@ export async function GET() {
       });
     }
 
-    const subscription = await getSubscriptionForUser(session.username);
+    const subscription = await getSubscriptionForUser(billingUserId);
 
     return NextResponse.json({
       ok: true,

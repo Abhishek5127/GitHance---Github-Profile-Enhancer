@@ -730,8 +730,8 @@ export function generateDecorativeSvg({
   const primary = normalizeHexColor(primaryColor, "#53D0FF");
   const secondary = normalizeHexColor(secondaryColor, "#FF7A1A");
   const accent = normalizeHexColor(accentColor, "#D946EF");
-  const lineThickness = clamp(Math.round(Number(thickness) || 10), 4, 18);
-  const safeLineWidth = clamp(Math.round(Number(lineWidth) || 96), 50, 100);
+  const lineThickness = clamp(Math.round(Number(thickness) || 8), 2, 18);
+  const safeLineWidth = clamp(Math.round(Number(lineWidth) || 98), 50, 100);
   const width = 900;
   const height =
     safeVariant === "leaf-trail"
@@ -746,7 +746,7 @@ export function generateDecorativeSvg({
               ? 80
               : 72;
   const centerY = Math.round(height / 2);
-  const canvasPadding = 24;
+  const canvasPadding = 10;
   const availableWidth = width - canvasPadding * 2;
   const spanWidth = Math.max(220, Math.round((availableWidth * safeLineWidth) / 100));
   const startX =
@@ -758,7 +758,7 @@ export function generateDecorativeSvg({
   const endX = startX + spanWidth;
   const centerX = Math.round((startX + endX) / 2);
   const barY = Math.round(centerY - lineThickness / 2);
-  const radius = Math.max(4, Math.round(lineThickness / 2));
+  const radius = Math.max(2, Math.round(lineThickness / 2));
 
   const defs = `
   <defs>
@@ -1074,5 +1074,6 @@ export function buildTrophyUrl({
     },
   });
 }
+
 
 

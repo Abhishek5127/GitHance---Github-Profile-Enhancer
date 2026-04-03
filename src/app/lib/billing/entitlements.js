@@ -17,7 +17,9 @@ export function resolveBillingUserId(user) {
     return user.trim().toLowerCase();
   }
 
-  return String(user?.username || user?.userId || user?.user?.name || "")
+  return String(
+    user?.userId || user?.user?.email || user?.email || user?.username || user?.user?.name || ""
+  )
     .trim()
     .toLowerCase();
 }
