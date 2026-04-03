@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function AccountPage() {
+function AccountPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status, update } = useSession();
@@ -192,5 +192,13 @@ export default function AccountPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#0b0d0f] p-8 text-white">Loading account...</main>}>
+      <AccountPageContent />
+    </Suspense>
   );
 }

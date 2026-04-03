@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -20,7 +20,7 @@ function Notice({ tone = "info", children }) {
   return <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>{children}</div>;
 }
 
-export default function AuthPage() {
+function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { status } = useSession();
@@ -295,5 +295,13 @@ export default function AuthPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#0b0d0f] px-4 py-16 text-white">Loading sign in...</main>}>
+      <AuthPageContent />
+    </Suspense>
   );
 }

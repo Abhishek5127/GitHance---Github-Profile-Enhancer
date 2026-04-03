@@ -12,14 +12,15 @@ import {
 import { verifyPassword } from "@/app/lib/auth/passwords";
 
 function toSessionUser(user: {
-  userId?: string;
-  email?: string;
-  name?: string;
-  githubUsername?: string;
+  id?: string | null;
+  userId?: string | null;
+  email?: string | null;
+  name?: string | null;
+  githubUsername?: string | null;
 } | null) {
   if (!user) return null;
 
-  const userId = normalizeEmail(user.userId || user.email || "");
+  const userId = normalizeEmail(user.userId || user.id || user.email || "");
   if (!userId) return null;
 
   return {
@@ -106,7 +107,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        const sessionUser = toSessionUser(user as Record<string, string>);
+        const sessionUser = toSessionUser(user);
         if (sessionUser) {
           token.userId = sessionUser.userId;
           token.email = sessionUser.email;
