@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { signIn } from "next-auth/react";
+import { buildAuthRedirectHref } from "@/app/lib/authNavigation";
 import { useRouter } from "next/navigation";
 
 const Unauthorized = () => {
@@ -89,7 +89,7 @@ const Unauthorized = () => {
 
           <div className="mt-9 flex flex-wrap gap-3">
             <button
-              onClick={() => signIn(undefined, { callbackUrl: "/profile" })}
+              onClick={() => router.push(buildAuthRedirectHref("/profile"))}
               className="rounded-md border cursor-pointer border-[#e1c59e]/70 bg-[#e1c59e] px-6 py-3 text-sm font-semibold tracking-[0.12em] text-[#1a1713] transition hover:bg-[#edd5b2]"
             >
               SIGN IN

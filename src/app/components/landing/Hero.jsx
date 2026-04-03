@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState } from "react";
-import { antonio, poppins, danfo } from "@/app/fonts";
-
+import { antonio, poppins } from "@/app/fonts";
+import { buildAuthRedirectHref } from "@/app/lib/authNavigation";
 
 const ANALYZE_REPOSITORIES_PATH = "/analyze";
 
@@ -13,7 +13,7 @@ const modes = [
     label: "Profile",
     title: "Build a GitHub profile README that feels intentional.",
     copy: "Shape developer-first sections, live contribution visuals, and a profile README that communicates your strengths clearly.",
-    detail: "Profile builder, profile comparison, and repository analysis work together inside one account-linked GitHub workspace.",
+    detail: "Profile builder, profile comparison, and repository analysis work together inside one email-backed workspace linked to your GitHub username.",
     blocklist: [
       { label: "Analyze Profile", path: "/profile" },
       { label: "Compare Profiles", path: "/profile-compare" },
@@ -44,6 +44,17 @@ const colorMap = {
 
 export default function Hero() {
   const [active, setActive] = useState(modes[0]);
+  const [heroName, setHeroName] = useState("");
+
+  const handlePersonalStart = (event) => {
+    event.preventDefault();
+    window.location.assign(
+      buildAuthRedirectHref("/profile-builder", {
+        mode: "signup",
+        name: heroName,
+      })
+    );
+  };
 
   return (
     <section
@@ -57,34 +68,57 @@ export default function Hero() {
         </p>
         <h1 id="hero-heading" className={`mt-4 text-4xl ${antonio.className} font-semibold leading-tight sm:text-5xl lg:text-6xl`}>
           AI-powered GitHub README generation,
-          <span className={`block ${antonio.className} text-white/80`}>profile building, and repository analysis for developers.</span>
+          <span className={`block ${antonio.className} text-white/80`}>
+            profile building, and repository analysis for developers.
+          </span>
         </h1>
 
         <p className={`mt-5 max-w-2xl text-base ${poppins.className} leading-7 text-white/70 sm:text-lg`}>
           GitHance helps developers create GitHub profile READMEs, generate project READMEs, preview repositories,
-          compare profiles, and review security signals from one account-linked workspace built for discoverability and faster shipping.
+          compare profiles, and review security signals from one email-backed workspace built for discoverability and faster shipping.
         </p>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          <Link
-            href="/profile-builder"
-            className="inline-flex rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]"
-          >
-            Start profile builder
-          </Link>
-          <Link
-            href="/analyze"
-            className="inline-flex rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
-          >
-            Analyze repositories
-          </Link>
-          <Link
-            href="/process"
-            className="inline-flex rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
-          >
-            See how it works
-          </Link>
-        </div>
+        <form onSubmit={handlePersonalStart} className="mt-10 max-w-2xl">
+          <label htmlFor="hero-name" className={`text-[11px] font-semibold uppercase tracking-[0.34em] ${poppins.className} text-white/46`}>
+            Start with your name
+          </label>
+          <div className="mt-4 border-b border-white/18 pb-4 transition focus-within:border-[#ff7a1a]">
+            <input
+              id="hero-name"
+              name="name"
+              type="text"
+              autoComplete="name"
+              value={heroName}
+              onChange={(event) => setHeroName(event.target.value)}
+              placeholder="Your name"
+              className={`w-full bg-transparent text-4xl ${antonio.className} leading-none tracking-[0.08em] text-white outline-none placeholder:text-white/18 sm:text-5xl lg:text-6xl`}
+            />
+          </div>
+          <p className={`mt-3 text-sm ${poppins.className} leading-6 text-white/52`}>
+            We&apos;ll carry this into email signup so your workspace starts prefilled instead of empty.
+          </p>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <button
+              type="submit"
+              className="inline-flex justify-center rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]"
+            >
+              Create your workspace
+            </button>
+            <Link
+              href="/analyze"
+              className="inline-flex rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+            >
+              Analyze repositories
+            </Link>
+            <Link
+              href="/process"
+              className="inline-flex rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+            >
+              See how it works
+            </Link>
+          </div>
+        </form>
 
         <div className="mt-10 flex flex-wrap items-center gap-3 text-sm text-white/60">
           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">GitHub README generator</span>
@@ -111,7 +145,7 @@ export default function Hero() {
             </button>
           ))}
         </div>
-        
+
         <div className={`mt-6 rounded-2xl ${poppins.className} border border-white/10 bg-[#0f1115] p-4 sm:p-5`}>
           <p className="text-xs uppercase tracking-[0.24em] text-white/40">Active path</p>
           <h2 className="mt-3 text-lg font-semibold text-white">{active.title}</h2>
@@ -127,7 +161,7 @@ export default function Hero() {
                 <Link
                   href={item.path}
                   key={item.label}
-                  className={`min-h-12 flex justify-center items-center rounded-lg px-3 py-3 text-left text-xs font-semibold transition hover:scale-[1.02] sm:text-center ${colorMap[colorKey]}`}
+                  className={`min-h-12 flex items-center justify-center rounded-lg px-3 py-3 text-left text-xs font-semibold transition hover:scale-[1.02] sm:text-center ${colorMap[colorKey]}`}
                 >
                   {item.label}
                 </Link>
@@ -139,4 +173,3 @@ export default function Hero() {
     </section>
   );
 }
-

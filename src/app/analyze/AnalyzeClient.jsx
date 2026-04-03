@@ -2,10 +2,11 @@
 
 import { startTransition, useCallback, useDeferredValue, useEffect, useState } from "react";
 import Link from "next/link";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import LandingNav from "@/app/components/landing/LandingNav";
 import LockIcon from "@/app/components/billing/LockIcon";
 import { useBilling } from "@/app/components/billing/BillingProvider";
+import { openAuthRedirect } from "@/app/lib/authNavigation";
 
 const REPOS_PER_PAGE = 18;
 const FILTER_OPTIONS = [
@@ -509,7 +510,7 @@ export default function AnalyzePage() {
             <div className="mt-7 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={() => signIn(undefined, { callbackUrl: "/analyze" })}
+                onClick={() => openAuthRedirect("/analyze")}
                 className="rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
               >
                 Open sign in

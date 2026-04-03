@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import FeaturePaywallCard from "@/app/components/billing/FeaturePaywallCard";
 import ProBadge from "@/app/components/billing/ProBadge";
 import { useBilling } from "@/app/components/billing/BillingProvider";
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
+import { openAuthRedirect } from "@/app/lib/authNavigation";
 import {
   FINAL_SCORE_WEIGHTS,
   SCORE_DIMENSIONS,
@@ -673,7 +674,7 @@ export default function ProfileCompareClient() {
     event.preventDefault();
 
     if (status !== "authenticated") {
-      await signIn(undefined, { callbackUrl: "/profile-compare" });
+      openAuthRedirect("/profile-compare");
       return;
     }
 

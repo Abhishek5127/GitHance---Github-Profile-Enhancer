@@ -118,7 +118,7 @@ export default function AccountPage() {
       <main className="min-h-screen bg-[#0b0d0f] p-8 text-white">
         <div className="mx-auto max-w-3xl rounded-[28px] border border-white/10 bg-[#11161d] p-8">
           <h1 className="text-3xl font-semibold">Sign in to manage your account</h1>
-          <p className="mt-4 text-white/70">Your GitHub link lives on your GitHance account, not in GitHub OAuth anymore.</p>
+          <p className="mt-4 text-white/70">Your GitHub link lives on your GitHance account, not as a sign-in method.</p>
           <Link href={`/auth?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="mt-6 inline-flex rounded-full bg-[#ff7a1a] px-5 py-3 text-sm font-semibold text-black">
             Open sign in
           </Link>

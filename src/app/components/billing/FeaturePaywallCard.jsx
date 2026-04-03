@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import LockIcon from "./LockIcon";
 import UpgradeButton from "./UpgradeButton";
+import { openAuthRedirect } from "@/app/lib/authNavigation";
 
 export default function FeaturePaywallCard({
   title,
@@ -34,7 +35,7 @@ export default function FeaturePaywallCard({
         ) : (
           <button
             type="button"
-            onClick={() => signIn(undefined, { callbackUrl: "/pricing" })}
+            onClick={() => openAuthRedirect("/pricing")}
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
           >
             Sign in to upgrade

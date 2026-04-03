@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import Image from "next/image";
 import LandingNav from "../components/landing/LandingNav";
 import Footer from "../components/landing/Footer";
@@ -14,7 +14,7 @@ const processSteps = [
   {
     id: "01",
     title: "Connect and sync",
-    detail: "Authenticate with GitHub and pull profile, repository, and activity signals into one workspace.",
+    detail: "Sign in with your GitHance account, link a GitHub username, and pull profile, repository, and activity signals into one workspace.",
     icon: assets.Github,
   },
   {

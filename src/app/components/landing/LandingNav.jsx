@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { assets } from "@/app/assets/assets";
 import { usePathname } from "next/navigation";
 import ProBadge from "@/app/components/billing/ProBadge";
 import { useBilling } from "@/app/components/billing/BillingProvider";
+import { openAuthRedirect } from "@/app/lib/authNavigation";
 
 const links = [
   { label: "Home", href: "/" },
@@ -28,7 +29,7 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
   const isActiveRoute = (href) => pathname === href || pathname?.startsWith(`${href}/`);
 
   const handleSignIn = () => {
-    signIn(undefined, { callbackUrl: signInCallbackUrl });
+    openAuthRedirect(signInCallbackUrl);
   };
 
   const handleLogout = () => {
@@ -102,10 +103,9 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
           ) : (
             <button
               onClick={handleSignIn}
-              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
+              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-white/10 hover:text-white sm:text-sm"
             >
-              <Image src={assets.Github} height={40} width={40} alt="GitHance icon" className="hidden sm:block" />
-              Sign in
+              Email sign in
             </button>
           )}
           <button
@@ -171,7 +171,7 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
                   onClick={handleSignIn}
                   className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
                 >
-                  Sign in
+                  Email sign in
                 </button>
               )}
               <Link

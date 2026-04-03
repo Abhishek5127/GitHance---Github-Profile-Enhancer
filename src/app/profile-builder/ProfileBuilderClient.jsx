@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import generateMarkdown from "../lib/genrateMarkdown";
 import { saveReadmePreviewPayload } from "../lib/readmePreview";
+import { openAuthRedirect } from "../lib/authNavigation";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
 import BioVariantPicker from "../components/pickers/BioVariantPicker";
 import TechStackVariantPicker from "../components/pickers/TechStackVariantPicker";
@@ -553,7 +554,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     setPublishFeedback({ tone: "info", message: "" });
 
     if (status !== "authenticated") {
-      await signIn(undefined, { callbackUrl: "/profile-builder" });
+      openAuthRedirect("/profile-builder");
       return;
     }
 

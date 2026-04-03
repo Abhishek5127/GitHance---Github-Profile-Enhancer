@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useBilling } from "@/app/components/billing/BillingProvider";
 import {
   normalizeClientBillingCurrency,
   resolveClientBillingCurrency,
 } from "@/app/lib/billing/clientCurrency";
+import { openAuthRedirect } from "@/app/lib/authNavigation";
 
 let cashfreeLoaderPromise = null;
 
@@ -88,9 +89,7 @@ export default function UpgradeButton({
 
   const handleUpgrade = async () => {
     if (status !== "authenticated" || !session?.userId) {
-      await signIn(undefined, {
-        callbackUrl: getCurrentCallbackUrl(pathname),
-      });
+      openAuthRedirect(getCurrentCallbackUrl(pathname));
       return;
     }
 

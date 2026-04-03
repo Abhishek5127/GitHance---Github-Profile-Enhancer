@@ -28,11 +28,19 @@ export default function AuthPage() {
     () => String(searchParams.get("callbackUrl") || DEFAULT_CALLBACK_URL),
     [searchParams]
   );
+  const requestedMode = useMemo(() => {
+    const nextMode = String(searchParams.get("mode") || "").trim().toLowerCase();
+    return nextMode === "signup" ? "signup" : "login";
+  }, [searchParams]);
+  const requestedName = useMemo(
+    () => String(searchParams.get("name") || "").trim(),
+    [searchParams]
+  );
 
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState(requestedMode);
   const [stage, setStage] = useState("details");
   const [form, setForm] = useState({
-    name: "",
+    name: requestedName,
     email: "",
     password: "",
     otp: "",
@@ -46,6 +54,18 @@ export default function AuthPage() {
       router.replace(callbackUrl);
     }
   }, [callbackUrl, router, status]);
+
+  useEffect(() => {
+    setMode(requestedMode);
+    setStage("details");
+    setChallengeId("");
+    setMessage({ tone: "info", text: "" });
+    setForm((current) => ({
+      ...current,
+      name: requestedName || current.name,
+      otp: "",
+    }));
+  }, [requestedMode, requestedName]);
 
   const resetFlow = (nextMode) => {
     setMode(nextMode);
