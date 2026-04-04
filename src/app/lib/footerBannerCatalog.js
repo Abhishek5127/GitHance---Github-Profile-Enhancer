@@ -91,6 +91,29 @@ export function getFooterBannerById(value) {
   return FOOTER_BANNER_BY_ID.get(normalizeFooterBannerId(value)) || null;
 }
 
+export function buildFooterBannerRenderPath(
+  bannerId,
+  { width = FOOTER_BANNER_STRIP_WIDTH, height = FOOTER_BANNER_STRIP_HEIGHT } = {}
+) {
+  const banner = getFooterBannerById(bannerId);
+  const search = new URLSearchParams();
+  search.set("type", "footer");
+
+  if (banner?.id) {
+    search.set("banner_id", banner.id);
+  }
+
+  if (width) {
+    search.set("w", String(width));
+  }
+
+  if (height) {
+    search.set("h", String(height));
+  }
+
+  return `/api/render?${search.toString()}`;
+}
+
 export function normalizeFooterAssetPathValue(value) {
   return String(value || "")
     .trim()

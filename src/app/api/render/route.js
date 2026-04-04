@@ -22,6 +22,8 @@ import {
 } from "@/app/lib/stickerCatalog";
 import { NextResponse } from "next/server";
 import { fetchGithubContributionCalendar, fetchGithubRecentEvents } from "@/app/lib/githubPublicData";
+import { getFooterBannerById } from "@/app/lib/footerBannerCatalog";
+import { buildFooterBannerSvg } from "@/app/lib/renderers/footerBannerSvg";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -409,6 +411,42 @@ export async function GET(request) {
         height,
       });
     }
+  } else if (type === "footer") {
+    const banner = getFooterBannerById(
+      searchParams.get("banner_id") || searchParams.get("bannerId") || ""
+    );
+    const rawFooterImage =
+      typeof banner?.image === "string"
+        ? banner.image
+        : String(banner?.image?.src || "");
+    let footerImageHref = "";
+
+    if (rawFooterImage) {
+      try {
+        const assetUrl = /^https?:\/\//i.test(rawFooterImage)
+          ? rawFooterImage
+          : new URL(rawFooterImage, appOrigin).toString();
+        const assetResponse = await fetch(assetUrl, { cache: "force-cache" });
+
+        if (assetResponse.ok) {
+          const mimeType =
+            String(assetResponse.headers.get("content-type") || banner?.mimeType || "image/jpeg")
+              .trim() || "image/jpeg";
+          const assetBuffer = Buffer.from(await assetResponse.arrayBuffer());
+          footerImageHref = `data:${mimeType};base64,${assetBuffer.toString("base64")}`;
+        }
+      } catch {
+        footerImageHref = "";
+      }
+    }
+
+    svg = buildFooterBannerSvg({
+      imageHref: footerImageHref,
+      title: banner?.title || "Footer Banner",
+      alt: banner?.alt || banner?.title || "Footer banner",
+      width: width || undefined,
+      height: height || undefined,
+    });
   } else if (type === "header") {
     const name = searchParams.get("name") || "Your Name";
     const subtitle = searchParams.get("subtitle") || "Building thoughtful software";
@@ -473,5 +511,6 @@ export async function GET(request) {
     },
   });
 }
+
 
 

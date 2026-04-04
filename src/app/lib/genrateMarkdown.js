@@ -17,9 +17,10 @@ import {
   getGraphicComponentVariantById,
   normalizeGraphicComponentData,
 } from "./graphicComponentCatalog";
-import { getFooterBannerById } from "./footerBannerCatalog";
+import { buildFooterBannerRenderPath, getFooterBannerById } from "./footerBannerCatalog";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
+const FOOTER_BANNER_MARKDOWN_WIDTH = 640;
 
 const escapeHtmlAttribute = (value) =>
   String(value || "")
@@ -774,18 +775,21 @@ ${content || "&nbsp;"}
     if (block === "footer") {
       const baseUrl = resolveBaseUrl();
       const banner = getFooterBannerById(item?.data?.bannerId);
-      const footerImageUrl = resolveAbsoluteAssetUrl(baseUrl, banner?.image);
+      const footerImageUrl = resolveAbsoluteAssetUrl(
+        baseUrl,
+        buildFooterBannerRenderPath(banner?.id)
+      );
       if (!footerImageUrl) return;
 
       markdown += `
 <p align="center">
-  <img src="${footerImageUrl}" alt="${escapeHtmlAttribute(banner?.alt || banner?.title || "Footer banner")}" />
+  <img src="${footerImageUrl}" alt="${escapeHtmlAttribute(banner?.alt || banner?.title || "Footer banner")}" width="${FOOTER_BANNER_MARKDOWN_WIDTH}" />
 </p>
-
 `;
     }
   });
 
   return markdown.trim();
 }
+
 
