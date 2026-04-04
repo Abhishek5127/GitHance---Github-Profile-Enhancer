@@ -20,7 +20,7 @@ import {
 import { buildFooterBannerRenderPath, getFooterBannerById } from "./footerBannerCatalog";
 
 const REPO_COMMIT_MARKDOWN_WIDTH = 360;
-const FOOTER_BANNER_MARKDOWN_WIDTH = 640;
+const FOOTER_BANNER_MARKDOWN_WIDTH = 800;
 
 const escapeHtmlAttribute = (value) =>
   String(value || "")
@@ -791,5 +791,6 @@ ${content || "&nbsp;"}
 
   return markdown.trim();
 }
+
 
 
