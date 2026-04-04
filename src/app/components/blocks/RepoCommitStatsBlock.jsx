@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
@@ -20,6 +20,77 @@ import {
 const COMPACT_CANVAS_WIDTH = 420;
 const COMPACT_CANVAS_HEIGHT_TALL = 176;
 const COMPACT_CANVAS_HEIGHT_REPO = 154;
+const REPO_COMMIT_SNAPSHOT_MAX_AGE_MS = 10 * 60 * 1000;
+
+const repoCommitSnapshotCache = new Map();
+const repoCommitSnapshotPromiseCache = new Map();
+
+function buildSnapshotCacheKey(username, installationId) {
+  return `${String(username || "").trim().toLowerCase()}::${Number(installationId || 0) || 0}`;
+}
+
+function getSnapshotUpdatedAt(snapshot) {
+  const parsed = Date.parse(String(snapshot?.last_updated || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isStatsSnapshotFresh(snapshot, maxAgeMs = REPO_COMMIT_SNAPSHOT_MAX_AGE_MS) {
+  if (!snapshot || typeof snapshot !== "object") return false;
+  const updatedAt = getSnapshotUpdatedAt(snapshot);
+  if (!updatedAt) return false;
+  return Date.now() - updatedAt <= maxAgeMs;
+}
+
+function primeRepoCommitSnapshotCache(username, installationId, snapshot) {
+  if (!username || !snapshot || typeof snapshot !== "object") return;
+  repoCommitSnapshotCache.set(buildSnapshotCacheKey(username, installationId), snapshot);
+}
+
+function getFreshRepoCommitSnapshot(username, installationId) {
+  const snapshot = repoCommitSnapshotCache.get(
+    buildSnapshotCacheKey(username, installationId)
+  );
+  return isStatsSnapshotFresh(snapshot) ? snapshot : null;
+}
+
+async function fetchRepoCommitSnapshot({ username, installationId }) {
+  const cacheKey = buildSnapshotCacheKey(username, installationId);
+  const cachedSnapshot = getFreshRepoCommitSnapshot(username, installationId);
+  if (cachedSnapshot) {
+    return cachedSnapshot;
+  }
+
+  const pendingRequest = repoCommitSnapshotPromiseCache.get(cacheKey);
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  const request = fetch("/api/github/stats/bootstrap", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username,
+      installationId,
+      force: false,
+    }),
+  })
+    .then(async (response) => {
+      const data = await response.json();
+      if (!response.ok || !data?.ok || !data?.stats) {
+        throw new Error(data?.error || "Failed to load commit stats");
+      }
+
+      const snapshot = data.stats;
+      primeRepoCommitSnapshotCache(username, installationId, snapshot);
+      return snapshot;
+    })
+    .finally(() => {
+      repoCommitSnapshotPromiseCache.delete(cacheKey);
+    });
+
+  repoCommitSnapshotPromiseCache.set(cacheKey, request);
+  return request;
+}
 
 function encodeStatsSnapshot(stats) {
   if (!stats || typeof stats !== "object") return "";
@@ -97,7 +168,6 @@ function resolveRequestedStatIds(item) {
     return [String(item?.data?.statId || "contribution").trim().toLowerCase()];
   }
 
-  // Legacy combined block support.
   return REPO_COMMIT_STAT_ITEMS.map((entry) => entry.id);
 }
 
@@ -134,6 +204,8 @@ export default function RepoCommitStatsBlock({
   stickerAssignments = {},
   showStickerDropSlots = false,
   defaultUsername = "",
+  prefetchedSnapshot = null,
+  prefetchedSnapshotVersion = 0,
 }) {
   const username = resolveProfileBuilderUsername(
     defaultUsername,
@@ -146,44 +218,89 @@ export default function RepoCommitStatsBlock({
     [item]
   );
 
+  const initialSnapshot = useMemo(() => {
+    if (prefetchedSnapshot && String(prefetchedSnapshot?.github_username || "").trim().toLowerCase() === username) {
+      return prefetchedSnapshot;
+    }
+    return persistedSnapshot;
+  }, [persistedSnapshot, prefetchedSnapshot, username]);
+
   const [bootstrapStatus, setBootstrapStatus] = useState({
     loading: false,
     error: "",
-    version: 0,
-    stats: persistedSnapshot,
+    version: prefetchedSnapshotVersion || 0,
+    stats: initialSnapshot,
   });
+
+  useEffect(() => {
+    if (!username) return;
+    if (!persistedSnapshot) return;
+    primeRepoCommitSnapshotCache(username, requestedInstallationId, persistedSnapshot);
+  }, [persistedSnapshot, requestedInstallationId, username]);
+
+  useEffect(() => {
+    if (!username || !prefetchedSnapshot) return;
+    if (String(prefetchedSnapshot?.github_username || "").trim().toLowerCase() !== username) {
+      return;
+    }
+
+    primeRepoCommitSnapshotCache(username, requestedInstallationId, prefetchedSnapshot);
+    setBootstrapStatus((prev) => ({
+      ...prev,
+      error: "",
+      loading: false,
+      version: prefetchedSnapshotVersion || prev.version || Date.now(),
+      stats: prefetchedSnapshot,
+    }));
+  }, [prefetchedSnapshot, prefetchedSnapshotVersion, requestedInstallationId, username]);
 
   useEffect(() => {
     if (!username) return;
 
     let cancelled = false;
+    const cachedSnapshot = getFreshRepoCommitSnapshot(username, requestedInstallationId);
+    const seededSnapshot =
+      cachedSnapshot ||
+      (prefetchedSnapshot && String(prefetchedSnapshot?.github_username || "").trim().toLowerCase() === username
+        ? prefetchedSnapshot
+        : null) ||
+      persistedSnapshot ||
+      null;
+
+    if (seededSnapshot) {
+      setBootstrapStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: "",
+        version:
+          prefetchedSnapshotVersion ||
+          prev.version ||
+          Date.now(),
+        stats: seededSnapshot,
+      }));
+    }
+
+    if (seededSnapshot && isStatsSnapshotFresh(seededSnapshot)) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const bootstrapStats = async () => {
       try {
         setBootstrapStatus((prev) => ({
           ...prev,
-          loading: true,
+          loading: !prev.stats,
           error: "",
         }));
 
-        const response = await fetch("/api/github/stats/bootstrap", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username,
-            installationId: requestedInstallationId,
-            force: !requestedInstallationId,
-          }),
+        const nextSnapshot = await fetchRepoCommitSnapshot({
+          username,
+          installationId: requestedInstallationId,
         });
+        if (cancelled || !nextSnapshot) return;
 
-        const data = await response.json();
-        if (cancelled) return;
-
-        if (!response.ok || !data?.ok) {
-          throw new Error(data?.error || "Failed to load commit stats");
-        }
-
-        const nextSnapshot = data?.stats || null;
+        const nextInstallationId = Number(nextSnapshot?.installation_id || 0) || null;
         setBootstrapStatus({
           loading: false,
           error: "",
@@ -191,25 +308,16 @@ export default function RepoCommitStatsBlock({
           stats: nextSnapshot,
         });
 
-        if (
-          typeof setItems === "function" &&
-          item?.id &&
-          nextSnapshot
-        ) {
+        if (typeof setItems === "function" && item?.id) {
           const serialized = JSON.stringify(nextSnapshot);
-          const nextInstallationId =
-            Number(nextSnapshot?.installation_id || 0) || null;
 
           setItems((prev) => {
             let changed = false;
             const nextItems = prev.map((entry) => {
               if (entry.id !== item.id) return entry;
 
-              const existingSerialized = JSON.stringify(
-                entry?.data?.statsSnapshot || null
-              );
-              const existingInstallationId =
-                Number(entry?.data?.installationId || 0) || null;
+              const existingSerialized = JSON.stringify(entry?.data?.statsSnapshot || null);
+              const existingInstallationId = Number(entry?.data?.installationId || 0) || null;
 
               if (
                 existingSerialized === serialized &&
@@ -240,7 +348,7 @@ export default function RepoCommitStatsBlock({
           ...prev,
           loading: false,
           error: error?.message || "Failed to load commit stats",
-          stats: null,
+          stats: prev.stats || persistedSnapshot || null,
         }));
       }
     };
@@ -250,16 +358,22 @@ export default function RepoCommitStatsBlock({
     return () => {
       cancelled = true;
     };
-  }, [item?.id, requestedInstallationId, setItems, username]);
+  }, [
+    item?.id,
+    persistedSnapshot,
+    prefetchedSnapshot,
+    prefetchedSnapshotVersion,
+    requestedInstallationId,
+    setItems,
+    username,
+  ]);
 
   const statsBlocks = useMemo(() => {
     if (!username) return [];
-    const encodedSnapshot = encodeStatsSnapshot(
-      bootstrapStatus.stats || persistedSnapshot
-    );
+    const resolvedSnapshot = bootstrapStatus.stats || persistedSnapshot || prefetchedSnapshot;
+    const encodedSnapshot = encodeStatsSnapshot(resolvedSnapshot);
     const resolvedInstallationId =
-      Number(requestedInstallationId || bootstrapStatus?.stats?.installation_id || 0) ||
-      null;
+      Number(requestedInstallationId || resolvedSnapshot?.installation_id || 0) || null;
 
     return requestedStatIds.map((statId) => {
       const block = getRepoCommitStatItemById(statId);
@@ -276,7 +390,7 @@ export default function RepoCommitStatsBlock({
           metric: block.metric,
           width: COMPACT_CANVAS_WIDTH,
           height: blockHeight,
-          version: bootstrapStatus.version,
+          version: bootstrapStatus.version || prefetchedSnapshotVersion,
           snapshot: encodedSnapshot,
           preferSnapshot: true,
         }),
@@ -286,6 +400,8 @@ export default function RepoCommitStatsBlock({
     bootstrapStatus.stats,
     bootstrapStatus.version,
     persistedSnapshot,
+    prefetchedSnapshot,
+    prefetchedSnapshotVersion,
     requestedInstallationId,
     requestedStatIds,
     username,
@@ -326,7 +442,7 @@ export default function RepoCommitStatsBlock({
   if (!username) {
     return (
       <div className="rounded-xl border border-white/10 bg-[#0f1115] p-4 text-sm text-white/60">
-        Enter a GitHub username above to preview live repository commit stats.
+        Set your GitHub username on the landing page to preview live repository commit stats.
       </div>
     );
   }
@@ -436,8 +552,4 @@ export default function RepoCommitStatsBlock({
     </div>
   );
 }
-
-
-
-
 

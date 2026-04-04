@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
@@ -34,6 +34,10 @@ import { buildSocialLinksPayload } from "../lib/socialLinksCatalog";
 import { buildGraphicComponentPayload } from "../lib/graphicComponentCatalog";
 import { REPO_COMMIT_STAT_ITEMS } from "../lib/repoCommitCatalog";
 import { resolveProfileBuilderUsername } from "../lib/profileComponents";
+import {
+  loadProfileBuilderContextUsername,
+  saveProfileBuilderContextUsername,
+} from "../lib/profileBuilderContext";
 import {
   getSectionVariantById,
   parseSectionSlotDropId,
@@ -232,19 +236,19 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     initialData: null,
     pickerKey: 0,
   });
-  const linkedGithubUsername = resolveProfileBuilderUsername(session?.username);
-  const [builderUsernameInput, setBuilderUsernameInput] = useState("");
-  const builderUsername = normalizeBuilderGithubUsername(builderUsernameInput);
+  const [builderUsername, setBuilderUsername] = useState("");
+  const [prefetchedCommitStatsSnapshot, setPrefetchedCommitStatsSnapshot] = useState(null);
+  const [prefetchedCommitStatsVersion, setPrefetchedCommitStatsVersion] = useState(0);
   const resolveCanvasUsername = (value = "") =>
     resolveProfileBuilderUsername(builderUsername, value);
   const [markdown, setMarkdown] = useState([]);
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
   const [publishFeedback, setPublishFeedback] = useState({ tone: "info", message: "" });
   const canLaunchPreview = Boolean(builderUsername);
-  const previewButtonLabel = canLaunchPreview ? "Open Preview" : "Enter GitHub Username";
+  const previewButtonLabel = canLaunchPreview ? "Open Preview" : "Set Username on Home";
   const previewButtonTitle = canLaunchPreview
     ? "Open the GitHub-style README preview"
-    : "Enter a GitHub username to preview this README";
+    : "Set your GitHub username on the landing page to preview this README";
 
   const bootstrapCommitStatsSnapshot = async (username, installationId = null) => {
     if (!username) return null;
@@ -256,7 +260,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         body: JSON.stringify({
           username,
           installationId,
-          force: !installationId,
+          force: false,
         }),
       });
 
@@ -446,6 +450,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     if (!commitBlocks.length) return items;
 
     const statsByIdentity = new Map();
+    const prefetchedInstallationId =
+      Number(prefetchedCommitStatsSnapshot?.installation_id || 0) || null;
+
+    if (builderUsername && prefetchedCommitStatsSnapshot) {
+      statsByIdentity.set(
+        `${builderUsername}:${prefetchedInstallationId ?? "auto"}`,
+        prefetchedCommitStatsSnapshot
+      );
+    }
 
     await Promise.all(
       commitBlocks.map(async (item) => {
@@ -453,6 +466,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         const installationId = Number(item?.data?.installationId || 0) || null;
         const identityKey = `${username}:${installationId ?? "auto"}`;
         if (!username || statsByIdentity.has(identityKey)) return;
+
+        const canUsePrefetchedSnapshot =
+          username === builderUsername &&
+          prefetchedCommitStatsSnapshot &&
+          (installationId === null || installationId === prefetchedInstallationId);
+
+        if (canUsePrefetchedSnapshot) {
+          statsByIdentity.set(identityKey, prefetchedCommitStatsSnapshot);
+          return;
+        }
 
         const snapshot = await bootstrapCommitStatsSnapshot(username, installationId);
         if (snapshot) {
@@ -476,7 +499,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           ...entry.data,
           username,
           statsSnapshot: snapshot,
-          installationId: Number(snapshot?.installation_id || entry?.data?.installationId || 0) || null,
+          installationId:
+            Number(snapshot?.installation_id || entry?.data?.installationId || 0) || null,
         },
       };
     });
@@ -578,7 +602,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     if (!builderUsername) {
       setPublishFeedback({
         tone: "info",
-        message: "Enter a GitHub username to preview your profile README.",
+        message: "Set your GitHub username on the landing page to preview your profile README.",
       });
       return;
     }
@@ -618,34 +642,43 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   }, [canvasItems]);
 
   useEffect(() => {
-    if (!linkedGithubUsername) return;
-    setBuilderUsernameInput((prev) => prev || linkedGithubUsername);
-  }, [linkedGithubUsername]);
-
-  useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const rawDraft = window.localStorage.getItem(PROFILE_BUILDER_DRAFT_STORAGE_KEY);
-      if (!rawDraft) return;
+      const storedContextUsername = loadProfileBuilderContextUsername();
+      let draftItems = [];
+      let draftUsername = "";
 
-      const parsedDraft = JSON.parse(rawDraft);
-      if (!Array.isArray(parsedDraft?.items)) return;
-
-      const draftUsername =
-        normalizeBuilderGithubUsername(parsedDraft?.builderUsername) ||
-        extractBuilderUsernameFromItems(parsedDraft.items);
-
-      if (draftUsername) {
-        setBuilderUsernameInput(draftUsername);
+      if (rawDraft) {
+        const parsedDraft = JSON.parse(rawDraft);
+        if (Array.isArray(parsedDraft?.items)) {
+          draftItems = parsedDraft.items;
+          draftUsername =
+            normalizeBuilderGithubUsername(parsedDraft?.builderUsername) ||
+            extractBuilderUsernameFromItems(parsedDraft.items);
+        }
       }
 
-      setCanvasItems(parsedDraft.items);
+      const resolvedBuilderUsername = storedContextUsername || draftUsername;
+      if (resolvedBuilderUsername) {
+        setBuilderUsername(resolvedBuilderUsername);
+        saveProfileBuilderContextUsername(resolvedBuilderUsername);
+      }
+
+      if (draftItems.length) {
+        setCanvasItems(draftItems);
+      }
     } catch (error) {
       console.error("Failed to restore builder draft", error);
     } finally {
       setIsDraftHydrated(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!builderUsername) return;
+    saveProfileBuilderContextUsername(builderUsername);
+  }, [builderUsername]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !isDraftHydrated) return;
@@ -663,6 +696,62 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       console.error("Failed to save builder draft", error);
     }
   }, [builderUsername, canvasItems, isDraftHydrated]);
+  useEffect(() => {
+    if (!isDraftHydrated) return;
+
+    if (!builderUsername) {
+      setPrefetchedCommitStatsSnapshot(null);
+      setPrefetchedCommitStatsVersion(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const prefetchCommitStatsSnapshot = async () => {
+      const snapshot = await bootstrapCommitStatsSnapshot(builderUsername, null);
+      if (cancelled || !snapshot) return;
+
+      const nextInstallationId = Number(snapshot?.installation_id || 0) || null;
+      setPrefetchedCommitStatsSnapshot(snapshot);
+      setPrefetchedCommitStatsVersion(Date.now());
+
+      setCanvasItems((prev) =>
+        mapCanvasItemsDeep(prev, (entry) => {
+          if (entry.type !== "commitStat" && entry.type !== "commits") return entry;
+
+          const existingSnapshot = entry?.data?.statsSnapshot || null;
+          const existingInstallationId = Number(entry?.data?.installationId || 0) || null;
+          const existingUsername = String(entry?.data?.username || "").trim().toLowerCase();
+
+          if (
+            JSON.stringify(existingSnapshot) === JSON.stringify(snapshot) &&
+            existingInstallationId === nextInstallationId &&
+            existingUsername === builderUsername
+          ) {
+            return entry;
+          }
+
+          return {
+            ...entry,
+            data: {
+              ...entry.data,
+              username: builderUsername,
+              installationId: nextInstallationId,
+              statsSnapshot: snapshot,
+            },
+          };
+        })
+      );
+    };
+
+    prefetchCommitStatsSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  // mapCanvasItemsDeep is a stable local helper for this effect path.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builderUsername, isDraftHydrated]);
 
   useEffect(() => {
     if (!isDraftHydrated) return;
@@ -1162,7 +1251,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       ? selectedIds
       : REPO_COMMIT_STAT_ITEMS.map((item) => item.id);
 
-    const snapshot = await bootstrapCommitStatsSnapshot(username, null);
+    const snapshot =
+      prefetchedCommitStatsSnapshot ||
+      (await bootstrapCommitStatsSnapshot(username, null));
+
+    if (snapshot && !prefetchedCommitStatsSnapshot) {
+      setPrefetchedCommitStatsSnapshot(snapshot);
+      setPrefetchedCommitStatsVersion(Date.now());
+    }
     const installationId =
       Number(snapshot?.installation_id || 0) || null;
     const now = Date.now();
@@ -2008,72 +2104,17 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           onDragEnd={onDragEnd}
         >
           <div className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6">
-            <div className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#ffb37f]">
-                    Profile Builder
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold sm:text-2xl">Profile README Builder</h2>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68">
-                    Build the README with drag-and-drop blocks, inspect a GitHub-style preview, then copy or download the markdown without pushing workflow files into your repository.
-                  </p>
-                </div>
-
-                <div className="rounded-3xl border border-white/10 bg-[#0d1117] p-4 xl:max-w-md">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Export Flow</p>
-                  <p className="mt-2 text-sm leading-6 text-white/62">
-                    Contribution graphs, commit stats, and footer visuals are rendered from hosted URLs so the exported README stays portable and your billing setup stays untouched.
-                  </p>
-                </div>
+            {publishFeedback.message ? (
+              <div className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
+                publishFeedback.tone === "success"
+                  ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
+                  : publishFeedback.tone === "error"
+                    ? "border-red-500/25 bg-red-500/10 text-red-100"
+                    : "border-amber-400/25 bg-amber-500/10 text-amber-100"
+              }`}>
+                {publishFeedback.message}
               </div>
-
-              <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
-                <label className="rounded-3xl border border-white/10 bg-[#0d1117] p-4">
-                  <span className="text-xs uppercase tracking-[0.2em] text-white/45">GitHub Username</span>
-                  <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                    <span className="text-lg font-semibold text-white/38">@</span>
-                    <input
-                      type="text"
-                      value={builderUsernameInput}
-                      onChange={(event) =>
-                        setBuilderUsernameInput(normalizeBuilderGithubUsername(event.target.value))
-                      }
-                      placeholder="octocat"
-                      spellCheck={false}
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      className="w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-white/28"
-                    />
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-white/62">
-                    This username drives profile README fetches, commit stats, contribution graphs, and preview export. You do not need to sign in just to build.
-                  </p>
-                </label>
-
-                <div className="rounded-3xl border border-white/10 bg-[#0d1117] p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Account Record</p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {linkedGithubUsername ? `@${linkedGithubUsername}` : "No linked username"}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-white/62">
-                    Linking is optional here and mainly useful for account history and Pro checkout continuity.
-                  </p>
-                </div>
-              </div>
-
-              {publishFeedback.message ? (
-                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
-                  publishFeedback.tone === "success"
-                    ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
-                    : publishFeedback.tone === "error"
-                      ? "border-red-500/25 bg-red-500/10 text-red-100"
-                      : "border-amber-400/25 bg-amber-500/10 text-amber-100"
-                }`}>
-                  {publishFeedback.message}
-                </div>
-              ) : null}
-            </div>
+            ) : null}
 
             <Canvas
               readmeData={readme}
@@ -2081,6 +2122,8 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
               setItems={setCanvasItems}
               onEditItem={handleEditItem}
               defaultUsername={builderUsername}
+              prefetchedCommitStatsSnapshot={prefetchedCommitStatsSnapshot}
+              prefetchedCommitStatsVersion={prefetchedCommitStatsVersion}
             />
           </div>
 
@@ -2195,6 +2238,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

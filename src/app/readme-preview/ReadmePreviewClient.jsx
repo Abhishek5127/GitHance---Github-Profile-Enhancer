@@ -21,6 +21,25 @@ function formatGeneratedAt(value) {
   }).format(parsed);
 }
 
+function MetaPill({ children }) {
+  return (
+    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/70">
+      {children}
+    </span>
+  );
+}
+
+function ActionButton({ as: Component = "button", className = "", children, ...props }) {
+  return (
+    <Component
+      className={`rounded-full px-4 py-2.5 text-sm font-semibold transition ${className}`}
+      {...props}
+    >
+      {children}
+    </Component>
+  );
+}
+
 export default function ReadmePreviewClient() {
   const payload = loadReadmePreviewPayload();
   const [feedback, setFeedback] = useState("");
@@ -29,6 +48,10 @@ export default function ReadmePreviewClient() {
     () => buildReadmeDownloadFilename(payload || {}),
     [payload]
   );
+
+  const previewTitle = String(payload?.title || "README Preview").trim() || "README Preview";
+  const previewOwner = String(payload?.owner || "").trim();
+  const previewRepo = String(payload?.repo || "").trim();
 
   const handleCopy = async () => {
     if (!payload?.markdown) return;
@@ -58,26 +81,37 @@ export default function ReadmePreviewClient() {
 
   if (!payload?.markdown) {
     return (
-      <main className="min-h-screen bg-[#f6f8fa] px-4 py-16 text-[#1f2328]">
-        <div className="mx-auto max-w-3xl rounded-[28px] border border-black/8 bg-white p-8 shadow-[0_30px_80px_rgba(31,35,40,0.08)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#59636e]">README Preview</p>
-          <h1 className="mt-4 text-4xl font-semibold">No preview is ready yet.</h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-[#59636e] sm:text-base">
-            Open the profile builder or the README Lab, generate markdown, then use the preview action to inspect the GitHub-style rendering here.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href="/profile-builder"
-              className="rounded-full bg-[#1f883d] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a7a36]"
-            >
-              Open profile builder
-            </Link>
-            <Link
-              href="/analyze"
-              className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#1f2328] transition hover:bg-black/[0.03]"
-            >
-              Open repository analyzer
-            </Link>
+      <main className="relative min-h-screen overflow-hidden bg-[#05070b] px-4 py-12 text-white sm:px-6 lg:px-8">
+        <div className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.28),_transparent_65%)] blur-3xl" />
+        <div className="pointer-events-none absolute right-0 top-10 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(83,208,255,0.18),_transparent_65%)] blur-3xl" />
+
+        <div className="relative mx-auto flex min-h-[80vh] max-w-5xl items-center justify-center">
+          <div className="w-full rounded-[32px] border border-white/10 bg-[#0b0f14]/92 p-8 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur sm:p-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/40">
+              README Preview
+            </p>
+            <h1 className="mt-4 text-4xl font-semibold text-white sm:text-5xl">
+              No preview is ready yet.
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
+              Generate markdown in the profile builder or README Lab, then open preview to inspect the same content in a GitHub-style render surface.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <ActionButton
+                as={Link}
+                href="/profile-builder"
+                className="bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
+              >
+                Open profile builder
+              </ActionButton>
+              <ActionButton
+                as={Link}
+                href="/analyze"
+                className="border border-white/12 bg-white/[0.04] text-white/85 hover:bg-white/[0.08]"
+              >
+                Open repository analyzer
+              </ActionButton>
+            </div>
           </div>
         </div>
       </main>
@@ -85,62 +119,109 @@ export default function ReadmePreviewClient() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f8fa] px-4 py-10 text-[#1f2328] sm:px-6">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-black/8 bg-white p-5 shadow-[0_28px_80px_rgba(31,35,40,0.08)] sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#59636e]">GitHub README Preview</p>
-            <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{payload.title}</h1>
-            <div className="mt-3 flex flex-wrap gap-2 text-sm text-[#59636e]">
-              {payload.owner ? <span className="rounded-full border border-black/10 bg-[#f6f8fa] px-3 py-1">@{payload.owner}</span> : null}
-              {payload.repo ? <span className="rounded-full border border-black/10 bg-[#f6f8fa] px-3 py-1">{payload.repo}</span> : null}
-              <span className="rounded-full border border-black/10 bg-[#f6f8fa] px-3 py-1">{formatGeneratedAt(payload.generatedAt)}</span>
+    <main className="relative min-h-screen overflow-hidden bg-[#05070b] px-4 py-8 text-white sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.28),_transparent_65%)] blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-10 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(83,208,255,0.18),_transparent_65%)] blur-3xl" />
+
+      <div className="relative mx-auto max-w-7xl">
+        <section className="rounded-[32px] border border-white/10 bg-[#0b0f14]/92 p-5 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur sm:p-6 lg:p-7">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/40">
+                README Preview
+              </p>
+              <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl lg:text-[2.8rem]">
+                {previewTitle}
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
+                This preview uses the exact markdown prepared for export, wrapped in a GitHub-like paper surface so spacing, images, and badges are easy to sanity-check before copy or download.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {previewOwner ? <MetaPill>@{previewOwner}</MetaPill> : null}
+                {previewRepo ? <MetaPill>{previewRepo}</MetaPill> : null}
+                <MetaPill>{formatGeneratedAt(payload.generatedAt)}</MetaPill>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 lg:justify-end">
+              <ActionButton
+                type="button"
+                onClick={handleCopy}
+                className="border border-white/12 bg-white/[0.04] text-white/85 hover:bg-white/[0.08]"
+              >
+                Copy Markdown
+              </ActionButton>
+              <ActionButton
+                type="button"
+                onClick={handleDownload}
+                className="bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
+              >
+                Download README
+              </ActionButton>
+              <ActionButton
+                as={Link}
+                href={payload.backHref || "/profile-builder"}
+                className="border border-white/12 bg-white/[0.04] text-white/85 hover:bg-white/[0.08]"
+              >
+                {payload.backLabel || "Back"}
+              </ActionButton>
             </div>
           </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f2328] transition hover:bg-black/[0.03]"
-            >
-              Copy Markdown
-            </button>
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="rounded-full bg-[#1f883d] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a7a36]"
-            >
-              Download README
-            </button>
-            <Link
-              href={payload.backHref || "/profile-builder"}
-              className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f2328] transition hover:bg-black/[0.03]"
-            >
-              {payload.backLabel || "Back"}
-            </Link>
-          </div>
-        </div>
+        </section>
 
         {feedback ? (
-          <div className="mb-5 rounded-2xl border border-[#1f883d]/20 bg-[#1f883d]/8 px-4 py-3 text-sm text-[#1f6f31]">
+          <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
             {feedback}
           </div>
         ) : null}
 
-        <section className="overflow-hidden rounded-[28px] border border-black/8 bg-white shadow-[0_30px_80px_rgba(31,35,40,0.08)]">
-          <div className="border-b border-black/8 bg-[#f6f8fa] px-5 py-3">
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-              <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-              <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-              <span className="ml-3 text-sm text-[#59636e]">README.md</span>
+        <div className="mt-6 grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="space-y-4">
+            <section className="rounded-[28px] border border-white/10 bg-[#0b0f14]/92 p-5 shadow-[0_28px_80px_rgba(0,0,0,0.35)] backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/40">
+                Export Tools
+              </p>
+              <div className="mt-4 space-y-3 text-sm text-white/65">
+                <p>Copy the markdown when you want a quick paste into GitHub.</p>
+                <p>Download the file when you want a local `.md` export with the exact generated filename.</p>
+                <p>Use back to adjust blocks, spacing, or assets without losing the current preview flow.</p>
+              </div>
+            </section>
+
+            <section className="rounded-[28px] border border-white/10 bg-[#0b0f14]/92 p-5 shadow-[0_28px_80px_rgba(0,0,0,0.35)] backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/40">
+                Rendering Notes
+              </p>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-white/65">
+                <li>Images and stat cards are rendered from the same markdown payload being exported.</li>
+                <li>The preview surface stays GitHub-like, while the surrounding shell matches the app.</li>
+                <li>Final GitHub spacing can still vary slightly based on repository context and cached images.</li>
+              </ul>
+            </section>
+          </aside>
+
+          <section className="overflow-hidden rounded-[32px] border border-white/10 bg-[#0b0f14]/92 shadow-[0_36px_100px_rgba(0,0,0,0.42)] backdrop-blur">
+            <div className="border-b border-white/10 bg-[#0d1117] px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+                  <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+                  <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+                  <span className="ml-2 text-sm text-white/55">README.md</span>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/55">
+                  GitHub-style render surface
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="overflow-x-auto px-4 py-6 sm:px-8 sm:py-8">
-            <ReadmeRenderer readme={payload.markdown} />
-          </div>
-        </section>
+
+            <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] p-3 sm:p-5 lg:p-6">
+              <div className="overflow-x-auto rounded-[24px] border border-black/10 bg-white px-4 py-6 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:px-8 sm:py-8">
+                <ReadmeRenderer readme={payload.markdown} />
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );

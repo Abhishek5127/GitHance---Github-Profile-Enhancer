@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -318,7 +318,7 @@ export default function TechStackVariantPicker({
     if (!resolvedGithubUsername) {
       setFeedback({
         type: "error",
-        message: "Enter a GitHub username in the builder to scan repositories.",
+        message: "Set your GitHub username on the landing page to scan repositories.",
       });
       return;
     }
@@ -698,5 +698,6 @@ export default function TechStackVariantPicker({
     </div>
   );
 }
+
 
 

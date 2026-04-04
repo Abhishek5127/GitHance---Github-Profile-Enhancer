@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useDndContext, useDroppable } from "@dnd-kit/core";
@@ -67,8 +67,10 @@ export default function Canvas({
   setItems,
   onEditItem,
   defaultUsername = "",
+  prefetchedCommitStatsSnapshot = null,
+  prefetchedCommitStatsVersion = 0,
 }) {
-  const [readmeDataContent, setreadmeDataContent] = useState("");
+  const [readmeDataContent, setReadmeDataContent] = useState("");
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
   const { active } = useDndContext();
   const isStickerDragging = active?.data?.current?.source === "sticker-template";
@@ -84,12 +86,12 @@ export default function Canvas({
   );
 
   useEffect(() => {
-    setreadmeDataContent(readmeData);
+    setReadmeDataContent(readmeData);
   }, [readmeData]);
 
   useEffect(() => {
     if (normalizedItems.length > 0) {
-      setreadmeDataContent("");
+      setReadmeDataContent("");
     }
   }, [normalizedItems]);
 
@@ -99,53 +101,54 @@ export default function Canvas({
     setItems((prev) => prev.filter((entry) => entry.id !== normalizedId));
   };
 
+  const hasGeneratedReadme = Boolean(readmeDataContent);
+  const hasCanvasItems = sortableCanvasItems.length > 0;
+
   return (
     <div
       ref={setNodeRef}
-      className={`relative min-h-[480px] overflow-x-hidden rounded-2xl border border-dashed p-1.5 sm:min-h-[600px] ${
+      className={`relative min-h-[480px] overflow-x-hidden rounded-2xl border border-dashed p-1.5 pt-3 sm:min-h-[600px] ${
         isOver ? "border-cyan-400 bg-[#101722]" : "border-white/15 bg-[#0d1117]"
       }`}
     >
-      <div className="h-16 sm:h-14">
-        <div className="absolute left-3 right-3 top-3 mb-3 flex flex-wrap justify-end gap-2">
-          {readmeDataContent ? (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setreadmeDataContent("")}
-                className="cursor-pointer rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
-              >
-                Create
-              </button>
-              <button
-                onClick={() => {
-                  setItems([]);
-                  setreadmeDataContent("");
-                }}
-                className="cursor-pointer rounded-full border border-red-500/40 bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/30"
-              >
-                Clear
-              </button>
-            </div>
-          ) : (
+      <div className="pointer-events-none absolute right-3 top-3 z-20 flex flex-wrap justify-end gap-2">
+        {hasGeneratedReadme ? (
+          <div className="pointer-events-auto flex gap-2">
             <button
-              onClick={() => setItems([])}
+              onClick={() => setReadmeDataContent("")}
+              className="cursor-pointer rounded-full border border-white/15 bg-[#111824]/90 px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#151d29]"
+            >
+              Create
+            </button>
+            <button
+              onClick={() => {
+                setItems([]);
+                setReadmeDataContent("");
+              }}
               className="cursor-pointer rounded-full border border-red-500/40 bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/30"
             >
               Clear
             </button>
-          )}
-        </div>
+          </div>
+        ) : hasCanvasItems ? (
+          <button
+            onClick={() => setItems([])}
+            className="pointer-events-auto cursor-pointer rounded-full border border-red-500/40 bg-[#160c0c]/90 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/25"
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
 
-      {readmeDataContent ? (
-        <div className="overflow-x-auto">
+      {hasGeneratedReadme ? (
+        <div className="overflow-x-auto px-2 pb-4 pt-12">
           <article
             className="markdown-body min-w-0 break-words"
             dangerouslySetInnerHTML={{ __html: readmeDataContent }}
           />
         </div>
-      ) : sortableCanvasItems.length === 0 ? (
-        <div className="py-14 text-center text-sm text-white/50">
+      ) : !hasCanvasItems ? (
+        <div className="flex min-h-[420px] items-center justify-center px-6 py-14 text-center text-sm text-white/50 sm:min-h-[540px]">
           Create Readme
         </div>
       ) : null}
@@ -183,11 +186,11 @@ export default function Canvas({
             setItems={setItems}
             onEditItem={onEditItem}
             defaultUsername={defaultUsername}
+            prefetchedCommitStatsSnapshot={prefetchedCommitStatsSnapshot}
+            prefetchedCommitStatsVersion={prefetchedCommitStatsVersion}
           />
         ))}
       </SortableContext>
     </div>
   );
 }
-
-

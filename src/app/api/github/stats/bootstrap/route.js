@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { bootstrapGithubStatsFromEvents } from "@/app/lib/githubStats";
+import {
+  bootstrapGithubStatsFromEvents,
+  getGithubStatsForUser,
+} from "@/app/lib/githubStats";
 import { createGithubAppJwt, isGithubAppConfigured } from "@/app/lib/githubAppAuth";
 import {
   buildGithubRestHeaders,
@@ -8,12 +11,29 @@ import {
 } from "@/app/lib/githubPublicData";
 
 const GITHUB_API = "https://api.github.com";
-const GITHUB_API_VERSION = "2022-11-28";
+
+function normalizeInstallationId(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.floor(parsed);
+}
+
+function hasMeaningfulStats(stats) {
+  if (!stats || typeof stats !== "object") return false;
+
+  return (
+    Number(stats.total_commits || 0) > 0 ||
+    Number(stats.recent_commits_30 || 0) > 0 ||
+    Number(stats.active_days_30 || 0) > 0 ||
+    Boolean(String(stats.last_repo || "").trim()) ||
+    Boolean(String(stats.top_repo_recent || "").trim())
+  );
+}
 
 async function resolveInstallationId({ username, installationId }) {
-  const explicit = Number(installationId);
-  if (Number.isFinite(explicit) && explicit > 0) {
-    return Math.floor(explicit);
+  const explicitInstallationId = normalizeInstallationId(installationId);
+  if (explicitInstallationId !== null) {
+    return explicitInstallationId;
   }
 
   if (!username || !isGithubAppConfigured()) {
@@ -37,9 +57,7 @@ async function resolveInstallationId({ username, installationId }) {
         ? payload.installations
         : [];
 
-    const normalizedUsername = String(username || "")
-      .trim()
-      .toLowerCase();
+    const normalizedUsername = String(username || "").trim().toLowerCase();
     if (!normalizedUsername) return null;
 
     const match = installations.find((installation) => {
@@ -49,9 +67,7 @@ async function resolveInstallationId({ username, installationId }) {
       return accountLogin === normalizedUsername;
     });
 
-    const resolved = Number(match?.id);
-    if (!Number.isFinite(resolved) || resolved <= 0) return null;
-    return Math.floor(resolved);
+    return normalizeInstallationId(match?.id);
   } catch {
     return null;
   }
@@ -66,10 +82,7 @@ export async function POST(req) {
       force = false,
     } = await req.json();
 
-    const resolvedUsername = await resolveGithubUsername({
-      username,
-      token,
-    });
+    const resolvedUsername = await resolveGithubUsername({ username, token });
 
     if (!resolvedUsername) {
       return NextResponse.json(
@@ -81,9 +94,32 @@ export async function POST(req) {
       );
     }
 
+    const explicitInstallationId = normalizeInstallationId(installationId);
+    const useForceRefresh = Boolean(force);
+
+    if (!useForceRefresh) {
+      const cachedStats = await getGithubStatsForUser({
+        username: resolvedUsername,
+        installationId: explicitInstallationId,
+      });
+
+      if (hasMeaningfulStats(cachedStats)) {
+        return NextResponse.json({
+          ok: true,
+          bootstrapped: false,
+          source: "cache",
+          github_username: resolvedUsername,
+          installation_id:
+            normalizeInstallationId(cachedStats?.installation_id) ?? explicitInstallationId,
+          events_fetched: 0,
+          stats: cachedStats,
+        });
+      }
+    }
+
     const resolvedInstallationId = await resolveInstallationId({
       username: resolvedUsername,
-      installationId,
+      installationId: explicitInstallationId,
     });
 
     const events = await fetchGithubRecentEvents({
@@ -93,13 +129,11 @@ export async function POST(req) {
       perPage: 100,
     });
 
-    const shouldForceRefresh = Boolean(force) || resolvedInstallationId === null;
-
     const result = await bootstrapGithubStatsFromEvents({
       username: resolvedUsername,
       installationId: resolvedInstallationId,
       events,
-      force: shouldForceRefresh,
+      force: useForceRefresh || resolvedInstallationId === null,
     });
 
     if (!result.ok) {

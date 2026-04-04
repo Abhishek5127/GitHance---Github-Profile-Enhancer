@@ -32,6 +32,9 @@ function SectionSlot({
   showBorders,
   onEditItem,
   onRemoveSlotItem,
+  defaultUsername = "",
+  prefetchedCommitStatsSnapshot = null,
+  prefetchedCommitStatsVersion = 0,
 }) {
   const dropId = buildSectionSlotDropId(sectionId, slotIndex);
   const { isOver, setNodeRef } = useDroppable({ id: dropId });
@@ -73,9 +76,16 @@ function SectionSlot({
         return <GraphicComponentBlock item={slotItem} />;
       case "commitStat":
       case "commits":
-        return <RepoCommitStatsBlock item={slotItem} />;
+        return (
+          <RepoCommitStatsBlock
+            item={slotItem}
+            defaultUsername={defaultUsername}
+            prefetchedSnapshot={prefetchedCommitStatsSnapshot}
+            prefetchedSnapshotVersion={prefetchedCommitStatsVersion}
+          />
+        );
       case "contribution":
-        return <ContributionGraph item={slotItem} />;
+        return <ContributionGraph item={slotItem} defaultUsername={defaultUsername} />;
       case "footer":
         return <FooterBannerBlock item={slotItem} />;
       default:
@@ -173,6 +183,9 @@ export default function SectionBlock({
   onEditItem,
   stickerAssignments = {},
   showStickerDropSlots = false,
+  defaultUsername = "",
+  prefetchedCommitStatsSnapshot = null,
+  prefetchedCommitStatsVersion = 0,
 }) {
   const variant = getSectionVariantById(item?.data?.variantId);
   const slots = Array.isArray(item?.data?.slots) ? item.data.slots : [];
@@ -220,23 +233,25 @@ export default function SectionBlock({
   };
 
   useEffect(() => {
-    if (!showLimitToast) return undefined;
-    const timer = setTimeout(() => setShowLimitToast(false), 2600);
-    return () => clearTimeout(timer);
+    if (!showLimitToast) return;
+
+    const timeout = window.setTimeout(() => {
+      setShowLimitToast(false);
+    }, 2200);
+
+    return () => window.clearTimeout(timeout);
   }, [showLimitToast]);
 
-  const removeSlotItem = (slotIndex) => {
+  const updateSlotItem = (slotIndex, updater) => {
     if (typeof setItems !== "function") return;
-    if (!Number.isInteger(slotIndex) || slotIndex < 0) return;
 
     setItems((prev) =>
       prev.map((entry) => {
-        if (entry.id !== item.id || entry.type !== "section") return entry;
+        if (entry.id !== item.id) return entry;
         const currentSlots = Array.isArray(entry?.data?.slots) ? [...entry.data.slots] : [];
-        if (slotIndex >= currentSlots.length) return entry;
-
-        currentSlots[slotIndex] = null;
-
+        const target = currentSlots[slotIndex];
+        if (!target) return entry;
+        currentSlots[slotIndex] = updater(target);
         return {
           ...entry,
           data: {
@@ -248,11 +263,26 @@ export default function SectionBlock({
     );
   };
 
-  const wrapperClass = showBorders
-    ? "rounded-2xl border border-cyan-300/25 bg-[linear-gradient(135deg,rgba(6,13,24,0.95),rgba(5,9,20,0.9))] p-3"
-    : "rounded-2xl bg-transparent p-3";
+  const removeSlotItem = (slotIndex) => {
+    if (typeof setItems !== "function") return;
 
-  const removeSticker = (slotId) => {
+    setItems((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== item.id) return entry;
+        const currentSlots = Array.isArray(entry?.data?.slots) ? [...entry.data.slots] : [];
+        currentSlots[slotIndex] = null;
+        return {
+          ...entry,
+          data: {
+            ...entry.data,
+            slots: currentSlots,
+          },
+        };
+      })
+    );
+  };
+
+  const handleRemoveSticker = (slotId) => {
     if (!slotId || typeof setItems !== "function") return;
 
     setItems((prev) =>
@@ -277,48 +307,44 @@ export default function SectionBlock({
   };
 
   return (
-    <div className={`relative ${wrapperClass}`}>
+    <div className="relative w-full min-w-0 rounded-2xl border border-white/10 bg-[#0f1115] p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/40">Section</p>
+          <h3 className="mt-1 text-sm font-semibold text-white">{variant.title}</h3>
+        </div>
+
+        {supportsBorderToggle ? (
+          <button
+            type="button"
+            onClick={toggleSectionBorders}
+            className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/78 transition hover:bg-white/10"
+          >
+            {showBorders ? "Hide Borders" : "Show Borders"}
+          </button>
+        ) : null}
+      </div>
+
       {showLimitToast ? (
-        <div className="pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-lg border border-amber-300/45 bg-amber-400/15 px-3 py-1 text-[11px] text-amber-100 shadow-[0_12px_28px_rgba(0,0,0,0.35)]">
-          GitHub limitation: borders cannot be disabled for this 3-column section.
+        <div className="mb-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          This section layout looks best with borders enabled.
         </div>
       ) : null}
 
-      <div className="mb-3 flex items-center justify-end gap-2">
-        <p className="text-[11px] text-cyan-100/70">{totalSlots} slots</p>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-white/70">Borders</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={showBorders}
-            onClick={toggleSectionBorders}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full border transition ${
-              showBorders
-                ? "border-cyan-300/70 bg-cyan-300/25"
-                : "border-white/25 bg-[#0f1520]"
-            }`}
-          >
-            <span
-              className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
-                showBorders ? "translate-x-[18px]" : "translate-x-[2px]"
-              }`}
-            />
-          </button>
-        </div>
-      </div>
-
-      <div className={`grid min-w-0 gap-2 ${gridClass}`}>
+      <div className={`relative grid gap-3 ${gridClass}`}>
         {resolvedSlots.map((slotItem, slotIndex) => (
           <SectionSlot
             key={`${item.id}-slot-${slotIndex}`}
             sectionId={item.id}
             slotIndex={slotIndex}
             slotItem={slotItem}
-            slotMinHeight={Number(variant.canvasSlotMinHeight || 200)}
+            slotMinHeight={Number(variant.slotMinHeight || 170)}
             showBorders={showBorders}
             onEditItem={onEditItem}
             onRemoveSlotItem={removeSlotItem}
+            defaultUsername={defaultUsername}
+            prefetchedCommitStatsSnapshot={prefetchedCommitStatsSnapshot}
+            prefetchedCommitStatsVersion={prefetchedCommitStatsVersion}
           />
         ))}
       </div>
@@ -329,26 +355,28 @@ export default function SectionBlock({
           const sticker = getStickerById(stickerId);
           if (!sticker) return null;
 
+          const stickerSizePx = getStickerBaseSizePx(sticker.id) * 2;
+
           return (
             <div key={`${item.id}-${slot.id}`} className={`absolute ${slot.positionClass}`}>
               <div className="group/sticker relative pointer-events-auto">
                 <SafeImage
                   src={sticker.assetPath}
                   alt={sticker.title}
-                  width={getStickerBaseSizePx(sticker.id) * 2}
-                  height={getStickerBaseSizePx(sticker.id) * 2}
+                  width={stickerSizePx}
+                  height={stickerSizePx}
                   className="object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
                   style={{
-                    width: `${getStickerBaseSizePx(sticker.id) * 2}px`,
-                    height: `${getStickerBaseSizePx(sticker.id) * 2}px`,
+                    width: `${stickerSizePx}px`,
+                    height: `${stickerSizePx}px`,
                   }}
-                  sizes={`${getStickerBaseSizePx(sticker.id) * 2}px`}
+                  sizes={`${stickerSizePx}px`}
                 />
                 <button
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
                     event.stopPropagation();
-                    removeSticker(slot.id);
+                    handleRemoveSticker(slot.id);
                   }}
                   className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-0 transition group-hover/sticker:opacity-100"
                   title="Remove sticker"
@@ -360,21 +388,19 @@ export default function SectionBlock({
             </div>
           );
         })}
-      </div>
 
-      {showStickerDropSlots ? (
-        <div className="pointer-events-none absolute inset-0 z-30">
-          {STICKER_SLOT_PRESETS.map((slot) => (
-            <SectionStickerDropSlot
-              key={`drop-slot-${item.id}-${slot.id}`}
-              itemId={item.id}
-              slot={slot}
-              visible
-              sizePx={slotSizePx}
-            />
-          ))}
-        </div>
-      ) : null}
+        {showStickerDropSlots
+          ? STICKER_SLOT_PRESETS.map((slot) => (
+              <SectionStickerDropSlot
+                key={`${item.id}-drop-${slot.id}`}
+                itemId={item.id}
+                slot={slot}
+                visible
+                sizePx={slotSizePx}
+              />
+            ))
+          : null}
+      </div>
     </div>
   );
 }

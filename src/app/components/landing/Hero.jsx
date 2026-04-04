@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState } from "react";
 import { antonio, poppins } from "@/app/fonts";
-import { buildAuthRedirectHref } from "@/app/lib/authNavigation";
+import { saveProfileBuilderContextUsername } from "@/app/lib/profileBuilderContext";
 
 const ANALYZE_REPOSITORIES_PATH = "/analyze";
 
@@ -43,16 +43,12 @@ const colorMap = {
 
 export default function Hero() {
   const [active, setActive] = useState(modes[0]);
-  const [heroName, setHeroName] = useState("");
+  const [heroUsername, setHeroUsername] = useState("");
 
   const handlePersonalStart = (event) => {
     event.preventDefault();
-    window.location.assign(
-      buildAuthRedirectHref("/profile-builder", {
-        mode: "signup",
-        name: heroName,
-      })
-    );
+    saveProfileBuilderContextUsername(heroUsername);
+    window.location.assign("/profile-builder");
   };
 
   return (
@@ -78,23 +74,24 @@ export default function Hero() {
         </p>
 
         <form onSubmit={handlePersonalStart} className="mt-10 max-w-2xl">
-          <label htmlFor="hero-name" className={`text-[11px] font-semibold uppercase tracking-[0.34em] ${poppins.className} text-white/46`}>
-            Start with your name
+          <label htmlFor="hero-username" className={`text-[11px] font-semibold uppercase tracking-[0.34em] ${poppins.className} text-white/46`}>
+            Start with your GitHub username
           </label>
           <div className="mt-4 border-b border-white/18 pb-4 transition focus-within:border-[#ff7a1a]">
             <input
-              id="hero-name"
-              name="name"
+              id="hero-username"
+              name="username"
               type="text"
-              autoComplete="name"
-              value={heroName}
-              onChange={(event) => setHeroName(event.target.value)}
-              placeholder="Your name"
+              autoComplete="off"
+              spellCheck={false}
+              value={heroUsername}
+              onChange={(event) => setHeroUsername(event.target.value)}
+              placeholder="your-github-username"
               className={`w-full bg-transparent text-4xl ${antonio.className} leading-none tracking-[0.08em] text-white outline-none placeholder:text-white/18 sm:text-5xl lg:text-6xl`}
             />
           </div>
           <p className={`mt-3 text-sm ${poppins.className} leading-6 text-white/52`}>
-            We&apos;ll carry this into email signup so your workspace starts prefilled instead of empty.
+            We&apos;ll carry this into the profile builder so commit stats, contribution graphs, and profile fetches use the right account from the start.
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
@@ -102,7 +99,7 @@ export default function Hero() {
               type="submit"
               className="inline-flex justify-center rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]"
             >
-              Create your workspace
+              Open profile builder
             </button>
             <Link
               href="/analyze"
