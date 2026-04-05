@@ -28,7 +28,7 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import Sidebar from "../components/sidebar/Sidebar";
 import Canvas from "../components/canvas/Canvas";
-import { buildTechStackPayload } from "../lib/techStackCatalog";
+import { buildTechStackPayload, inferTechStackDataFromRepos } from "../lib/techStackCatalog";
 import { buildSocialLinksPayload } from "../lib/socialLinksCatalog";
 import { buildGraphicComponentPayload } from "../lib/graphicComponentCatalog";
 import { REPO_COMMIT_STAT_ITEMS } from "../lib/repoCommitCatalog";
@@ -63,6 +63,11 @@ import {
   getFooterBannerById,
   normalizeFooterAssetPathValue,
 } from "../lib/footerBannerCatalog";
+import {
+  buildBioPayload,
+  fetchGithubProfile,
+  generateBioFromPayload,
+} from "../services/githubData.service";
 
 const PROFILE_BUILDER_DRAFT_STORAGE_KEY = "githance:profile-builder:draft:v1";
 const CONTRIBUTION_DEFAULT_VARIANT = "classic";
@@ -129,6 +134,160 @@ function extractBuilderUsernameFromItems(items = []) {
 
   (Array.isArray(items) ? items : []).forEach((entry) => visit(entry));
   return resolvedUsername;
+}
+
+function sanitizeProfileLink(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed.replace(/^\/+/, "")}`;
+}
+
+function titleCaseLabel(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[-_]+/g, " ")
+    .toLowerCase();
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function dedupeTextEntries(values = [], limit = 6) {
+  const seen = new Set();
+  const collected = [];
+
+  values.forEach((entry) => {
+    const normalized = String(entry || "").trim().replace(/^[-*]\s*/, "");
+    if (!normalized) return;
+
+    const dedupeKey = normalized.toLowerCase();
+    if (seen.has(dedupeKey)) return;
+
+    seen.add(dedupeKey);
+    collected.push(normalized);
+  });
+
+  return collected.slice(0, limit);
+}
+
+function inferSocialPlatformFromUrl(url) {
+  if (!url) return "";
+
+  try {
+    const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    if (hostname.includes("linkedin.com")) return "linkedin";
+    if (hostname.includes("x.com") || hostname.includes("twitter.com")) return "x";
+    if (hostname.includes("youtube.com") || hostname.includes("youtu.be")) return "youtube";
+    if (hostname.includes("medium.com")) return "medium";
+    if (hostname.includes("dev.to")) return "devto";
+    if (hostname.includes("instagram.com")) return "instagram";
+    if (hostname.includes("behance.net")) return "behance";
+    if (hostname.includes("dribbble.com")) return "dribbble";
+    if (hostname.includes("gitlab.com")) return "gitlab";
+    if (hostname.includes("stackoverflow.com")) return "stackoverflow";
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function buildAiHeaderSubtitle(profile = {}, payload = {}) {
+  const company = String(profile?.company || "").trim().replace(/^@+/, "");
+  const stack = Array.isArray(payload?.stats?.primary_stack)
+    ? payload.stats.primary_stack.slice(0, 3)
+    : [];
+  const domains = Array.isArray(payload?.stats?.domains)
+    ? payload.stats.domains.slice(0, 2).map(titleCaseLabel)
+    : [];
+  const parts = [];
+
+  if (stack.length) {
+    parts.push(stack.join(" / "));
+  }
+
+  if (domains.length) {
+    parts.push(domains.join(" / "));
+  }
+
+  if (!parts.length && company) {
+    parts.push(company);
+  }
+
+  const fallback = String(profile?.bio || "").trim() || "Open-source builder shipping thoughtful software";
+  return String(parts.join(" | ") || fallback).slice(0, 88);
+}
+
+function buildAiHeaderAccents(profile = {}, payload = {}) {
+  const repoCount = Number(profile?.public_repos || 0);
+  const values = [
+    ...(Array.isArray(payload?.stats?.top_languages) ? payload.stats.top_languages.slice(0, 2) : []),
+    ...(Array.isArray(payload?.stats?.domains) ? payload.stats.domains.slice(0, 2).map(titleCaseLabel) : []),
+    repoCount > 0 ? `${repoCount}+ public repos` : "",
+  ];
+
+  return dedupeTextEntries(values, 4);
+}
+
+function buildAiBioContent({ profile = {}, payload = {}, aiBio = "", username = "" }) {
+  const website = sanitizeProfileLink(profile?.blog);
+  const company = String(profile?.company || "").trim().replace(/^@+/, "");
+  const lines = String(aiBio || "")
+    .split(/\r?\n/)
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean);
+  const facts = [
+    String(profile?.bio || "").trim(),
+    company ? `Currently building with ${company}` : "",
+    profile?.location ? `Based in ${String(profile.location).trim()}` : "",
+    Array.isArray(payload?.stats?.primary_stack) && payload.stats.primary_stack.length
+      ? `Working across ${payload.stats.primary_stack.slice(0, 4).join(", ")}`
+      : "",
+    Array.isArray(payload?.stats?.deployed_projects) && payload.stats.deployed_projects.length
+      ? `Public project demos available across ${payload.stats.deployed_projects.length} shipped repositories`
+      : "",
+    website ? `Website: ${website}` : "",
+    username ? `GitHub: https://github.com/${username}` : "",
+  ];
+  const bullets = dedupeTextEntries([...lines, ...facts], 6);
+
+  if (!bullets.length) {
+    bullets.push(`Building on GitHub as ${username || "your-profile"}`);
+  }
+
+  return `## About Me\n\n${bullets.map((line) => `- ${line}`).join("\n")}`;
+}
+
+function buildAiSocialPayload(profile = {}, username = "") {
+  const items = [];
+  const seen = new Set();
+
+  const addItem = (platformId, value) => {
+    const url = sanitizeProfileLink(value);
+    if (!platformId || !url || seen.has(platformId)) return;
+    seen.add(platformId);
+    items.push({ platformId, url });
+  };
+
+  addItem("github", profile?.html_url || (username ? `https://github.com/${username}` : ""));
+
+  const xHandle = String(profile?.twitter_username || "").trim().replace(/^@+/, "");
+  if (xHandle) {
+    addItem("x", `https://x.com/${xHandle}`);
+  }
+
+  const website = sanitizeProfileLink(profile?.blog);
+  const inferredPlatform = inferSocialPlatformFromUrl(website);
+  if (inferredPlatform) {
+    addItem(inferredPlatform, website);
+  }
+
+  return buildSocialLinksPayload({
+    title: "Find Me Online",
+    alignment: "center",
+    layout: "straight",
+    items,
+  });
 }
 
 export default function Page() {
@@ -234,6 +393,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     initialData: null,
     pickerKey: 0,
   });
+  const [isAiBuilderRunning, setIsAiBuilderRunning] = useState(false);
   const [builderUsername, setBuilderUsername] = useState("");
   const [prefetchedCommitStatsSnapshot, setPrefetchedCommitStatsSnapshot] = useState(null);
   const [prefetchedCommitStatsVersion, setPrefetchedCommitStatsVersion] = useState(0);
@@ -247,6 +407,10 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const previewButtonTitle = canLaunchPreview
     ? "Open the GitHub-style README preview"
     : "Set your GitHub username on the landing page to preview this README";
+  const aiBuilderButtonLabel = isAiBuilderRunning ? "Building..." : "AI Builder";
+  const aiBuilderButtonTitle = canLaunchPreview
+    ? "Generate a component-based profile README from your GitHub activity"
+    : "Set your GitHub username on the landing page to use AI Builder";
 
   const bootstrapCommitStatsSnapshot = async (username, installationId = null) => {
     if (!username) return null;
@@ -632,6 +796,196 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         tone: "error",
         message: error?.message || "Failed to prepare the README preview.",
       });
+    }
+  };
+
+  const buildAiCanvasItems = ({
+    username,
+    profile,
+    payload,
+    aiBio,
+    statsSnapshot,
+    contributionSnapshot,
+  }) => {
+    const now = Date.now();
+    let offset = 0;
+    const nextId = (prefix) => `canvas-${prefix}-${now + offset++}`;
+    const installationId = Number(statsSnapshot?.installation_id || 0) || null;
+    const headerName = String(profile?.name || username || "").trim() || username;
+    const headerItem = {
+      id: nextId("header"),
+      type: "header",
+      variant: "briefing",
+      data: {
+        customName: headerName,
+        customSubtitle: buildAiHeaderSubtitle(profile, payload),
+        customAccents: buildAiHeaderAccents(profile, payload),
+        customTheme: "midnight",
+      },
+    };
+
+    const bioItem = {
+      id: nextId("bio"),
+      type: "bio",
+      data: {
+        content: buildAiBioContent({
+          profile,
+          payload,
+          aiBio,
+          username,
+        }),
+      },
+    };
+
+    const skillsItem = {
+      id: nextId("skills"),
+      type: "skills",
+      data: inferTechStackDataFromRepos(payload?.repos || []),
+    };
+
+    const socialItem = {
+      id: nextId("social"),
+      type: "social",
+      data: buildAiSocialPayload(profile, username),
+    };
+
+    const summarySection = {
+      id: nextId("section"),
+      type: "section",
+      data: {
+        variantId: "equal-2",
+        showBorders: false,
+        slots: [skillsItem, socialItem],
+      },
+    };
+
+    const createCommitStatItem = (statId) => ({
+      id: nextId(`commit-stat-${statId}`),
+      type: "commitStat",
+      data: {
+        username,
+        installationId,
+        statId,
+        ...(statsSnapshot ? { statsSnapshot } : {}),
+      },
+    });
+
+    const statsSection = {
+      id: nextId("section"),
+      type: "section",
+      data: {
+        variantId: "grid-2x2",
+        showBorders: false,
+        slots: [
+          createCommitStatItem("contribution"),
+          createCommitStatItem("streak"),
+          createCommitStatItem("total_commits"),
+          createCommitStatItem("top_repo"),
+        ],
+      },
+    };
+
+    const contributionItemId = nextId("contribution");
+    const contributionItem = {
+      id: contributionItemId,
+      type: "contribution",
+      data: {
+        username,
+        variant: CONTRIBUTION_DEFAULT_VARIANT,
+        range: CONTRIBUTION_DEFAULT_RANGE,
+        assetPath: buildContributionAssetPath(
+          contributionItemId,
+          CONTRIBUTION_DEFAULT_RANGE,
+          0
+        ),
+        ...(contributionSnapshot ? { contributionSnapshot } : {}),
+      },
+    };
+
+    const footerItemId = nextId("footer");
+    const footerItem = {
+      id: footerItemId,
+      type: "footer",
+      data: {
+        bannerId: defaultFooterBannerId,
+        assetPath: buildFooterAssetPath(footerItemId, defaultFooterBannerId),
+      },
+    };
+
+    return [
+      headerItem,
+      bioItem,
+      summarySection,
+      statsSection,
+      contributionItem,
+      footerItem,
+    ];
+  };
+
+  const handleAiBuilder = async () => {
+    if (isAiBuilderRunning) return;
+
+    if (!builderUsername) {
+      setPublishFeedback({
+        tone: "info",
+        message: "Set your GitHub username on the landing page to use AI Builder.",
+      });
+      return;
+    }
+
+    try {
+      setIsAiBuilderRunning(true);
+      setPublishFeedback({
+        tone: "info",
+        message: "AI Builder is collecting your GitHub profile and composing blocks...",
+      });
+
+      const [payload, profile] = await Promise.all([
+        buildBioPayload({
+          username: builderUsername,
+          repoLimit: 50,
+        }),
+        fetchGithubProfile({ username: builderUsername }),
+      ]);
+
+      const [bioResult, statsSnapshot, contributionSnapshot] = await Promise.all([
+        generateBioFromPayload(payload).catch(() => null),
+        prefetchedCommitStatsSnapshot
+          ? Promise.resolve(prefetchedCommitStatsSnapshot)
+          : bootstrapCommitStatsSnapshot(builderUsername, null),
+        bootstrapContributionSnapshot(builderUsername),
+      ]);
+
+      if (statsSnapshot) {
+        setPrefetchedCommitStatsSnapshot(statsSnapshot);
+        setPrefetchedCommitStatsVersion(Date.now());
+      }
+
+      const aiItems = buildAiCanvasItems({
+        username: builderUsername,
+        profile,
+        payload,
+        aiBio: bioResult?.bio || "",
+        statsSnapshot,
+        contributionSnapshot,
+      });
+      const footerReadyItems = ensureFooterAssetPaths(aiItems);
+      const generatedItems = ensureUniqueContributionAssetPaths(footerReadyItems);
+
+      setReadme("");
+      setCanvasItems(generatedItems);
+      setShowMobileLibrary(false);
+      setPublishFeedback({
+        tone: "success",
+        message: `AI Builder created a component-based profile README from ${payload?.repos?.length || 0} repositories.`,
+      });
+    } catch (error) {
+      setPublishFeedback({
+        tone: "error",
+        message: error?.message || "AI Builder failed to create the profile README.",
+      });
+    } finally {
+      setIsAiBuilderRunning(false);
     }
   };
 
@@ -2050,7 +2404,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(48,214,255,0.18),_transparent_60%)] blur-3xl" />
 
       <div className="sticky top-0 z-30 border-b border-white/10 bg-[#0d1117]/95 p-3 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setShowMobileLibrary((prev) => !prev)}
@@ -2059,6 +2413,20 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             {showMobileLibrary ? "Hide Blocks" : "Show Blocks"}
           </button>
           <button
+            type="button"
+            disabled={!canLaunchPreview || isAiBuilderRunning}
+            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+              canLaunchPreview && !isAiBuilderRunning
+                ? "border border-cyan-400/40 bg-cyan-500/12 text-cyan-100 hover:bg-cyan-500/18"
+                : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
+            }`}
+            title={aiBuilderButtonTitle}
+            onClick={handleAiBuilder}
+          >
+            {aiBuilderButtonLabel}
+          </button>
+          <button
+            type="button"
             className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
               canLaunchPreview
                 ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
@@ -2078,18 +2446,34 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           <div className="z-10 flex flex-col bg-[#0d1117] lg:h-screen">
             <Sidebar onSelectBlock={handleSelectSidebarBlock} />
             <div className="hidden border-t border-white/10 p-4 lg:block">
-              <button
-                className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
-                  canLaunchPreview
-                    ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
-                    : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
-                }`}
-                aria-disabled={!canLaunchPreview}
-                title={previewButtonTitle}
-                onClick={updateProfileReadme}
-              >
-                {previewButtonLabel}
-              </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  disabled={!canLaunchPreview || isAiBuilderRunning}
+                  className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+                    canLaunchPreview && !isAiBuilderRunning
+                      ? "border border-cyan-400/40 bg-cyan-500/12 text-cyan-100 hover:bg-cyan-500/18"
+                      : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
+                  }`}
+                  title={aiBuilderButtonTitle}
+                  onClick={handleAiBuilder}
+                >
+                  {aiBuilderButtonLabel}
+                </button>
+                <button
+                  type="button"
+                  className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+                    canLaunchPreview
+                      ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
+                      : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
+                  }`}
+                  aria-disabled={!canLaunchPreview}
+                  title={previewButtonTitle}
+                  onClick={updateProfileReadme}
+                >
+                  {previewButtonLabel}
+                </button>
+              </div>
             </div>
           </div>
         </div>
