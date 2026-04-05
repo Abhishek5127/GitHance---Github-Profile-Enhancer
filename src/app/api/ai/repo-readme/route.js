@@ -60,6 +60,29 @@ const SECTION_GUIDANCE = {
     "Mention the license only when a license file, repository metadata, or existing README confirms it.",
 };
 
+const FORMAT_GUIDANCE = [
+  "Use a production-ready README layout with clear H2/H3 sections like Features, Quick Start, Installation, Usage, Project Structure, Tech Stack, Deployment, License, and Support when the repository evidence supports them.",
+  "Use numbered steps for setup workflows, flat bullet lists for features/checklists, and H3 subsections for grouped guidance.",
+  "When showing commands, config, or code, always use fenced code blocks with an explicit language such as bash, javascript, json, ts, jsx, or text.",
+  "Keep filenames, folders, commands, package names, scripts, routes, and environment variables in inline code formatting.",
+  "Ensure blank lines between headings, paragraphs, lists, and fenced blocks so GitHub markdown renders cleanly.",
+  "Do not wrap the entire README in one outer code fence.",
+  "Prefer code snippets over long prose when explaining install, build, config, or integration steps.",
+  "Avoid markdown tables unless the evidence clearly benefits from one; simple lists and fenced snippets are preferred.",
+];
+
+const README_BLUEPRINT = [
+  "Preferred shape when evidence supports it:",
+  "1. H1 title with optional emoji or concise brand marker when already implied by the project.",
+  "2. Short overview paragraph that explains what the project is, stack, and delivery style.",
+  "3. Features section with flat bullets and bold feature labels.",
+  "4. Quick Start or Installation section with numbered steps and fenced bash snippets.",
+  "5. Build, Usage, Configuration, or Deployment sections with fenced snippets whenever commands or config are shown.",
+  "6. Project Structure section with a fenced text tree when the repository layout is clear.",
+  "7. Tech Stack, License, and Support/Contributing sections when evidence exists.",
+  "8. Optional checklist sections only when they are grounded in repository evidence.",
+].join("\n");
+
 function jsonError(status, error) {
   return NextResponse.json({ success: false, error }, { status });
 }
@@ -83,7 +106,9 @@ function sanitizePromptOptions(options = {}, repoName = "") {
 
   return {
     title: sanitizeText(options?.title || repoName, 120) || repoName,
-    tone: sanitizeText(options?.tone || "developer-friendly", 40) || "developer-friendly",
+    tone:
+      sanitizeText(options?.tone || "developer-friendly", 60) ||
+      "developer-friendly",
     targetAudience: sanitizeText(options?.targetAudience || "", 160),
     customNotes: sanitizeText(options?.customNotes || "", 700),
     sections,
@@ -126,19 +151,58 @@ function buildRepositorySignals(repoInfo = {}) {
   ].join("\n");
 }
 
-function sanitizeGeneratedReadme(value, fallbackTitle) {
-  const cleaned = String(value || "")
-    .replace(/```markdown/g, "")
-    .replace(/```md/g, "")
-    .replace(/```/g, "")
+function unwrapOuterMarkdownFence(value) {
+  const normalized = String(value || "").replace(/\r\n/g, "\n").trim();
+  const lines = normalized.split("\n");
+
+  if (lines.length < 2) {
+    return normalized;
+  }
+
+  const firstLine = String(lines[0] || "").trim();
+  const lastLine = String(lines[lines.length - 1] || "").trim();
+  const isMarkdownFence = /^```(?:markdown|md)?\s*$/i.test(firstLine);
+
+  if (isMarkdownFence && lastLine === "```") {
+    return lines.slice(1, -1).join("\n").trim();
+  }
+
+  return normalized;
+}
+
+function ensureBalancedCodeFences(value) {
+  const normalized = String(value || "").replace(/\r\n/g, "\n");
+  const fenceCount = (normalized.match(/^```/gm) || []).length;
+  if (fenceCount % 2 === 0) {
+    return normalized;
+  }
+
+  return `${normalized.trimEnd()}\n\n\`\`\``;
+}
+
+function stripGeneratedLeadIn(value) {
+  return String(value || "")
     .replace(/^here(?:'s| is)\s+your\s+readme:?/gim, "")
+    .replace(/^below\s+is\s+the\s+readme:?/gim, "")
     .replace(/^readme:?/gim, "")
     .replace(/^#+\s*readme\s*$/gim, "")
+    .trim();
+}
+
+function normalizeMarkdownWhitespace(value) {
+  return String(value || "")
+    .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function sanitizeGeneratedReadme(value, fallbackTitle) {
+  const cleaned = normalizeMarkdownWhitespace(
+    ensureBalancedCodeFences(stripGeneratedLeadIn(unwrapOuterMarkdownFence(value)))
+  );
 
   if (!cleaned) return "";
-  if (/^#\s+/m.test(cleaned)) return cleaned;
+  if (/^#\s+.+/m.test(cleaned)) return cleaned;
   return `# ${fallbackTitle || "README"}\n\n${cleaned}`;
 }
 
@@ -164,12 +228,12 @@ function buildUserPrompt({
   const contextBlocks = fileContexts
     .map(
       (item) =>
-        `### ${item.path}\n\
-\`\`\`\n${String(item.content || "").trim()}\n\`\`\``
+        `### ${item.path}\n\`\`\`text\n${String(item.content || "").trim()}\n\`\`\``
     )
     .join("\n\n");
   const sectionGuidance = buildSectionGuidance(options.sections);
   const repoSignals = buildRepositorySignals(repoInfo);
+  const formatGuidance = FORMAT_GUIDANCE.map((entry) => `- ${entry}`).join("\n");
 
   return `
 README Assignment
@@ -200,14 +264,24 @@ ${existingReadme ? existingReadme : "No existing README was found."}
 Section guidance:
 ${sectionGuidance}
 
+Formatting guidance:
+${formatGuidance}
+
+README blueprint:
+${README_BLUEPRINT}
+
 Output contract:
 - Return markdown only.
 - Start with a single H1 title.
 - Open with a concise 2-4 line overview that explains the repository quickly.
-- Use clean GitHub-native formatting: short paragraphs, bullets for capabilities, and code fences only when evidence supports exact commands.
+- Prefer a polished README shape similar to a production project handoff document, with strong sections, subsections, readable spacing, and example-driven snippets.
+- Use bold labels inside feature bullets when helpful, for example: - **Responsive Design** - Explanation.
+- Put install, setup, build, run, deploy, and configuration examples inside fenced code blocks with language tags.
+- When a section contains commands, never leave them as plain text if a fenced snippet is more readable.
+- Use \`text\` code fences for project structure trees and \`bash\` for CLI commands unless another language is clearly better.
 - Keep section order intuitive and omit any section that is not supported by evidence.
 - Preserve valuable details from the existing README when they are still accurate.
-- Do not invent scripts, environment variables, commands, URLs, features, benchmarks, or roadmap items.
+- Do not invent scripts, environment variables, commands, URLs, features, benchmarks, contact channels, or roadmap items.
 - If evidence is weak, keep wording neutral and skip unsupported implementation details.
 `;
 }
@@ -220,13 +294,18 @@ Your README output should feel production-ready, scannable, and grounded in evid
 Quality bar:
 - Lead with clarity and value, not filler.
 - Prefer crisp GitHub-native structure over generic marketing copy.
-- Use short paragraphs, bullet lists, and code fences deliberately.
+- Use short paragraphs, bullet lists, numbered setup steps, and fenced code blocks deliberately.
 - Make it easy for a developer to understand what the project is, how it works, and how to get started.
+- Write README markdown that renders cleanly on GitHub without broken spacing, malformed fences, or accidental nesting mistakes.
+- Favor practical snippets and examples over vague explanation whenever repository evidence supports them.
 
 Hard rules:
-- Never invent facts, setup steps, commands, routes, scripts, environment variables, URLs, licenses, or roadmap items.
+- Never invent facts, setup steps, commands, routes, scripts, environment variables, URLs, licenses, support contacts, or roadmap items.
 - Reuse and improve accurate details from the existing README when they are supported by repository evidence.
 - If evidence for a section is weak, omit the section or keep the wording cautious and high-level.
+- When showing commands or code, always use fenced code blocks with a language label.
+- Never wrap the full README in one outer markdown fence.
+- Do not output placeholders like YOUR_API_KEY, YOUR_PROJECT_NAME, or TODO unless they are already present in repository evidence.
 - Keep the tone aligned to the requested style while staying credible and specific.
 - Return markdown only.
 `;
@@ -317,8 +396,8 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         model: DEFAULT_MODEL,
-        temperature: 0.2,
-        max_tokens: 1800,
+        temperature: 0.15,
+        max_tokens: 2200,
         messages: [
           {
             role: "system",
@@ -342,7 +421,10 @@ export async function POST(request) {
 
     const rawReadme =
       payload?.choices?.[0]?.message?.content || payload?.choices?.[0]?.text || "";
-    const readme = sanitizeGeneratedReadme(rawReadme, promptOptions.title || repoInfo?.name || repo);
+    const readme = sanitizeGeneratedReadme(
+      rawReadme,
+      promptOptions.title || repoInfo?.name || repo
+    );
 
     if (!readme) {
       return jsonError(502, "AI returned an empty README");

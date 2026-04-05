@@ -43,6 +43,8 @@ const RENDER_HEADER_VARIANTS = [
   "glass",
   "ledger",
   "summit",
+  "marquee",
+  "panorama",
 ];
 
 const VISIBLE_VARIANTS = [
@@ -67,6 +69,8 @@ const HIDDEN_VARIANTS = [
   { id: "trophy", title: "Trophy Showcase" },
   { id: "ledger", title: "Ledger Frame" },
   { id: "summit", title: "Summit Line" },
+  { id: "marquee", title: "Marquee Tape" },
+  { id: "panorama", title: "Panorama Bands" },
 ];
 
 const ALL_VARIANTS = [...VISIBLE_VARIANTS, ...HIDDEN_VARIANTS];
@@ -86,15 +90,50 @@ const normalizeList = (value, fallback = []) => {
   });
 };
 
-const createHeaderFormData = (initialData = null) => {
+const HEADER_ACCENT_PREVIEW_VALUES = [
+  "Open Source",
+  "Design Systems",
+  "AI Workflows",
+  "Reliable Delivery",
+];
+
+const HEADER_RENDER_ACCENT_SLOT_COUNT = {
+  terminal: 2,
+  circuit: 3,
+  blueprint: 3,
+  spotlight: 3,
+  executive: 3,
+  briefing: 3,
+  glass: 3,
+  ledger: 3,
+  summit: 2,
+  marquee: 3,
+  panorama: 2,
+};
+
+const getRenderAccentSlotCount = (variantId) =>
+  HEADER_RENDER_ACCENT_SLOT_COUNT[String(variantId || "").trim().toLowerCase()] || 0;
+
+const buildHeaderAccentFallback = (variantId) =>
+  Array.from({ length: getRenderAccentSlotCount(variantId) }, (_, index) =>
+    HEADER_DEFAULTS.customAccents[index] ?? ""
+  );
+
+const buildHeaderAccentPreviewValues = (variantId) =>
+  Array.from({ length: getRenderAccentSlotCount(variantId) }, (_, index) =>
+    HEADER_ACCENT_PREVIEW_VALUES[index] ?? `Subtext ${index + 1}`
+  );
+
+const createHeaderFormData = (initialData = null, variantId = "") => {
   const nextData = initialData || {};
+  const accentFallback = buildHeaderAccentFallback(variantId);
 
   return {
     ...HEADER_DEFAULTS,
     ...nextData,
     achievementList: normalizeList(nextData.achievementList, HEADER_DEFAULTS.achievementList),
     trophyList: normalizeList(nextData.trophyList, HEADER_DEFAULTS.trophyList),
-    customAccents: normalizeList(nextData.customAccents, HEADER_DEFAULTS.customAccents),
+    customAccents: normalizeList(nextData.customAccents, accentFallback).slice(0, accentFallback.length),
   };
 };
 
@@ -128,7 +167,7 @@ export default function HeaderVariantPicker({
   submitLabel = "Add to Canvas",
 }) {
   const [selectedVariant, setSelectedVariant] = useState(() => initialVariant || null);
-  const [formData, setFormData] = useState(() => createHeaderFormData(initialData));
+  const [formData, setFormData] = useState(() => createHeaderFormData(initialData, initialVariant));
 
   const selectedMeta = useMemo(
     () => ALL_VARIANTS.find((variant) => variant.id === selectedVariant),
@@ -137,7 +176,7 @@ export default function HeaderVariantPicker({
 
   const openEditor = (variantId) => {
     setSelectedVariant(variantId);
-    setFormData((prev) => createHeaderFormData(prev));
+    setFormData((prev) => createHeaderFormData(prev, variantId));
   };
 
   const updateField = (field, value) => {
@@ -154,7 +193,7 @@ export default function HeaderVariantPicker({
     if (!selectedVariant) return;
 
     const nextVariant = selectedVariant;
-    const nextData = createHeaderFormData(formData);
+    const nextData = createHeaderFormData(formData, nextVariant);
 
     setSelectedVariant(null);
     setFormData(createHeaderFormData());
@@ -218,7 +257,7 @@ export default function HeaderVariantPicker({
           name="Your Name"
           subtitle="Product Engineer | AI Systems"
           theme="midnight"
-          accents={["Open Source", "Design Systems", "AI Workflows"]}
+          accents={buildHeaderAccentPreviewValues(variantId)}
         />
       );
     }
@@ -369,6 +408,11 @@ export default function HeaderVariantPicker({
     }
 
     if (RENDER_HEADER_VARIANTS.includes(selectedVariant)) {
+      const accentInputs = (formData.customAccents || []).slice(
+        0,
+        getRenderAccentSlotCount(selectedVariant)
+      );
+
       return (
         <div className="space-y-3">
           <input
@@ -383,17 +427,19 @@ export default function HeaderVariantPicker({
             placeholder="Subheading"
             className="w-full rounded-xl border border-white/10 bg-[#0f1115] px-3 py-2 text-sm text-white focus:outline-none"
           />
-          <div className="grid grid-cols-2 gap-2">
-            {(formData.customAccents || []).map((text, index) => (
-              <input
-                key={`accent-${index}`}
-                value={text}
-                onChange={(e) => updateListField("customAccents", index, e.target.value)}
-                placeholder={`Accent ${index + 1}`}
-                className="w-full rounded-xl border border-white/10 bg-[#0f1115] px-3 py-2 text-sm text-white focus:outline-none"
-              />
-            ))}
-          </div>
+          {accentInputs.length ? (
+            <div className="grid grid-cols-2 gap-2">
+              {accentInputs.map((text, index) => (
+                <input
+                  key={`accent-${index}`}
+                  value={text}
+                  onChange={(e) => updateListField("customAccents", index, e.target.value)}
+                  placeholder={`Subtext ${index + 1}`}
+                  className="w-full rounded-xl border border-white/10 bg-[#0f1115] px-3 py-2 text-sm text-white focus:outline-none"
+                />
+              ))}
+            </div>
+          ) : null}
           <select
             value={formData.customTheme || "midnight"}
             onChange={(e) => updateField("customTheme", e.target.value)}
