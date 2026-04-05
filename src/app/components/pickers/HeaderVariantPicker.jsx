@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ImageHeaderPreview from "../previews/headers/ImageHeaderPreview";
 import SignatureHeaderPreview from "../previews/headers/SignatureHeaderPreview";
 import AchievementHeaderPreview from "../previews/headers/AchievementHeaderPreview";
@@ -127,20 +127,13 @@ export default function HeaderVariantPicker({
   initialData = null,
   submitLabel = "Add to Canvas",
 }) {
-  const [selectedVariant, setSelectedVariant] = useState(null);
-  const [formData, setFormData] = useState(createHeaderFormData());
+  const [selectedVariant, setSelectedVariant] = useState(() => initialVariant || null);
+  const [formData, setFormData] = useState(() => createHeaderFormData(initialData));
 
   const selectedMeta = useMemo(
     () => ALL_VARIANTS.find((variant) => variant.id === selectedVariant),
     [selectedVariant]
   );
-
-  useEffect(() => {
-    if (!open) return;
-
-    setSelectedVariant(initialVariant || null);
-    setFormData(createHeaderFormData(initialData));
-  }, [open, initialVariant, initialData]);
 
   const openEditor = (variantId) => {
     setSelectedVariant(variantId);

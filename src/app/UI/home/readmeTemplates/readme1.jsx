@@ -16,9 +16,9 @@ const Readme1 = () => {
       <div className='p-3'>
 
         <div className='flex text-[8px] m-2 gap-3'>
-          <p><b>I’m a graphic designer</b> who loves making complex ideas look beautifully simple.
+          <p><b>I&apos;m a graphic designer</b> who loves making complex ideas look beautifully simple.
             I specialize in digital design and branding, partnering with people to bring their best visions to life.
-            Let's team up and create something your audience won't be able to ignore.</p>
+            Let&apos;s team up and create something your audience won&apos;t be able to ignore.</p>
           <Image
             src={ProfileAssets.ProfileImg1}
             height={45}
@@ -57,7 +57,7 @@ const Readme1 = () => {
         </div>
         <footer className='h-20 w-[100%] relative'>
           <div className='flex justify-center w-full items-center absolute text-black top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'>
-            <h3>Nothing Beats Consistancy</h3>
+            <h3>Nothing Beats Consistency</h3>
           </div>
           <Image
             src={ProfileAssets.BannerImg1}

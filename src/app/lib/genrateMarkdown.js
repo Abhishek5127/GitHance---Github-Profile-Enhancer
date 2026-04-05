@@ -791,6 +791,3 @@ ${content || "&nbsp;"}
 
   return markdown.trim();
 }
-
-
-

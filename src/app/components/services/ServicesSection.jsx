@@ -30,12 +30,12 @@ const services = [
     Visual: ReadmeGenerationVisual,
   },
   {
-    id: "auto-updating",
-    title: "Theme Auto Sync",
-    copy: "Auto-update README visuals and sections to match your current GitHub theme and latest commits",
-    kicker: "Theme and commit sync",
+    id: "preview-export",
+    title: "Preview and Export",
+    copy: "Preview your README in a GitHub-style frame, then copy or download it without surprises.",
+    kicker: "Preview workflow",
     glowClassName: "bg-cyan-300/20",
-    Visual: AutoUpdateVisual,
+    Visual: PreviewExportVisual,
   },
 ];
 
@@ -103,7 +103,7 @@ function ReadmeGenerationVisual() {
       <div className="rounded-2xl border border-white/14 bg-[#0a1018]/90 p-3 text-[10px] text-white/58">
         <p>README draft</p>
         <p className="mt-2 rounded border border-white/10 bg-white/5 p-2">
-          TODO: add setup steps and architecture notes.
+          Draft is missing setup steps, architecture notes, and contribution guidance.
         </p>
       </div>
       <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full border border-cyan-300/45 bg-cyan-300/16 text-xs text-cyan-100">
@@ -119,17 +119,17 @@ function ReadmeGenerationVisual() {
   );
 }
 
-function AutoUpdateVisual() {
+function PreviewExportVisual() {
   return (
     <div className="rounded-2xl border border-white/14 bg-[#0a1018]/88 p-4">
       <div className="flex items-center justify-between text-[10px] text-white/70">
-        <span>Theme and commit stream</span>
+        <span>Preview to export</span>
         <span className="rounded-full border border-emerald-300/35 bg-emerald-300/14 px-2 py-0.5 text-emerald-100">
-          theme synced
+          export ready
         </span>
       </div>
       <div className="mt-3 space-y-2">
-        {["style: sync with dark mode", "feat: add profile compare", "fix: patch auth callback"].map((item) => (
+        {["preview: verify GitHub layout", "copy: markdown text", "download: README package"].map((item) => (
           <div key={item} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 text-[10px] text-white/70">
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 animate-pulse" />
             <span>{item}</span>
@@ -137,7 +137,7 @@ function AutoUpdateVisual() {
         ))}
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-cyan-300 to-blue-300 animate-pulse" />
+        <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-cyan-300 to-blue-300 animate-pulse" />
       </div>
     </div>
   );
