@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 const linkGroups = [
   {
@@ -23,11 +23,11 @@ const linkGroups = [
     cta: "Compare profiles",
   },
   {
-    title: "Pricing and rollout",
+    title: "Public GitHub workspace",
     description:
-      "Review plan details, FAQ answers, and the GitHance rollout path before adopting it across your repositories or team.",
-    href: "/pricing",
-    cta: "See plans",
+      "GitHance now runs as an open workspace, so every README, security, and profile tool is available without account gates.",
+    href: "/product",
+    cta: "Explore the product",
   },
 ];
 
@@ -70,4 +70,3 @@ export default function InternalLinksSection() {
     </section>
   );
 }
-

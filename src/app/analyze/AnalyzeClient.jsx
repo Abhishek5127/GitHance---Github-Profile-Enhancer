@@ -1,12 +1,12 @@
 "use client";
 
-import { startTransition, useCallback, useDeferredValue, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import LandingNav from "@/app/components/landing/LandingNav";
-import LockIcon from "@/app/components/billing/LockIcon";
-import { useBilling } from "@/app/components/billing/BillingProvider";
-import { openAuthRedirect } from "@/app/lib/authNavigation";
+import {
+  loadProfileBuilderContextUsername,
+  saveProfileBuilderContextUsername,
+} from "@/app/lib/profileBuilderContext";
 
 const REPOS_PER_PAGE = 18;
 const FILTER_OPTIONS = [
@@ -28,6 +28,13 @@ const updatedAtFormatter = new Intl.DateTimeFormat("en", {
   year: "numeric",
 });
 
+function normalizeUsername(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase();
+}
+
 function formatCount(value) {
   return compactNumberFormatter.format(Number(value) || 0);
 }
@@ -38,18 +45,6 @@ function formatUpdatedAt(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown";
   return updatedAtFormatter.format(date);
-}
-
-function mergeRepositories(current, next) {
-  const merged = new Map(
-    current.map((repo) => [repo.id || repo.full_name || repo.name, repo])
-  );
-
-  next.forEach((repo) => {
-    merged.set(repo.id || repo.full_name || repo.name, repo);
-  });
-
-  return Array.from(merged.values());
 }
 
 function getReadmeStatus(repo) {
@@ -93,7 +88,6 @@ function getReadmePresentation(repo) {
       badgeLabel: "README ready",
       spotlightClass: "bg-emerald-400/12",
       actionLabel: "Open README Lab",
-      compactActionLabel: "README Lab",
     };
   }
 
@@ -103,7 +97,6 @@ function getReadmePresentation(repo) {
       badgeLabel: "README missing",
       spotlightClass: "bg-[#ff7a1a]/14",
       actionLabel: "Create README",
-      compactActionLabel: "Create README",
     };
   }
 
@@ -112,8 +105,16 @@ function getReadmePresentation(repo) {
     badgeLabel: "README unknown",
     spotlightClass: "bg-cyan-400/12",
     actionLabel: "Open README Lab",
-    compactActionLabel: "README Lab",
   };
+}
+
+function buildRepoRoute(basePath, repo, fallbackOwner) {
+  const owner = String(repo?.owner || fallbackOwner || "").trim().toLowerCase();
+  const repoName = String(repo?.name || "").trim();
+  if (!repoName) return basePath;
+
+  const query = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+  return `${basePath}/${encodeURIComponent(repoName)}${query}`;
 }
 
 function StatCard({ label, value, hint, accent = "orange" }) {
@@ -158,11 +159,6 @@ function RepoSkeletonCard() {
       <div className="mt-4 h-7 w-2/3 rounded-full bg-white/10" />
       <div className="mt-4 h-4 w-full rounded-full bg-white/5" />
       <div className="mt-2 h-4 w-5/6 rounded-full bg-white/5" />
-      <div className="mt-6 flex flex-wrap gap-2">
-        <div className="h-8 w-20 rounded-full bg-white/5" />
-        <div className="h-8 w-24 rounded-full bg-white/5" />
-        <div className="h-8 w-16 rounded-full bg-white/5" />
-      </div>
       <div className="mt-6 grid gap-2 sm:grid-cols-2">
         <div className="h-11 rounded-full bg-white/10" />
         <div className="h-11 rounded-full bg-white/5" />
@@ -171,58 +167,9 @@ function RepoSkeletonCard() {
   );
 }
 
-function QuickLaunchItem({ repo, isSecurityLocked }) {
-  const readmeHref = `/readme-analyze/${encodeURIComponent(repo.name || "")}`;
-  const securityHref = `/repository-security/${encodeURIComponent(repo.name || "")}`;
-  const readmePresentation = getReadmePresentation(repo);
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-[#0f1115] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-white">{repo.name}</p>
-          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/40">
-            Updated {formatUpdatedAt(repo.updated_at)}
-          </p>
-        </div>
-        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-white/60">
-          {repo.private ? "Private" : "Public"}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Link
-          href={readmeHref}
-          className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-[#ff8d3b]"
-        >
-          {readmePresentation.compactActionLabel}
-        </Link>
-        {isSecurityLocked ? (
-          <Link
-            href="/pricing#pro"
-            className="rounded-full border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-3 py-1.5 text-xs font-semibold text-[#ffd6b7] transition hover:bg-[#ff7a1a]/20"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <LockIcon className="h-3.5 w-3.5" />
-              Security Pro
-            </span>
-          </Link>
-        ) : (
-          <Link
-            href={securityHref}
-            className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
-          >
-            Security Analysis
-          </Link>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RepositoryCard({ repo, isSecurityLocked }) {
-  const readmeHref = `/readme-analyze/${encodeURIComponent(repo.name || "")}`;
-  const securityHref = `/repository-security/${encodeURIComponent(repo.name || "")}`;
+function RepositoryCard({ repo, fallbackOwner }) {
+  const readmeHref = buildRepoRoute("/readme-analyze", repo, fallbackOwner);
+  const securityHref = buildRepoRoute("/repository-security", repo, fallbackOwner);
   const topics = Array.isArray(repo.topics) ? repo.topics.slice(0, 3) : [];
   const readmePresentation = getReadmePresentation(repo);
 
@@ -282,24 +229,12 @@ function RepositoryCard({ repo, isSecurityLocked }) {
           >
             {readmePresentation.actionLabel}
           </Link>
-          {isSecurityLocked ? (
-            <Link
-              href="/pricing#pro"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-4 py-2 text-sm font-semibold text-[#ffd6b7] transition hover:bg-[#ff7a1a]/20"
-            >
-              <span className="inline-flex items-center gap-2">
-                <LockIcon className="h-4 w-4" />
-                Security Analysis Pro
-              </span>
-            </Link>
-          ) : (
-            <Link
-              href={securityHref}
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-            >
-              Run Security Analysis
-            </Link>
-          )}
+          <Link
+            href={securityHref}
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+          >
+            Run Security Analysis
+          </Link>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-white/50">
@@ -319,22 +254,28 @@ function RepositoryCard({ repo, isSecurityLocked }) {
 }
 
 export default function AnalyzePage() {
-  const { data: session, status } = useSession();
-  const { isPro, loading: billingLoading } = useBilling();
+  const [githubUsername, setGithubUsername] = useState("");
+  const [draftUsername, setDraftUsername] = useState("");
   const [repositories, setRepositories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [listingMode, setListingMode] = useState("public");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
-  const deferredSearchQuery = useDeferredValue(searchQuery);
-  const isSecurityLocked = status === "authenticated" && !billingLoading && !isPro;
 
-  const requestRepositories = useCallback(async (nextPage, append = false) => {
-    if (!session?.username) return;
+  useEffect(() => {
+    const storedUsername = loadProfileBuilderContextUsername();
+    if (storedUsername) {
+      setGithubUsername(storedUsername);
+      setDraftUsername(storedUsername);
+    }
+  }, []);
+
+  async function loadRepositories(username, nextPage = 1, append = false) {
+    const normalizedUsername = normalizeUsername(username);
+    if (!normalizedUsername) return;
 
     if (append) {
       setLoadingMore(true);
@@ -348,7 +289,7 @@ export default function AnalyzePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: session.username,
+          username: normalizedUsername,
           page: nextPage,
           perPage: REPOS_PER_PAGE,
           includeReadme: true,
@@ -360,59 +301,61 @@ export default function AnalyzePage() {
         throw new Error(payload?.error || "Failed to load repositories");
       }
 
-      startTransition(() => {
-        setRepositories((current) =>
-          append ? mergeRepositories(current, payload.repos) : payload.repos
-        );
-        setPage(nextPage);
-        setHasMore(Boolean(payload?.hasNextPage));
-        setListingMode(payload?.listingMode || "public");
-      });
+      setRepositories((current) => (append ? [...current, ...payload.repos] : payload.repos));
+      setPage(nextPage);
+      setHasMore(Boolean(payload?.hasNextPage));
+      setGithubUsername(normalizedUsername);
+      setDraftUsername(normalizedUsername);
+      saveProfileBuilderContextUsername(normalizedUsername);
     } catch (nextError) {
       setError(nextError?.message || "Failed to load repositories");
+      if (!append) {
+        setRepositories([]);
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [session?.username]);
+  }
 
   useEffect(() => {
-    if (status !== "authenticated" || !session?.username) {
-      return;
-    }
+    if (!githubUsername) return;
+    loadRepositories(githubUsername, 1, false);
+  }, [githubUsername]);
 
-    requestRepositories(1, false);
-  }, [requestRepositories, session?.username, status]);
-
-  const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
-  const visibleRepositories = repositories.filter(
-    (repo) =>
-      matchesFilter(repo, activeFilter) &&
-      matchesSearch(repo, normalizedSearchQuery)
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const visibleRepositories = useMemo(
+    () =>
+      repositories.filter(
+        (repo) =>
+          matchesFilter(repo, activeFilter) &&
+          matchesSearch(repo, normalizedSearchQuery)
+      ),
+    [activeFilter, normalizedSearchQuery, repositories]
   );
-  const recentRepositories = repositories.slice(0, 3);
+
   const readmeReadyCount = repositories.filter(
     (repo) => getReadmeStatus(repo) === "available"
   ).length;
   const missingReadmeCount = repositories.filter(
     (repo) => getReadmeStatus(repo) === "missing"
   ).length;
-  const unknownReadmeCount = repositories.filter(
-    (repo) => getReadmeStatus(repo) === "unknown"
-  ).length;
   const privateRepositoriesCount = repositories.filter((repo) => repo.private).length;
 
-  const showRepositorySkeletons =
-    (status === "loading" || loading) && repositories.length === 0;
+  const handleUsernameSubmit = (event) => {
+    event.preventDefault();
+    const normalizedUsername = normalizeUsername(draftUsername);
+    if (!normalizedUsername) {
+      setError("Enter a GitHub username to load repositories.");
+      return;
+    }
 
-  const privateReposHint =
-    listingMode === "authenticated"
-      ? unknownReadmeCount > 0
-        ? `Private repositories are included. ${unknownReadmeCount} repo${unknownReadmeCount === 1 ? "" : "s"} still have unverified README status.`
-        : "Private repositories are included because you are authenticated."
-      : unknownReadmeCount > 0
-        ? `Public listing mode only. ${unknownReadmeCount} repo${unknownReadmeCount === 1 ? "" : "s"} still have unverified README status.`
-        : "Public listing mode only. Sign in with the matching account to include private repositories.";
+    setRepositories([]);
+    setHasMore(false);
+    loadRepositories(normalizedUsername, 1, false);
+  };
+
+  const showRepositorySkeletons = loading && repositories.length === 0;
 
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">
@@ -421,7 +364,7 @@ export default function AnalyzePage() {
         <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(48,214,255,0.2),_transparent_62%)] blur-3xl" />
         <div className="pointer-events-none absolute left-1/2 top-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.08),_transparent_60%)] blur-3xl" />
 
-        <LandingNav signInCallbackUrl="/analyze" />
+        <LandingNav />
 
         <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-start gap-10 px-4 pb-14 pt-12 sm:px-6 sm:pb-16 sm:pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-4">
           <div className="max-w-2xl">
@@ -429,20 +372,39 @@ export default function AnalyzePage() {
               Repository Preview
             </p>
             <h1 className="mt-5 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
-              Pick a repository and jump straight into the next task.
+              Pick a GitHub username and jump straight into the next task.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-white/68">
-              We surface your most recently updated repositories so you can launch README work or run a security review without hunting through GitHub first.
+              Load public repositories for any GitHub username, then move directly into README work or a security review without signing in.
             </p>
+
+            <form onSubmit={handleUsernameSubmit} className="mt-8 max-w-xl">
+              <label className="text-xs uppercase tracking-[0.24em] text-white/45" htmlFor="analyze-username">
+                GitHub username
+              </label>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                <input
+                  id="analyze-username"
+                  value={draftUsername}
+                  onChange={(event) => setDraftUsername(event.target.value)}
+                  placeholder="e.g. torvalds"
+                  className="h-14 flex-1 rounded-2xl border border-white/10 bg-[#0f1115] px-4 text-white outline-none placeholder:text-white/30"
+                />
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
+                >
+                  Load repositories
+                </button>
+              </div>
+            </form>
 
             <div className="mt-8 flex flex-wrap gap-3 text-sm text-white/60">
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                {status === "authenticated" ? (session?.username ? `@${session.username}` : "GitHub link required") : "Sign in required"}
+                {githubUsername ? `@${githubUsername}` : "Public GitHub username required"}
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                {listingMode === "authenticated"
-                  ? "Including private repos"
-                  : "Public repository preview"}
+                Public repository preview
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
                 README + Security launchpad
@@ -465,13 +427,9 @@ export default function AnalyzePage() {
               </span>
             </div>
 
-            {status !== "authenticated" ? (
+            {!githubUsername ? (
               <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-5 text-sm leading-7 text-white/65">
-                Sign in, then link your GitHub username in Account to load repositories and unlock both README generation and security analysis actions.
-              </div>
-            ) : !session?.username ? (
-              <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-5 text-sm leading-7 text-white/65">
-                Link a GitHub username in Account to load repositories for this workspace.
+                Enter any GitHub username above to load repositories and start README or security work.
               </div>
             ) : showRepositorySkeletons ? (
               <div className="mt-6 space-y-3">
@@ -479,15 +437,42 @@ export default function AnalyzePage() {
                   <div key={index} className="h-28 rounded-2xl border border-white/10 bg-[#0f1115]" />
                 ))}
               </div>
-            ) : recentRepositories.length > 0 ? (
+            ) : repositories.slice(0, 3).length > 0 ? (
               <div className="mt-6 space-y-3">
-                {recentRepositories.map((repo) => (
-                  <QuickLaunchItem key={repo.id || repo.name} repo={repo} />
+                {repositories.slice(0, 3).map((repo) => (
+                  <div key={repo.id || repo.name} className="rounded-2xl border border-white/10 bg-[#0f1115] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{repo.name}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/40">
+                          Updated {formatUpdatedAt(repo.updated_at)}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-white/60">
+                        {repo.private ? "Private" : "Public"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Link
+                        href={buildRepoRoute("/readme-analyze", repo, githubUsername)}
+                        className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-[#ff8d3b]"
+                      >
+                        README Lab
+                      </Link>
+                      <Link
+                        href={buildRepoRoute("/repository-security", repo, githubUsername)}
+                        className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
+                      >
+                        Security Analysis
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (
               <div className="mt-6 rounded-2xl border border-white/10 bg-[#0f1115] p-5 text-sm leading-7 text-white/65">
-                No repositories are loaded yet. Once available, your most recently updated repos will appear here.
+                No repositories are loaded yet for this username.
               </div>
             )}
           </div>
@@ -495,198 +480,145 @@ export default function AnalyzePage() {
       </div>
 
       <main className="mx-auto w-full max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-4">
-        {status === "unauthenticated" ? (
-          <section className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,22,28,0.96),rgba(11,13,15,0.98))] p-7 shadow-[0_28px_90px_rgba(0,0,0,0.35)] sm:p-9">
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[#ffb37f]">
-              Sign In Required
-            </p>
-            <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">
-              Sign in and link a GitHub username to see your repositories.
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
-              This workspace is designed for the GitHub username linked to your account so you can decide, repo by repo, whether to build a README or inspect security posture next.
-            </p>
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Loaded Repos"
+            value={repositories.length}
+            hint="Recently updated repositories currently in your workspace preview."
+            accent="orange"
+          />
+          <StatCard
+            label="README Ready"
+            value={readmeReadyCount}
+            hint="Repositories where a README is confirmed and can be refined immediately."
+            accent="emerald"
+          />
+          <StatCard
+            label="Need README"
+            value={missingReadmeCount}
+            hint="Repositories where GitHub explicitly reports that the README is missing."
+            accent="amber"
+          />
+          <StatCard
+            label="Private Repos"
+            value={privateRepositoriesCount}
+            hint="Private repositories are only shown when the GitHub API listing exposes them."
+            accent="cyan"
+          />
+        </section>
 
-            <div className="mt-7 flex flex-wrap gap-3">
+        <section className="mt-6 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,22,28,0.98),rgba(11,13,15,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)] sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-white/45">Repository Controls</p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">Find the right repository faster</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/65">
+                Search by repository name, description, or topic, then narrow the list to the repos that need README work or security review next.
+              </p>
+            </div>
+
+            <div className="w-full lg:max-w-md">
+              <label className="text-xs uppercase tracking-[0.24em] text-white/45" htmlFor="repo-search">
+                Search
+              </label>
+              <input
+                id="repo-search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search repositories, stacks, or topics"
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0f1115] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {FILTER_OPTIONS.map((option) => (
+              <FilterChip
+                key={option.id}
+                active={activeFilter === option.id}
+                label={option.label}
+                onClick={() => setActiveFilter(option.id)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/60">
+            <p>
+              Showing {visibleRepositories.length} of {repositories.length} loaded repositories
+              {normalizedSearchQuery ? ` for "${searchQuery}"` : ""}.
+            </p>
+            {(searchQuery || activeFilter !== "all") && visibleRepositories.length === 0 ? (
               <button
                 type="button"
-                onClick={() => openAuthRedirect("/analyze")}
-                className="rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
+                onClick={() => {
+                  setSearchQuery("");
+                  setActiveFilter("all");
+                }}
+                className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/75 transition hover:bg-white/10 hover:text-white"
               >
-                Open sign in
+                Clear filters
               </button>
-              <Link
-                href="/"
-                className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-              >
-                Return home
-              </Link>
-            </div>
-          </section>
-        ) : null}
-
-        {status === "authenticated" && !session?.username ? (
-          <section className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,22,28,0.96),rgba(11,13,15,0.98))] p-7 shadow-[0_28px_90px_rgba(0,0,0,0.35)] sm:p-9">
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[#ffb37f]">GitHub Link Required</p>
-            <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">Link the GitHub username this account should use.</h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
-              Repository loading now runs from the GitHub username linked to your email account. Once linked, this workspace can load repositories again, including private repos when an authenticated listing is available.
-            </p>
-
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                href="/account?callbackUrl=%2Fanalyze"
-                className="rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
-              >
-                Link GitHub Username
-              </Link>
-              <Link
-                href="/"
-                className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-              >
-                Return home
-              </Link>
-            </div>
-          </section>
-        ) : null}
-
-        {status === "authenticated" && session?.username ? (
-          <>
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label="Loaded Repos"
-                value={repositories.length}
-                hint="Recently updated repositories currently in your workspace preview."
-                accent="orange"
-              />
-              <StatCard
-                label="README Ready"
-                value={readmeReadyCount}
-                hint="Repositories where a README is confirmed and can be refined immediately."
-                accent="emerald"
-              />
-              <StatCard
-                label="Need README"
-                value={missingReadmeCount}
-                hint="Repositories where GitHub explicitly reports that the README is missing."
-                accent="amber"
-              />
-              <StatCard
-                label="Private Repos"
-                value={privateRepositoriesCount}
-                hint={privateReposHint}
-                accent="cyan"
-              />
-            </section>
-
-            <section className="mt-6 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,22,28,0.98),rgba(11,13,15,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)] sm:p-6">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-white/45">Repository Controls</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">Find the right repository faster</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/65">
-                    Search by repository name, description, or topic, then narrow the list to the repos that need README work or security review next.
-                  </p>
-                </div>
-
-                <div className="w-full lg:max-w-md">
-                  <label className="text-xs uppercase tracking-[0.24em] text-white/45" htmlFor="repo-search">
-                    Search
-                  </label>
-                  <input
-                    id="repo-search"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search repositories, stacks, or topics"
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0f1115] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {FILTER_OPTIONS.map((option) => (
-                  <FilterChip
-                    key={option.id}
-                    active={activeFilter === option.id}
-                    label={option.label}
-                    onClick={() => setActiveFilter(option.id)}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/60">
-                <p>
-                  Showing {visibleRepositories.length} of {repositories.length} loaded repositories
-                  {normalizedSearchQuery ? ` for "${deferredSearchQuery}"` : ""}.
-                </p>
-                {(searchQuery || activeFilter !== "all") && visibleRepositories.length === 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery("");
-                      setActiveFilter("all");
-                    }}
-                    className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/75 transition hover:bg-white/10 hover:text-white"
-                  >
-                    Clear filters
-                  </button>
-                ) : null}
-              </div>
-            </section>
-
-            {error ? (
-              <section className="mt-6 rounded-[28px] border border-red-500/25 bg-red-500/10 p-6 text-red-100">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-red-200/80">Repository Load Failed</p>
-                    <h2 className="mt-2 text-2xl font-semibold">{error}</h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => requestRepositories(1, false)}
-                    className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
-                  >
-                    Retry
-                  </button>
-                </div>
-              </section>
             ) : null}
+          </div>
+        </section>
 
-            {showRepositorySkeletons ? (
-              <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, index) => (
-                  <RepoSkeletonCard key={index} />
-                ))}
-              </section>
-            ) : visibleRepositories.length > 0 ? (
-              <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {visibleRepositories.map((repo) => (
-                  <RepositoryCard key={repo.id || repo.full_name || repo.name} repo={repo} />
-                ))}
-              </section>
-            ) : !error ? (
-              <section className="mt-6 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,22,28,0.96),rgba(11,13,15,0.98))] p-7 text-center shadow-[0_24px_80px_rgba(0,0,0,0.32)]">
-                <p className="text-xs uppercase tracking-[0.24em] text-white/45">No Match Found</p>
-                <h2 className="mt-3 text-3xl font-semibold text-white">No repositories match this view right now.</h2>
-                <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
-                  Try a different search phrase or switch filters. Your repository preview updates instantly and keeps the action links ready.
-                </p>
-              </section>
-            ) : null}
-
-            {hasMore && !error ? (
-              <div className="mt-8 flex justify-center">
+        {error ? (
+          <section className="mt-6 rounded-[28px] border border-red-500/25 bg-red-500/10 p-6 text-red-100">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-red-200/80">Repository Load Failed</p>
+                <h2 className="mt-2 text-2xl font-semibold">{error}</h2>
+              </div>
+              {githubUsername ? (
                 <button
                   type="button"
-                  onClick={() => requestRepositories(page + 1, true)}
-                  disabled={loadingMore}
-                  className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => loadRepositories(githubUsername, 1, false)}
+                  className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
                 >
-                  {loadingMore ? "Loading more repositories..." : "Load more repositories"}
+                  Retry
                 </button>
-              </div>
-            ) : null}
-          </>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {showRepositorySkeletons ? (
+          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <RepoSkeletonCard key={index} />
+            ))}
+          </section>
+        ) : visibleRepositories.length > 0 ? (
+          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleRepositories.map((repo) => (
+              <RepositoryCard
+                key={repo.id || repo.full_name || repo.name}
+                repo={repo}
+                fallbackOwner={githubUsername}
+              />
+            ))}
+          </section>
+        ) : githubUsername && !error ? (
+          <section className="mt-6 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,22,28,0.96),rgba(11,13,15,0.98))] p-7 text-center shadow-[0_24px_80px_rgba(0,0,0,0.32)]">
+            <p className="text-xs uppercase tracking-[0.24em] text-white/45">No Match Found</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">No repositories match this view right now.</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
+              Try a different search phrase or switch filters. Your repository preview updates instantly and keeps the action links ready.
+            </p>
+          </section>
+        ) : null}
+
+        {hasMore && !error && githubUsername ? (
+          <div className="mt-8 flex justify-center">
+            <button
+              type="button"
+              onClick={() => loadRepositories(githubUsername, page + 1, true)}
+              disabled={loadingMore}
+              className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingMore ? "Loading more repositories..." : "Load more repositories"}
+            </button>
+          </div>
         ) : null}
       </main>
 
@@ -701,7 +633,3 @@ export default function AnalyzePage() {
     </div>
   );
 }
-
-
-
-

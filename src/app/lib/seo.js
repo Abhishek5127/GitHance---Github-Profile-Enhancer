@@ -293,23 +293,6 @@ export function createArticleSchema({
   };
 }
 
-export function createOfferSchema({
-  name,
-  description,
-  price,
-  priceCurrency = "USD",
-  path = "/pricing",
-} = {}) {
-  return {
-    "@type": "Offer",
-    name,
-    description,
-    price,
-    priceCurrency,
-    availability: "https://schema.org/InStock",
-    url: absoluteUrl(path),
-  };
-}
 
 export function createProductSchema({
   name,
@@ -330,5 +313,7 @@ export function createProductSchema({
     offers,
   };
 }
+
+
 
 

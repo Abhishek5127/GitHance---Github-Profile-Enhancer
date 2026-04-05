@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 const columns = [
   {
@@ -7,7 +7,7 @@ const columns = [
       { label: "Product overview", href: "/product" },
       { label: "Solutions", href: "/solutions" },
       { label: "Process", href: "/process" },
-      { label: "Pricing", href: "/pricing" },
+      { label: "Contribute", href: "/contribute" },
     ],
   },
   {
@@ -16,7 +16,7 @@ const columns = [
       { label: "Repository analyzer", href: "/analyze" },
       { label: "Profile builder", href: "/profile-builder" },
       { label: "Profile compare", href: "/profile-compare" },
-      { label: "Changelog", href: "/changelog" },
+      { label: "README preview", href: "/readme-preview" },
     ],
   },
   {
@@ -25,7 +25,7 @@ const columns = [
       { label: "GitHub README generator", href: "/analyze" },
       { label: "Developer profile optimization", href: "/profile-builder" },
       { label: "Repository documentation workflow", href: "/process" },
-      { label: "GitHub tooling for teams", href: "/pricing" },
+      { label: "Public GitHub tooling", href: "/product" },
     ],
   },
 ];
@@ -39,7 +39,7 @@ export default function Footer() {
             GitHance
           </Link>
           <p className="mt-3 max-w-sm text-sm leading-6 text-white/60">
-            The developer workspace for GitHub README generation, repository analysis, security review, and profile visibility.
+            The public developer workspace for GitHub README generation, repository analysis, security review, and profile visibility.
           </p>
           <div className="mt-6 flex items-center gap-3 text-xs text-white/50">
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">README workflows</span>
@@ -70,4 +70,3 @@ export default function Footer() {
     </footer>
   );
 }
-

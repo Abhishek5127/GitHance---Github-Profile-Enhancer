@@ -1,8 +1,4 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import getRelevantFiles from "@/app/lib/repo/getRelevantFiles";
-import { BILLING_FEATURES } from "@/app/lib/billing/plans";
-import { BillingAccessError, requirePro } from "@/app/lib/billing/entitlements";
 import { analyzeDeveloperSecurity } from "@/app/lib/security/analyzeDeveloperSecurity";
 import { classifyRepository } from "@/app/lib/security/classifyRepository";
 import {
@@ -15,7 +11,6 @@ import {
   isLikelyTextContent,
 } from "@/app/lib/security/config";
 import { filterDeveloperFiles } from "@/app/lib/security/filterDeveloperFiles";
-import { resolveSessionGithubUsername, resolveSessionUserId } from "@/app/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -146,28 +141,12 @@ function initializeFetchSkippedSummary() {
 
 export async function POST(req) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!resolveSessionUserId(session)) {
-      return Response.json({ error: "Authentication required" }, { status: 401 });
-    }
-
-    await requirePro(session, BILLING_FEATURES.REPOSITORY_SECURITY);
-
     const { username, reponame } = await req.json();
-    if (!username || !reponame) {
+    const requestedUsername = normalizeUsername(username);
+    if (!requestedUsername || !reponame) {
       return Response.json(
         { error: "Username and repository name are required" },
         { status: 400 }
-      );
-    }
-
-    const sessionUsername = normalizeUsername(resolveSessionGithubUsername(session));
-    const requestedUsername = normalizeUsername(username);
-
-    if (!requestedUsername || requestedUsername !== sessionUsername) {
-      return Response.json(
-        { error: "Repository owner must match the authenticated GitHub user" },
-        { status: 403 }
       );
     }
 
@@ -280,17 +259,9 @@ export async function POST(req) {
       report,
     });
   } catch (error) {
-    if (error instanceof BillingAccessError) {
-      return Response.json(
-        { error: error.message, code: error.code },
-        { status: error.status || 403 }
-      );
-    }
-
     return Response.json(
       { error: error?.message || "Internal server error" },
       { status: 500 }
     );
   }
 }
-

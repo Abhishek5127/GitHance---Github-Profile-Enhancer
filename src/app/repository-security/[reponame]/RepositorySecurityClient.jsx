@@ -1,19 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AnalyticsShell from "@/app/components/analytics/AnalyticsShell";
-import FeaturePaywallCard from "@/app/components/billing/FeaturePaywallCard";
-import { useBilling } from "@/app/components/billing/BillingProvider";
-import ReadmeBlock from "@/app/readme-analyze/readme-analyze-components/ReadmeBlock";
 import SecurityOverview from "@/app/readme-analyze/readme-analyze-components/SecurityOverview";
-import Unauthorized from "@/app/statusCodePages/unauthorized";
+import Link from "next/link";
 
-async function fetchSecurityData({ username, reponame, token }) {
+async function fetchSecurityData({ username, reponame }) {
   const res = await fetch("/api/repo-security", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, reponame, token }),
+    body: JSON.stringify({ username, reponame }),
   });
 
   const data = await res.json();
@@ -23,7 +20,10 @@ async function fetchSecurityData({ username, reponame, token }) {
   return data;
 }
 
-function buildNavSections(reponame) {
+function buildNavSections(reponame, owner) {
+  const encodedRepo = encodeURIComponent(reponame || "");
+  const ownerQuery = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+
   return [
     {
       label: "Repository Security",
@@ -36,7 +36,7 @@ function buildNavSections(reponame) {
         {
           id: "readme-lab",
           label: "README Lab",
-          href: `/readme-analyze/${encodeURIComponent(reponame || "")}`,
+          href: `/readme-analyze/${encodedRepo}${ownerQuery}`,
         },
       ],
     },
@@ -44,64 +44,40 @@ function buildNavSections(reponame) {
 }
 
 export default function RepositorySecurityClient({ reponame }) {
-  const { data: session, status } = useSession();
-  const { isPro, loading: billingLoading } = useBilling();
+  const searchParams = useSearchParams();
+  const owner = useMemo(
+    () => String(searchParams.get("owner") || "").trim().toLowerCase(),
+    [searchParams]
+  );
   const [loading, setLoading] = useState(false);
-  const [securityLoading, setSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState(null);
   const [securityReport, setSecurityReport] = useState(null);
   const [securityMeta, setSecurityMeta] = useState(null);
-  const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
-    if (status !== "authenticated" || !session?.username || !reponame) {
-      return;
-    }
-
-    if (!billingLoading && !isPro) {
-      setIsLocked(true);
-      setLoading(false);
-      setSecurityLoading(false);
-      setSecurityError("This feature requires Githance Pro");
-      setSecurityReport(null);
-      setSecurityMeta(null);
-      return;
-    }
-
-    if (billingLoading || !session?.accessToken) {
-      return;
-    }
+    if (!owner || !reponame) return;
 
     let isCancelled = false;
 
     const runAnalysis = async () => {
-      setIsLocked(false);
       setLoading(true);
-      setSecurityLoading(true);
       setSecurityError(null);
 
-      const username = session.username;
-      const token = session.accessToken;
-
       try {
-        const securityResult = await fetchSecurityData({ username, reponame, token });
+        const securityResult = await fetchSecurityData({ username: owner, reponame });
         if (isCancelled) return;
 
         setSecurityReport(securityResult?.report || null);
         setSecurityMeta(securityResult?.analysisMeta || null);
       } catch (error) {
         if (isCancelled) return;
-
-        const errorMessage =
-          error?.message || "Security analysis failed for this repository.";
         setSecurityReport(null);
         setSecurityMeta(null);
-        setIsLocked(errorMessage === "This feature requires Githance Pro");
-        setSecurityError(errorMessage);
+        setSecurityError(error?.message || "Security analysis failed for this repository.");
       } finally {
-        if (isCancelled) return;
-        setLoading(false);
-        setSecurityLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -110,124 +86,41 @@ export default function RepositorySecurityClient({ reponame }) {
     return () => {
       isCancelled = true;
     };
-  }, [billingLoading, isPro, reponame, session?.accessToken, session?.username, status]);
+  }, [owner, reponame]);
 
-  const user = session?.username
-    ? { name: session.username, subtitle: reponame ? `Repo: ${reponame}` : "" }
-    : null;
+  const user = owner ? { name: owner, subtitle: reponame ? `Repo: ${reponame}` : "" } : null;
 
-  if (
-    status === "loading" ||
-    (status === "authenticated" && billingLoading) ||
-    loading ||
-    securityLoading
-  ) {
+  if (!owner) {
     return (
       <AnalyticsShell
         context="Repository"
         title={reponame || "Repository security"}
-        subtitle="Scanning developer-owned code, mapping risk hotspots, and computing a repository security score."
-        navSections={buildNavSections(reponame)}
+        subtitle="Open this repository from the analyzer so GitHance knows which GitHub owner to inspect."
+        navSections={buildNavSections(reponame, owner)}
         activeNavId="overview"
         user={user}
       >
-        <style jsx>{`
-          @keyframes pulseLine {
-            0% {
-              opacity: 0.38;
-              transform: scaleX(0.82);
-            }
-            50% {
-              opacity: 0.95;
-              transform: scaleX(1);
-            }
-            100% {
-              opacity: 0.38;
-              transform: scaleX(0.82);
-            }
-          }
-          @keyframes orbit {
-            0% {
-              transform: translateX(0);
-            }
-            50% {
-              transform: translateX(8px);
-            }
-            100% {
-              transform: translateX(0);
-            }
-          }
-        `}</style>
-
-        <div className="grid gap-6">
-          <section
-            id="overview"
-            className="analytics-card p-6 bg-[linear-gradient(135deg,var(--analytics-surface)_0%,var(--analytics-surface-soft)_55%,var(--analytics-accent-soft)_100%)]"
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--analytics-faint)]">
-              Repository Security
-            </p>
-            <h2 className="mt-2 text-3xl font-semibold text-white">{reponame}</h2>
-            <p className="mt-2 max-w-3xl text-sm text-white/70">
-              Parsing repository structure, filtering developer-owned code, and running vulnerability analytics.
-            </p>
-          </section>
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <ReadmeBlock loading />
-
-            <section className="analytics-card p-5">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Security Pipeline</p>
-              <div className="mt-4 space-y-3">
-                {[
-                  "Identifying developer-owned source files",
-                  "Excluding dependencies and generated artifacts",
-                  "Running AST-based semantic vulnerability analysis",
-                  "Grouping findings and computing security score",
-                ].map((step, index) => (
-                  <div key={step} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span
-                        className="inline-block h-2 w-2 rounded-full bg-cyan-300"
-                        style={{ animation: `orbit 900ms ease-in-out ${index * 120}ms infinite` }}
-                      />
-                      <span className="text-sm text-white/80">{step}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-cyan-400"
-                        style={{ animation: `pulseLine 1300ms ease-in-out ${index * 180}ms infinite` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+        <section className="analytics-card p-6">
+          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Repository Owner Required</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Open this security view from the repository analyzer.</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-white/70">
+            GitHance needs the repository owner to fetch source files and run the security analysis. Start from the analyzer so the correct owner is attached to the route.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/analyze"
+              className="rounded-full bg-[#ff7a1a] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
+            >
+              Open repository analyzer
+            </Link>
+            <Link
+              href="/"
+              className="rounded-full border border-white/15 bg-black/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-black/30 hover:text-white"
+            >
+              Return home
+            </Link>
           </div>
-        </div>
-      </AnalyticsShell>
-    );
-  }
-
-  if (status !== "authenticated") {
-    return <Unauthorized />;
-  }
-
-  if (isLocked) {
-    return (
-      <AnalyticsShell
-        context="Repository"
-        title={reponame || "Repository security"}
-        subtitle="Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository."
-        navSections={buildNavSections(reponame)}
-        activeNavId="overview"
-        user={user}
-      >
-        <FeaturePaywallCard
-          title="Repository Security Analysis is a Githance Pro feature."
-          description="Upgrade to unlock deep repository vulnerability analysis, severity breakdowns, hotspots, and grouped findings for your GitHub projects."
-          source="repository_security_gate"
-        />
+        </section>
       </AnalyticsShell>
     );
   }
@@ -237,13 +130,13 @@ export default function RepositorySecurityClient({ reponame }) {
       context="Repository"
       title={reponame || "Repository security"}
       subtitle="Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository."
-      navSections={buildNavSections(reponame)}
+      navSections={buildNavSections(reponame, owner)}
       activeNavId="overview"
       user={user}
     >
       <div className="grid gap-6">
         <SecurityOverview
-          loading={securityLoading}
+          loading={loading}
           error={securityError}
           report={securityReport}
           meta={securityMeta}

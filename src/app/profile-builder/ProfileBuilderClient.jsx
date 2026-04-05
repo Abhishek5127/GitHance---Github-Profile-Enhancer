@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import generateMarkdown from "../lib/genrateMarkdown";
 import { saveReadmePreviewPayload } from "../lib/readmePreview";
 import HeaderVariantPicker from "../components/pickers/HeaderVariantPicker";
@@ -133,7 +132,6 @@ function extractBuilderUsernameFromItems(items = []) {
 }
 
 export default function Page() {
-  const { data: session } = useSession();
   const bioDefaults = {
     content: `## About Me
 
@@ -2160,7 +2158,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             initialData={bioPickerContext.initialData}
             submitLabel={bioPickerContext.itemId ? "Update Item" : "Add to Canvas"}
             githubUsername={builderUsername}
-            githubToken={session?.accessToken || ""}
+            githubToken=""
           />
 
           <TechStackVariantPicker
@@ -2171,7 +2169,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
             initialData={techStackPickerContext.initialData}
             submitLabel={techStackPickerContext.itemId ? "Update Item" : "Add to Canvas"}
             githubUsername={builderUsername}
-            githubToken={session?.accessToken || ""}
+            githubToken=""
           />
 
           <SocialLinksVariantPicker
@@ -2238,6 +2236,9 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
+
+
+
 
 
 

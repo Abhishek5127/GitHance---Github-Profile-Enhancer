@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { buildMetadata } from "./lib/seo";
 
 export const metadata = buildMetadata({
@@ -11,7 +11,7 @@ export const metadata = buildMetadata({
 const quickLinks = [
   { label: "Home", href: "/" },
   { label: "Product", href: "/product" },
-  { label: "Pricing", href: "/pricing" },
+  { label: "Profile Builder", href: "/profile-builder" },
   { label: "Changelog", href: "/changelog" },
 ];
 
@@ -57,10 +57,10 @@ export default function NotFound() {
               Go to Home
             </Link>
             <Link
-              href="/pricing"
+              href="/profile-builder"
               className="rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10"
             >
-              View Pricing
+              Open Builder
             </Link>
           </div>
         </section>
@@ -68,4 +68,5 @@ export default function NotFound() {
     </div>
   );
 }
+
 

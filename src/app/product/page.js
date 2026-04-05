@@ -190,10 +190,10 @@ export default function ProductPage() {
             <div className="mb-5 flex items-end justify-between gap-4">
               <h2 className={`${antonio.className} text-4xl leading-none text-white sm:text-5xl`}>Product Workflow</h2>
               <Link
-                href="/pricing"
+                href="/profile-builder"
                 className={`${poppins.className} inline-flex rounded-full border border-white/18 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/78 transition hover:bg-white/10`}
               >
-                View Plans
+                Open Builder
               </Link>
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -247,4 +247,6 @@ export default function ProductPage() {
     </div>
   );
 }
+
+
 

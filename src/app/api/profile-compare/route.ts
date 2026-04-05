@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { BILLING_FEATURES } from "@/app/lib/billing/plans";
-import { BillingAccessError, requirePro } from "@/app/lib/billing/entitlements";
 import { compareProfiles } from "@/app/profile-compare/profileCompareServerService";
-import { resolveSessionUserId } from "@/app/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -28,21 +23,6 @@ function getErrorStatus(message) {
 
 export async function POST(request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!resolveSessionUserId(session)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Authentication required",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
-    await requirePro(session, BILLING_FEATURES.PROFILE_COMPARE);
-
     const {
       leftUsername = "",
       rightUsername = "",
@@ -66,19 +46,6 @@ export async function POST(request) {
       comparison,
     });
   } catch (error) {
-    if (error instanceof BillingAccessError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: error.message,
-          code: error.code,
-        },
-        {
-          status: error.status || 403,
-        }
-      );
-    }
-
     const message = error instanceof Error ? error.message : "Unable to compare these GitHub profiles right now.";
 
     return NextResponse.json(

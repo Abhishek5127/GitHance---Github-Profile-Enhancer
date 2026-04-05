@@ -1,4 +1,4 @@
-﻿import { SITE_URL } from "./lib/seo";
+import { SITE_URL } from "./lib/seo";
 
 export default function robots() {
   return {
@@ -10,7 +10,6 @@ export default function robots() {
           "/api/",
           "/readme-analyze/",
           "/repository-security/",
-          "/profile",
           "/test-component",
           "/statusCodePages/",
         ],

@@ -1,4 +1,4 @@
-﻿import AnalyzeClient from "./AnalyzeClient";
+import AnalyzeClient from "./AnalyzeClient";
 import JsonLd from "@/app/components/seo/JsonLd";
 import {
   buildMetadata,
@@ -33,7 +33,7 @@ const analyzeSchema = createSoftwareApplicationSchema({
     "Repository preview for current GitHub repositories",
     "README readiness badges and filters",
     "Security analysis launch links",
-    "Private repository support for authenticated users",
+    "Public repository analysis and README generation",
   ],
 });
 

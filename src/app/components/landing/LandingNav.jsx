@@ -3,38 +3,22 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { signOut, useSession } from "next-auth/react";
 import { assets } from "@/app/assets/assets";
 import { usePathname } from "next/navigation";
-import ProBadge from "@/app/components/billing/ProBadge";
-import { useBilling } from "@/app/components/billing/BillingProvider";
-import { openAuthRedirect } from "@/app/lib/authNavigation";
 
 const links = [
   { label: "Home", href: "/" },
   { label: "Product", href: "/product" },
   { label: "Solutions", href: "/solutions" },
   { label: "Process", href: "/process" },
-  { label: "Pricing", href: "/pricing" },
   { label: "Contribute", href: "/contribute" },
 ];
 
-export default function LandingNav({ signInCallbackUrl = "/profile" }) {
+export default function LandingNav() {
   const [open, setOpen] = useState(false);
-  const { data: session, status } = useSession();
-  const { isPro, loading: billingLoading } = useBilling();
   const pathname = usePathname();
-  const isAuthenticated = status === "authenticated" && Boolean(session?.userId);
 
   const isActiveRoute = (href) => pathname === href || pathname?.startsWith(`${href}/`);
-
-  const handleSignIn = () => {
-    openAuthRedirect(signInCallbackUrl);
-  };
-
-  const handleLogout = () => {
-    signOut({ callbackUrl: "/" });
-  };
 
   return (
     <header className="relative z-30 w-full">
@@ -72,42 +56,18 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
-          {isAuthenticated && !billingLoading ? (
-            isPro ? (
-              <ProBadge className="hidden sm:inline-flex" />
-            ) : (
-              <Link
-                href="/pricing#pro"
-                className="hidden rounded-full border border-[#ff7a1a]/35 bg-[#ff7a1a]/15 px-4 py-2 text-xs font-semibold text-[#ffd6b7] transition hover:bg-[#ff7a1a]/25 sm:inline-flex"
-              >
-                Upgrade
-              </Link>
-            )
-          ) : null}
-
-          {isAuthenticated ? (
-            <>
-              <Link
-                href="/account"
-                className="hidden rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white sm:inline-flex"
-              >
-                {session?.username ? `@${session.username}` : "Account"}
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-3 py-2 text-xs font-bold text-black transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
-              >
-                Logout
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={handleSignIn}
-              className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-white/10 hover:text-white sm:text-sm"
-            >
-              Email sign in
-            </button>
-          )}
+          <Link
+            href="/analyze"
+            className="hidden rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white sm:inline-flex"
+          >
+            Analyze repos
+          </Link>
+          <Link
+            href="/profile-builder"
+            className="flex h-10 items-center justify-center rounded-full border border-white/15 bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-white/90 sm:text-sm"
+          >
+            Open builder
+          </Link>
           <button
             className="flex h-10 min-w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/80 transition hover:bg-white/20 md:hidden"
             aria-label="Toggle menu"
@@ -137,49 +97,19 @@ export default function LandingNav({ signInCallbackUrl = "/profile" }) {
               ))}
             </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-              {isAuthenticated && !billingLoading ? (
-                isPro ? (
-                  <ProBadge className="self-start" />
-                ) : (
-                  <Link
-                    href="/pricing#pro"
-                    onClick={() => setOpen(false)}
-                    className="self-start rounded-full border border-[#ff7a1a]/35 bg-[#ff7a1a]/15 px-4 py-2 text-sm font-semibold text-[#ffd6b7]"
-                  >
-                    Upgrade
-                  </Link>
-                )
-              ) : null}
-              {isAuthenticated ? (
-                <>
-                  <Link
-                    href="/account"
-                    onClick={() => setOpen(false)}
-                    className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
-                  >
-                    {session?.username ? `@${session.username}` : "Account"}
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={handleSignIn}
-                  className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
-                >
-                  Email sign in
-                </button>
-              )}
+              <Link
+                href="/analyze"
+                onClick={() => setOpen(false)}
+                className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
+              >
+                Analyze repos
+              </Link>
               <Link
                 href="/profile-builder"
                 onClick={() => setOpen(false)}
                 className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
               >
-                Start free
+                Open builder
               </Link>
             </div>
           </div>

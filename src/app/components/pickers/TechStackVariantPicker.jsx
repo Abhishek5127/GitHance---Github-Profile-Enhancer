@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
 import { buildBioPayload } from "@/app/services/githubData.service";
 import ReadmeRenderer from "@/app/components/blocks/ReadmeRenderer";
 import SafeImage from "@/app/components/seo/SafeImage";
@@ -115,11 +114,8 @@ export default function TechStackVariantPicker({
   githubUsername = "",
   githubToken = "",
 }) {
-  const { data: session, status } = useSession();
-  const resolvedGithubUsername = String(githubUsername || session?.username || "")
-    .trim()
-    .toLowerCase();
-  const resolvedGithubToken = String(githubToken || session?.accessToken || "").trim();
+  const resolvedGithubUsername = String(githubUsername || "").trim().toLowerCase();
+  const resolvedGithubToken = String(githubToken || "").trim();
 
   const [variant, setVariant] = useState("categorized");
   const [alignment, setAlignment] = useState("left");
@@ -307,13 +303,6 @@ export default function TechStackVariantPicker({
   const handleAnalyzeRepositories = async () => {
     if (isScanning) return;
 
-    if (status === "loading" && !resolvedGithubUsername) {
-      setFeedback({
-        type: "info",
-        message: "Session is still loading. Try again in a moment.",
-      });
-      return;
-    }
 
     if (!resolvedGithubUsername) {
       setFeedback({
@@ -698,6 +687,9 @@ export default function TechStackVariantPicker({
     </div>
   );
 }
+
+
+
 
 
 

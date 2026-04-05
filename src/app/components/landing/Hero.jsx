@@ -13,9 +13,9 @@ const modes = [
     label: "Profile",
     title: "Build a GitHub profile README that feels intentional.",
     copy: "Shape developer-first sections, live contribution visuals, and a profile README that communicates your strengths clearly.",
-    detail: "Profile builder, profile comparison, and repository analysis work together inside one email-backed workspace linked to your GitHub username.",
+    detail: "Profile builder, profile comparison, and repository analysis work together inside one public workspace linked to the GitHub username you provide.",
     blocklist: [
-      { label: "Analyze Profile", path: "/profile" },
+      { label: "Analyze Repositories", path: "/analyze" },
       { label: "Compare Profiles", path: "/profile-compare" },
       { label: "Analyze Repositories", path: ANALYZE_REPOSITORIES_PATH },
     ],
@@ -70,7 +70,7 @@ export default function Hero() {
 
         <p className={`mt-5 max-w-2xl text-base ${poppins.className} leading-7 text-white/70 sm:text-lg`}>
           GitHance helps developers create GitHub profile READMEs, generate project READMEs, preview repositories,
-          compare profiles, and review security signals from one email-backed workspace built for discoverability and faster shipping.
+          compare profiles, and review security signals from one public workspace built for discoverability and faster shipping.
         </p>
 
         <form onSubmit={handlePersonalStart} className="mt-10 max-w-2xl">
@@ -169,3 +169,4 @@ export default function Hero() {
     </section>
   );
 }
+

@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import getRelevantFiles from "@/app/lib/repo/getRelevantFiles";
 import {
   fetchRepositoryFileContext,
@@ -8,7 +6,6 @@ import {
   fetchRepositorySnapshot,
   normalizeGitHubId,
 } from "@/app/lib/repo/fetchRepositorySnapshot";
-import { resolveSessionGithubUsername, resolveSessionUserId } from "@/app/lib/auth/session";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL =
@@ -175,30 +172,20 @@ Rules:
 
 export async function POST(request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!resolveSessionUserId(session)) {
-      return jsonError(401, "Authentication required");
-    }
-
-    const ownerFromSession = normalizeGitHubId(resolveSessionGithubUsername(session)).toLowerCase();
-    if (!ownerFromSession) {
-      return jsonError(403, "Link a GitHub username in your account settings first.");
-    }
-
     const body = await request.json().catch(() => ({}));
-    const owner = normalizeGitHubId(body?.owner || ownerFromSession).toLowerCase();
+    const owner = normalizeGitHubId(body?.owner).toLowerCase();
     const repo = normalizeGitHubId(body?.repo || body?.reponame);
     const mode = body?.mode === "improve" ? "improve" : "create";
     const accessToken = String(
       process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN || process.env.GH_TOKEN || ""
     ).trim();
 
-    if (!repo) {
-      return jsonError(400, "Repository name is required");
+    if (!owner) {
+      return jsonError(400, "Repository owner is required");
     }
 
-    if (owner !== ownerFromSession) {
-      return jsonError(403, "Owner must match your linked GitHub username");
+    if (!repo) {
+      return jsonError(400, "Repository name is required");
     }
 
     const apiKey = String(process.env.OPENROUTER_API_KEY || "").trim();

@@ -1,10 +1,10 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 export const HOME_FAQS = [
   {
     question: "What is GitHance?",
     answer:
-      "GitHance is a SaaS workspace for developers who want to generate GitHub READMEs, improve profile READMEs, analyze repositories, compare profiles, and ship clearer project documentation from one place.",
+      "GitHance is a public workspace for developers who want to generate GitHub READMEs, improve profile READMEs, analyze repositories, compare profiles, and ship clearer project documentation from one place.",
   },
   {
     question: "How does GitHance help with GitHub README generation?",
@@ -22,9 +22,9 @@ export const HOME_FAQS = [
       "GitHance is built for solo developers, open-source maintainers, developer advocates, and engineering teams that want stronger documentation, better GitHub discoverability, and a more consistent developer brand.",
   },
   {
-    question: "Does GitHance work for both profile READMEs and project READMEs?",
+    question: "Do I need an account or paid plan to use GitHance?",
     answer:
-      "Yes. GitHance supports GitHub profile README building, repository README creation, repository preview, preview/export flows, and profile comparison inside one connected developer workspace.",
+      "No. GitHance now runs as an open workspace, so the profile builder, README tooling, profile comparison, repository analysis, and security review flows are available to everyone.",
   },
 ];
 
@@ -67,10 +67,10 @@ export default function FaqSection() {
             Explore product overview
           </Link>
           <Link
-            href="/pricing"
+            href="/profile-builder"
             className="rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/10"
           >
-            View pricing
+            Open profile builder
           </Link>
           <Link
             href="/analyze"
@@ -83,4 +83,3 @@ export default function FaqSection() {
     </section>
   );
 }
-
