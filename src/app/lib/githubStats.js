@@ -108,6 +108,101 @@ function statsKey({ username, installationId }) {
   return `${installationId ?? "none"}:${username}`;
 }
 
+const GITHUB_STATS_LOOKUP_CACHE_TTL_MS = 60 * 1000;
+
+function getGithubStatsLookupCache() {
+  if (!globalThis.__githanceGithubStatsLookupCache) {
+    globalThis.__githanceGithubStatsLookupCache = {
+      values: new Map(),
+      pending: new Map(),
+    };
+  }
+
+  return globalThis.__githanceGithubStatsLookupCache;
+}
+
+function buildGithubStatsLookupCacheKey({ username, installationId = null }) {
+  return statsKey({
+    username: normalizeUsername(username),
+    installationId: normalizeInstallationId(installationId),
+  });
+}
+
+function readGithubStatsLookupCache({
+  username,
+  installationId = null,
+  maxAgeMs = GITHUB_STATS_LOOKUP_CACHE_TTL_MS,
+}) {
+  const cache = getGithubStatsLookupCache();
+  const cacheKey = buildGithubStatsLookupCacheKey({ username, installationId });
+  const entry = cache.values.get(cacheKey);
+
+  if (!entry) return null;
+
+  if (Date.now() - Number(entry.cachedAt || 0) > maxAgeMs) {
+    cache.values.delete(cacheKey);
+    return null;
+  }
+
+  return entry.stats;
+}
+
+export function primeGithubStatsLookupCache(stats, options = {}) {
+  if (!stats || typeof stats !== "object") return null;
+
+  const username = normalizeUsername(options?.username || stats.github_username);
+  if (!username) return null;
+
+  const installationId = Object.prototype.hasOwnProperty.call(options || {}, "installationId")
+    ? normalizeInstallationId(options.installationId)
+    : normalizeInstallationId(stats.installation_id);
+
+  const normalizedStats = toPublicStats({
+    ...stats,
+    github_username: username,
+    installation_id: installationId,
+  });
+
+  const cache = getGithubStatsLookupCache();
+  cache.values.set(buildGithubStatsLookupCacheKey({ username, installationId }), {
+    cachedAt: Date.now(),
+    stats: normalizedStats,
+  });
+
+  return normalizedStats;
+}
+
+export function clearGithubStatsLookupCache({ username = "", installationId } = {}) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) return;
+
+  const normalizedInstallationId =
+    installationId === undefined ? undefined : normalizeInstallationId(installationId);
+  const cache = getGithubStatsLookupCache();
+  const expectedKey =
+    normalizedInstallationId === undefined
+      ? ""
+      : buildGithubStatsLookupCacheKey({
+          username: normalizedUsername,
+          installationId: normalizedInstallationId,
+        });
+
+  [cache.values, cache.pending].forEach((bucket) => {
+    [...bucket.keys()].forEach((cacheKey) => {
+      if (expectedKey) {
+        if (cacheKey === expectedKey) {
+          bucket.delete(cacheKey);
+        }
+        return;
+      }
+
+      if (cacheKey.endsWith(`:${normalizedUsername}`)) {
+        bucket.delete(cacheKey);
+      }
+    });
+  });
+}
+
 function isoDay(value) {
   const parsed = new Date(value || "");
   if (Number.isNaN(parsed.getTime())) return "";
@@ -1347,7 +1442,19 @@ function getAllGithubStatsInMemory() {
 
 export async function recordPushEvent({ deliveryId, payload }) {
   if (!isMongoConfigured()) {
-    return recordPushEventInMemory({ deliveryId, payload });
+    const result = recordPushEventInMemory({ deliveryId, payload });
+
+    if (result?.github_username) {
+      clearGithubStatsLookupCache({ username: result.github_username });
+      if (result?.stats) {
+        primeGithubStatsLookupCache(result.stats, {
+          username: result.github_username,
+          installationId: result?.installation_id,
+        });
+      }
+    }
+
+    return result;
   }
 
   const username = normalizeUsername(
@@ -1435,6 +1542,13 @@ export async function recordPushEvent({ deliveryId, payload }) {
     await saveStatsRecordToMongo(statsCollection, stats);
     await cleanupLegacyNullStatsRecordsForUsername(statsCollection, username);
 
+    clearGithubStatsLookupCache({ username });
+    const publicStats =
+      primeGithubStatsLookupCache(toPublicStats(stats), {
+        username,
+        installationId,
+      }) || toPublicStats(stats);
+
     return {
       ok: true,
       idempotent: false,
@@ -1442,7 +1556,7 @@ export async function recordPushEvent({ deliveryId, payload }) {
       installation_id: installationId,
       repo: repoFullName,
       commits_applied: Number(commitCount || 0),
-      stats: toPublicStats(stats),
+      stats: publicStats,
     };
   } catch (error) {
     if (reservedDelivery && deliveriesCollection) {
@@ -1460,7 +1574,13 @@ export async function recordPushEvent({ deliveryId, payload }) {
 
 export async function recordRepositoryEvent({ deliveryId, payload }) {
   if (!isMongoConfigured()) {
-    return recordRepositoryEventInMemory({ deliveryId, payload });
+    const result = recordRepositoryEventInMemory({ deliveryId, payload });
+
+    if (result?.github_username) {
+      clearGithubStatsLookupCache({ username: result.github_username });
+    }
+
+    return result;
   }
 
   const action = String(payload?.action || "").toLowerCase();
@@ -1548,6 +1668,8 @@ export async function recordRepositoryEvent({ deliveryId, payload }) {
         }
       }
     }
+
+    clearGithubStatsLookupCache({ username });
 
     return {
       ok: true,
@@ -1744,7 +1866,7 @@ export async function bootstrapGithubStatsFromEvents({
   }
 }
 
-export async function getGithubStatsForUser({ username, installationId = null }) {
+async function loadGithubStatsForUser({ username, installationId = null }) {
   if (!isMongoConfigured()) {
     return getGithubStatsForUserInMemory({ username, installationId });
   }
@@ -1809,6 +1931,51 @@ export async function getGithubStatsForUser({ username, installationId = null })
       installationId: normalizedInstallationId,
     });
   }
+}
+
+export async function getGithubStatsForUser({ username, installationId = null }) {
+  const normalizedUsername = normalizeUsername(username);
+  const normalizedInstallationId = normalizeInstallationId(installationId);
+
+  if (!normalizedUsername) {
+    return toPublicStats(null);
+  }
+
+  const cachedStats = readGithubStatsLookupCache({
+    username: normalizedUsername,
+    installationId: normalizedInstallationId,
+  });
+  if (cachedStats) {
+    return cachedStats;
+  }
+
+  const cache = getGithubStatsLookupCache();
+  const cacheKey = buildGithubStatsLookupCacheKey({
+    username: normalizedUsername,
+    installationId: normalizedInstallationId,
+  });
+  const pendingRequest = cache.pending.get(cacheKey);
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  const request = loadGithubStatsForUser({
+    username: normalizedUsername,
+    installationId: normalizedInstallationId,
+  })
+    .then((stats) => {
+      const primed = primeGithubStatsLookupCache(stats, {
+        username: normalizedUsername,
+        installationId: normalizedInstallationId,
+      });
+      return primed || toPublicStats(stats);
+    })
+    .finally(() => {
+      cache.pending.delete(cacheKey);
+    });
+
+  cache.pending.set(cacheKey, request);
+  return request;
 }
 
 export async function getAllGithubStats() {

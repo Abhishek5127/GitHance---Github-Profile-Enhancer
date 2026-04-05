@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   bootstrapGithubStatsFromEvents,
   getGithubStatsForUser,
+  primeGithubStatsLookupCache,
 } from "@/app/lib/githubStats";
 import { createGithubAppJwt, isGithubAppConfigured } from "@/app/lib/githubAppAuth";
 import {
@@ -104,15 +105,22 @@ export async function POST(req) {
       });
 
       if (hasMeaningfulStats(cachedStats)) {
+        const primedStats =
+          primeGithubStatsLookupCache(cachedStats, {
+            username: resolvedUsername,
+            installationId:
+              normalizeInstallationId(cachedStats?.installation_id) ?? explicitInstallationId,
+          }) || cachedStats;
+
         return NextResponse.json({
           ok: true,
           bootstrapped: false,
           source: "cache",
           github_username: resolvedUsername,
           installation_id:
-            normalizeInstallationId(cachedStats?.installation_id) ?? explicitInstallationId,
+            normalizeInstallationId(primedStats?.installation_id) ?? explicitInstallationId,
           events_fetched: 0,
-          stats: cachedStats,
+          stats: primedStats,
         });
       }
     }
@@ -140,12 +148,19 @@ export async function POST(req) {
       return NextResponse.json(result, { status: Number(result?.status) || 400 });
     }
 
+    const primedStats =
+      primeGithubStatsLookupCache(result.stats, {
+        username: resolvedUsername,
+        installationId: resolvedInstallationId,
+      }) || result.stats;
+
     return NextResponse.json({
       ok: true,
       github_username: resolvedUsername,
       installation_id: resolvedInstallationId,
       events_fetched: events.length,
       ...result,
+      stats: primedStats,
     });
   } catch (error) {
     return NextResponse.json(

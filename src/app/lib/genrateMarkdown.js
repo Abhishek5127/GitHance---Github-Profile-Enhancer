@@ -612,7 +612,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             ...(selectedStat.metric ? { metric: selectedStat.metric } : {}),
-            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam, prefer_snapshot: "1" } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -651,7 +651,7 @@ ${content || "&nbsp;"}
           params: {
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
-            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam, prefer_snapshot: "1" } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -662,7 +662,7 @@ ${content || "&nbsp;"}
           params: {
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
-            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam, prefer_snapshot: "1" } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -674,7 +674,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "last_repo",
-            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam, prefer_snapshot: "1" } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -686,7 +686,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "total_commits",
-            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam, prefer_snapshot: "1" } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -698,7 +698,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "active_days",
-            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam, prefer_snapshot: "1" } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });
@@ -710,7 +710,7 @@ ${content || "&nbsp;"}
             user: username,
             ...(installationId ? { installation_id: installationId } : {}),
             metric: "top_repo",
-            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam } : {}),
+            ...(statsSnapshotParam ? { snapshot: statsSnapshotParam, prefer_snapshot: "1" } : {}),
             ...(stickersParam ? { stickers: stickersParam } : {}),
           },
         });

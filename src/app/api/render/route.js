@@ -5,7 +5,7 @@ import {
   generateDecorativeSvg,
   generateTrophySvg,
 } from "@/app/lib/generateBlockSvg";
-import { bootstrapGithubStatsFromEvents, getGithubStatsForUser } from "@/app/lib/githubStats";
+import { getGithubStatsForUser } from "@/app/lib/githubStats";
 import renderContributionSvg from "@/app/lib/renderers/contributionSvg";
 import renderStreakSvg from "@/app/lib/renderers/streakSvg";
 import renderRepoSvg from "@/app/lib/renderers/repoSvg";
@@ -21,7 +21,7 @@ import {
   normalizeStickerLayers,
 } from "@/app/lib/stickerCatalog";
 import { NextResponse } from "next/server";
-import { fetchGithubContributionCalendar, fetchGithubRecentEvents } from "@/app/lib/githubPublicData";
+import { fetchGithubContributionCalendar } from "@/app/lib/githubPublicData";
 import { getFooterBannerById } from "@/app/lib/footerBannerCatalog";
 import { buildFooterBannerSvg } from "@/app/lib/renderers/footerBannerSvg";
 
@@ -165,29 +165,13 @@ function shouldPreferSnapshotStats(snapshotStats, currentStats) {
   );
 }
 
-async function fetchStatsFallback(username, installationId) {
-  const normalizedUsername = String(username || "").trim().toLowerCase();
-  if (!normalizedUsername) return null;
+const RENDER_STATS_SNAPSHOT_FAST_PATH_MAX_AGE_MS = 10 * 60 * 1000;
 
-  const events = await fetchGithubRecentEvents({
-    username: normalizedUsername,
-    maxPages: 3,
-    perPage: 100,
-  });
-  if (!events.length) return null;
-
-  const result = await bootstrapGithubStatsFromEvents({
-    username: normalizedUsername,
-    installationId,
-    events,
-    force: true,
-  });
-
-  if (!result?.ok || !result?.stats) {
-    return null;
-  }
-
-  return result.stats;
+function isFreshStatsSnapshot(stats, maxAgeMs = RENDER_STATS_SNAPSHOT_FAST_PATH_MAX_AGE_MS) {
+  if (!stats || typeof stats !== "object") return false;
+  const updatedAt = statsUpdatedEpoch(stats);
+  if (!updatedAt) return false;
+  return Date.now() - updatedAt <= maxAgeMs;
 }
 
 function parseStatsSnapshot(searchParams) {
@@ -359,8 +343,13 @@ export async function GET(request) {
       username,
       installationId
     );
+    const canUseSnapshotFastPath =
+      preferSnapshot &&
+      normalizedSnapshotStats &&
+      hasMeaningfulStats(normalizedSnapshotStats) &&
+      isFreshStatsSnapshot(normalizedSnapshotStats);
 
-    if (preferSnapshot && normalizedSnapshotStats) {
+    if (canUseSnapshotFastPath) {
       resolvedStats = normalizedSnapshotStats;
     } else {
       const stats = await getGithubStatsForUser({
@@ -383,7 +372,7 @@ export async function GET(request) {
           ...normalizedSnapshotStats,
         };
       } else {
-        resolvedStats = (await fetchStatsFallback(username, installationId)) || stats;
+        resolvedStats = stats;
       }
     }
 
@@ -504,10 +493,15 @@ export async function GET(request) {
     svg = appendStickerOverlayToSvg(svg, overlay);
   }
 
+  const cacheControl =
+    type === "contribution" || type === "streak" || type === "repo"
+      ? "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+      : "no-store, max-age=0";
+
   return new NextResponse(svg, {
     headers: {
-      "Content-Type": "image/svg+xml",
-      "Cache-Control": "no-store, max-age=0",
+      "Content-Type": "image/svg+xml; charset=utf-8",
+      "Cache-Control": cacheControl,
     },
   });
 }
