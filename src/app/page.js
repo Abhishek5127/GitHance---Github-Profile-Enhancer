@@ -6,6 +6,7 @@ import Footer from "./components/landing/Footer";
 import FaqSection, { HOME_FAQS } from "./components/landing/FaqSection";
 import InternalLinksSection from "./components/landing/InternalLinksSection";
 import LandingFeedbackWidget from "./components/landing/LandingFeedbackWidget";
+import LandingSupportWidget from "./components/landing/LandingSupportWidget";
 import JsonLd from "./components/seo/JsonLd";
 import {
   buildMetadata,
@@ -81,6 +82,7 @@ export default function Home() {
       </div>
       <Footer />
       <LandingFeedbackWidget />
+      <LandingSupportWidget />
     </div>
   );
 }

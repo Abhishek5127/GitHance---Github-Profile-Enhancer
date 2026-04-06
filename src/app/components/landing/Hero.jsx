@@ -35,6 +35,7 @@ const modes = [
     colorPalette: ["green", "yellow", "blue"],
   },
 ];
+
 const colorMap = {
   green: "bg-green-500/15 text-green-400 border border-green-500/30",
   yellow: "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30",
@@ -169,4 +170,3 @@ export default function Hero() {
     </section>
   );
 }
-
