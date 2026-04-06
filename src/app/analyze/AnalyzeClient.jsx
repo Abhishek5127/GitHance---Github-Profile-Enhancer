@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import LandingNav from "@/app/components/landing/LandingNav";
 import {
   loadProfileBuilderContextUsername,
@@ -254,8 +253,7 @@ function RepositoryCard({ repo, fallbackOwner }) {
   );
 }
 
-export default function AnalyzePage() {
-  const searchParams = useSearchParams();
+export default function AnalyzePage({ initialUsername = "" }) {
   const [githubUsername, setGithubUsername] = useState("");
   const [draftUsername, setDraftUsername] = useState("");
   const [repositories, setRepositories] = useState([]);
@@ -267,8 +265,8 @@ export default function AnalyzePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const requestedUsername = useMemo(
-    () => normalizeUsername(searchParams.get("username")),
-    [searchParams]
+    () => normalizeUsername(initialUsername),
+    [initialUsername]
   );
 
   useEffect(() => {
@@ -647,4 +645,3 @@ export default function AnalyzePage() {
     </div>
   );
 }
-

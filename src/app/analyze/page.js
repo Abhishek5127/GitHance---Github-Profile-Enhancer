@@ -42,12 +42,14 @@ const breadcrumbSchema = createBreadcrumbSchema([
   { name: "Repository Analyzer", path: "/analyze" },
 ]);
 
-export default function AnalyzePage() {
+export default async function AnalyzePage({ searchParams }) {
+  const resolvedSearchParams = await searchParams;
+  const initialUsername = String(resolvedSearchParams?.username || "").trim();
+
   return (
     <>
       <JsonLd data={[analyzeSchema, breadcrumbSchema]} />
-      <AnalyzeClient />
+      <AnalyzeClient initialUsername={initialUsername} />
     </>
   );
 }
-
