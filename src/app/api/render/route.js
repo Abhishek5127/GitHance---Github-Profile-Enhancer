@@ -166,6 +166,14 @@ function shouldPreferSnapshotStats(snapshotStats, currentStats) {
 }
 
 
+const RENDER_STATS_SNAPSHOT_FAST_PATH_MAX_AGE_MS = 10 * 60 * 1000;
+
+function isFreshStatsSnapshot(stats, maxAgeMs = RENDER_STATS_SNAPSHOT_FAST_PATH_MAX_AGE_MS) {
+  if (!stats || typeof stats !== "object") return false;
+  const updatedAt = statsUpdatedEpoch(stats);
+  if (!updatedAt) return false;
+  return Date.now() - updatedAt <= maxAgeMs;
+}
 function parseStatsSnapshot(searchParams) {
   const raw = searchParams.get("snapshot");
   if (!raw) return null;
@@ -328,6 +336,7 @@ export async function GET(request) {
       searchParams.get("installation_id") || searchParams.get("installationId") || "";
     const snapshotStats = parseStatsSnapshot(searchParams);
     const preferSnapshot = isTruthyParam(searchParams.get("prefer_snapshot"));
+    const forceSnapshot = isTruthyParam(searchParams.get("force_snapshot"));
 
     let resolvedStats = null;
     const normalizedSnapshotStats = normalizeSnapshotStats(
@@ -338,7 +347,8 @@ export async function GET(request) {
     const canUseSnapshotFastPath =
       preferSnapshot &&
       normalizedSnapshotStats &&
-      hasMeaningfulStats(normalizedSnapshotStats);
+      hasMeaningfulStats(normalizedSnapshotStats) &&
+      (forceSnapshot || isFreshStatsSnapshot(normalizedSnapshotStats));
 
     if (canUseSnapshotFastPath) {
       resolvedStats = normalizedSnapshotStats;

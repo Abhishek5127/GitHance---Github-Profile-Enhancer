@@ -127,6 +127,7 @@ function buildBlockUrl({
   version,
   snapshot,
   preferSnapshot = false,
+  forceSnapshot = false,
 }) {
   const params = new URLSearchParams();
   params.set("type", type);
@@ -158,6 +159,10 @@ function buildBlockUrl({
 
   if (preferSnapshot && snapshot) {
     params.set("prefer_snapshot", "1");
+  }
+
+  if (forceSnapshot && snapshot) {
+    params.set("force_snapshot", "1");
   }
 
   return `/api/render?${params.toString()}`;
@@ -393,6 +398,7 @@ export default function RepoCommitStatsBlock({
           version: bootstrapStatus.version || prefetchedSnapshotVersion,
           snapshot: encodedSnapshot,
           preferSnapshot: true,
+          forceSnapshot: true,
         }),
       };
     });

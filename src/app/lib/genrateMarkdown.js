@@ -303,6 +303,7 @@ ${body}`;
 export default function generateMarkdown(canvasItems, options = {}) {
   let markdown = "";
   const suppressRepoCommitHeading = Boolean(options?.suppressRepoCommitHeading);
+  const embedStatsSnapshots = Boolean(options?.embedStatsSnapshots);
   let hasRepoCommitHeading = suppressRepoCommitHeading;
 
   const resolveBaseUrl = () => {
@@ -530,6 +531,7 @@ ${graphicSection}
         if (!slotItem || slotItem.type === "section") return "";
         return generateMarkdown([slotItem], {
           suppressRepoCommitHeading: true,
+          embedStatsSnapshots,
         }).trim();
       });
 
@@ -596,7 +598,7 @@ ${content || "&nbsp;"}
         .toLowerCase();
       const selectedStat = getRepoCommitStatItemById(statId);
       const stickersParam = encodeStickersParam(item?.data?.stickers);
-      const statsSnapshotParam = encodeStatsSnapshotParam(item?.data?.statsSnapshot);
+      const statsSnapshotParam = embedStatsSnapshots ? encodeStatsSnapshotParam(item?.data?.statsSnapshot) : "";
 
       if (username && selectedStat) {
         const statUrl = buildRenderUrl({
@@ -641,7 +643,7 @@ ${content || "&nbsp;"}
       const username = resolveProfileBuilderUsername(item.data?.username);
       const installationId = Number(item.data?.installationId || 0) || null;
       const stickersParam = encodeStickersParam(item?.data?.stickers);
-      const statsSnapshotParam = encodeStatsSnapshotParam(item?.data?.statsSnapshot);
+      const statsSnapshotParam = embedStatsSnapshots ? encodeStatsSnapshotParam(item?.data?.statsSnapshot) : "";
 
       if (username) {
         const contributionUrl = buildRenderUrl({
@@ -791,3 +793,4 @@ ${content || "&nbsp;"}
 
   return markdown.trim();
 }
+
