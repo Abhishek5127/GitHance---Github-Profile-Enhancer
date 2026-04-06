@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import LandingNav from "@/app/components/landing/LandingNav";
 import {
   loadProfileBuilderContextUsername,
@@ -254,6 +255,7 @@ function RepositoryCard({ repo, fallbackOwner }) {
 }
 
 export default function AnalyzePage() {
+  const searchParams = useSearchParams();
   const [githubUsername, setGithubUsername] = useState("");
   const [draftUsername, setDraftUsername] = useState("");
   const [repositories, setRepositories] = useState([]);
@@ -264,14 +266,23 @@ export default function AnalyzePage() {
   const [hasMore, setHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
+  const requestedUsername = useMemo(
+    () => normalizeUsername(searchParams.get("username")),
+    [searchParams]
+  );
 
   useEffect(() => {
     const storedUsername = loadProfileBuilderContextUsername();
-    if (storedUsername) {
-      setGithubUsername(storedUsername);
-      setDraftUsername(storedUsername);
+    const initialUsername = requestedUsername || storedUsername;
+    if (!initialUsername) return;
+
+    setGithubUsername(initialUsername);
+    setDraftUsername(initialUsername);
+
+    if (requestedUsername) {
+      saveProfileBuilderContextUsername(initialUsername);
     }
-  }, []);
+  }, [requestedUsername]);
 
   async function loadRepositories(username, nextPage = 1, append = false) {
     const normalizedUsername = normalizeUsername(username);
@@ -304,9 +315,6 @@ export default function AnalyzePage() {
       setRepositories((current) => (append ? [...current, ...payload.repos] : payload.repos));
       setPage(nextPage);
       setHasMore(Boolean(payload?.hasNextPage));
-      setGithubUsername(normalizedUsername);
-      setDraftUsername(normalizedUsername);
-      saveProfileBuilderContextUsername(normalizedUsername);
     } catch (nextError) {
       setError(nextError?.message || "Failed to load repositories");
       if (!append) {
@@ -352,7 +360,13 @@ export default function AnalyzePage() {
 
     setRepositories([]);
     setHasMore(false);
-    loadRepositories(normalizedUsername, 1, false);
+    setGithubUsername(normalizedUsername);
+    setDraftUsername(normalizedUsername);
+    saveProfileBuilderContextUsername(normalizedUsername);
+
+    if (normalizedUsername === githubUsername) {
+      loadRepositories(normalizedUsername, 1, false);
+    }
   };
 
   const showRepositorySkeletons = loading && repositories.length === 0;
@@ -633,3 +647,4 @@ export default function AnalyzePage() {
     </div>
   );
 }
+

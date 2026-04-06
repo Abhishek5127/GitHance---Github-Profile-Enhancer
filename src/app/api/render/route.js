@@ -165,14 +165,6 @@ function shouldPreferSnapshotStats(snapshotStats, currentStats) {
   );
 }
 
-const RENDER_STATS_SNAPSHOT_FAST_PATH_MAX_AGE_MS = 10 * 60 * 1000;
-
-function isFreshStatsSnapshot(stats, maxAgeMs = RENDER_STATS_SNAPSHOT_FAST_PATH_MAX_AGE_MS) {
-  if (!stats || typeof stats !== "object") return false;
-  const updatedAt = statsUpdatedEpoch(stats);
-  if (!updatedAt) return false;
-  return Date.now() - updatedAt <= maxAgeMs;
-}
 
 function parseStatsSnapshot(searchParams) {
   const raw = searchParams.get("snapshot");
@@ -346,8 +338,7 @@ export async function GET(request) {
     const canUseSnapshotFastPath =
       preferSnapshot &&
       normalizedSnapshotStats &&
-      hasMeaningfulStats(normalizedSnapshotStats) &&
-      isFreshStatsSnapshot(normalizedSnapshotStats);
+      hasMeaningfulStats(normalizedSnapshotStats);
 
     if (canUseSnapshotFastPath) {
       resolvedStats = normalizedSnapshotStats;
@@ -505,6 +496,4 @@ export async function GET(request) {
     },
   });
 }
-
-
 

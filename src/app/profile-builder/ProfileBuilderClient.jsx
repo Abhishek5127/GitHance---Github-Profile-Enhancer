@@ -34,7 +34,9 @@ import { buildGraphicComponentPayload } from "../lib/graphicComponentCatalog";
 import { REPO_COMMIT_STAT_ITEMS } from "../lib/repoCommitCatalog";
 import { resolveProfileBuilderUsername } from "../lib/profileComponents";
 import {
+  loadProfileBuilderContextCommitStatsSnapshot,
   loadProfileBuilderContextUsername,
+  saveProfileBuilderContextCommitStatsSnapshot,
   saveProfileBuilderContextUsername,
 } from "../lib/profileBuilderContext";
 import {
@@ -1015,6 +1017,13 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       if (resolvedBuilderUsername) {
         setBuilderUsername(resolvedBuilderUsername);
         saveProfileBuilderContextUsername(resolvedBuilderUsername);
+
+        const contextSnapshot =
+          loadProfileBuilderContextCommitStatsSnapshot(resolvedBuilderUsername);
+        if (contextSnapshot) {
+          setPrefetchedCommitStatsSnapshot(contextSnapshot);
+          setPrefetchedCommitStatsVersion(Date.now());
+        }
       }
 
       if (draftItems.length) {
@@ -1063,8 +1072,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       const snapshot = await bootstrapCommitStatsSnapshot(builderUsername, null);
       if (cancelled || !snapshot) return;
 
-      const nextInstallationId = Number(snapshot?.installation_id || 0) || null;
-      setPrefetchedCommitStatsSnapshot(snapshot);
+      const normalizedSnapshot =
+        saveProfileBuilderContextCommitStatsSnapshot({
+          username: builderUsername,
+          snapshot,
+        }) || snapshot;
+      const nextInstallationId = Number(normalizedSnapshot?.installation_id || 0) || null;
+
+      setPrefetchedCommitStatsSnapshot(normalizedSnapshot);
       setPrefetchedCommitStatsVersion(Date.now());
 
       setCanvasItems((prev) =>
@@ -1076,7 +1091,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           const existingUsername = String(entry?.data?.username || "").trim().toLowerCase();
 
           if (
-            JSON.stringify(existingSnapshot) === JSON.stringify(snapshot) &&
+            JSON.stringify(existingSnapshot) === JSON.stringify(normalizedSnapshot) &&
             existingInstallationId === nextInstallationId &&
             existingUsername === builderUsername
           ) {
@@ -1089,7 +1104,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
               ...entry.data,
               username: builderUsername,
               installationId: nextInstallationId,
-              statsSnapshot: snapshot,
+              statsSnapshot: normalizedSnapshot,
             },
           };
         })
@@ -1603,9 +1618,15 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
       ? selectedIds
       : REPO_COMMIT_STAT_ITEMS.map((item) => item.id);
 
-    const snapshot =
+    const rawSnapshot =
       prefetchedCommitStatsSnapshot ||
       (await bootstrapCommitStatsSnapshot(username, null));
+    const snapshot = rawSnapshot
+      ? saveProfileBuilderContextCommitStatsSnapshot({
+          username,
+          snapshot: rawSnapshot,
+        }) || rawSnapshot
+      : null;
 
     if (snapshot && !prefetchedCommitStatsSnapshot) {
       setPrefetchedCommitStatsSnapshot(snapshot);
@@ -2620,25 +2641,4 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

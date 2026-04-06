@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { antonio, poppins } from "@/app/fonts";
-import { saveProfileBuilderContextUsername } from "@/app/lib/profileBuilderContext";
+import {
+  normalizeProfileBuilderContextUsername,
+  saveProfileBuilderContextCommitStatsSnapshot,
+  saveProfileBuilderContextUsername,
+} from "@/app/lib/profileBuilderContext";
 
 const ANALYZE_REPOSITORIES_PATH = "/analyze";
 
@@ -45,11 +49,57 @@ const colorMap = {
 export default function Hero() {
   const [active, setActive] = useState(modes[0]);
   const [heroUsername, setHeroUsername] = useState("");
+  const [isLaunchingBuilder, setIsLaunchingBuilder] = useState(false);
+  const normalizedHeroUsername = normalizeProfileBuilderContextUsername(heroUsername);
+  const analyzeHref = normalizedHeroUsername
+    ? {
+        pathname: ANALYZE_REPOSITORIES_PATH,
+        query: { username: normalizedHeroUsername },
+      }
+    : ANALYZE_REPOSITORIES_PATH;
 
-  const handlePersonalStart = (event) => {
+  const handlePersonalStart = async (event) => {
     event.preventDefault();
-    saveProfileBuilderContextUsername(heroUsername);
-    window.location.assign("/profile-builder");
+
+    const username = saveProfileBuilderContextUsername(
+      normalizedHeroUsername || heroUsername
+    );
+
+    if (!username) {
+      window.location.assign("/profile-builder");
+      return;
+    }
+
+    setIsLaunchingBuilder(true);
+
+    try {
+      const response = await fetch("/api/github/stats/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          installationId: null,
+          force: false,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (response.ok && payload?.ok && payload?.stats) {
+        saveProfileBuilderContextCommitStatsSnapshot({
+          username,
+          snapshot: payload.stats,
+        });
+      }
+    } catch {
+      // Ignore startup prefetch failures; the builder will refresh its own snapshot.
+    } finally {
+      window.location.assign("/profile-builder");
+    }
+  };
+
+  const handleAnalyzeStart = () => {
+    if (!normalizedHeroUsername) return;
+    saveProfileBuilderContextUsername(normalizedHeroUsername);
   };
 
   return (
@@ -98,12 +148,14 @@ export default function Hero() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
             <button
               type="submit"
-              className="inline-flex justify-center rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a]"
+              disabled={isLaunchingBuilder}
+              className="inline-flex justify-center rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Open profile builder
+              {isLaunchingBuilder ? "Loading profile builder..." : "Open profile builder"}
             </button>
             <Link
-              href="/analyze"
+              href={analyzeHref}
+              onClick={handleAnalyzeStart}
               className="inline-flex rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
             >
               Analyze repositories
@@ -170,3 +222,4 @@ export default function Hero() {
     </section>
   );
 }
+
