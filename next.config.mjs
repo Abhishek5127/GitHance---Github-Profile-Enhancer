@@ -1,4 +1,4 @@
-﻿/** @type {import('next').NextConfig} */
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactCompiler: true,
   images: {
@@ -18,6 +18,10 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "skillicons.dev",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.buymeacoffee.com",
       },
     ],
     formats: ["image/avif", "image/webp"],
