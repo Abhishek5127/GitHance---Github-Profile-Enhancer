@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   bootstrapGithubStatsFromEvents,
   getGithubStatsForUser,
+  mergeGithubStatsWithRecentEvents,
   primeGithubStatsLookupCache,
 } from "@/app/lib/githubStats";
 import { createGithubAppJwt, isGithubAppConfigured } from "@/app/lib/githubAppAuth";
@@ -74,6 +75,49 @@ async function resolveInstallationId({ username, installationId }) {
   }
 }
 
+async function resolveFreshStatsSnapshot({ username, installationId = null, token = "" }) {
+  const normalizedUsername = String(username || "").trim().toLowerCase();
+  const normalizedInstallationId = normalizeInstallationId(installationId);
+
+  const baseStats = await getGithubStatsForUser({
+    username: normalizedUsername,
+    installationId: normalizedInstallationId,
+    includeHistory: true,
+  });
+
+  let recentEvents = [];
+  try {
+    recentEvents = await fetchGithubRecentEvents({
+      username: normalizedUsername,
+      token,
+      maxPages: 3,
+      perPage: 100,
+    });
+  } catch {
+    recentEvents = [];
+  }
+
+  const resolvedInstallationId =
+    normalizeInstallationId(baseStats?.installation_id) ?? normalizedInstallationId;
+  const mergedStats = mergeGithubStatsWithRecentEvents(baseStats, {
+    username: normalizedUsername,
+    installationId: resolvedInstallationId,
+    events: recentEvents,
+  });
+
+  const primedStats =
+    primeGithubStatsLookupCache(mergedStats, {
+      username: normalizedUsername,
+      installationId: resolvedInstallationId,
+    }) || mergedStats;
+
+  return {
+    events: recentEvents,
+    installationId: normalizeInstallationId(primedStats?.installation_id) ?? resolvedInstallationId,
+    stats: primedStats,
+  };
+}
+
 export async function POST(req) {
   try {
     const {
@@ -99,28 +143,21 @@ export async function POST(req) {
     const useForceRefresh = Boolean(force);
 
     if (!useForceRefresh) {
-      const cachedStats = await getGithubStatsForUser({
+      const freshSnapshot = await resolveFreshStatsSnapshot({
         username: resolvedUsername,
         installationId: explicitInstallationId,
+        token,
       });
 
-      if (hasMeaningfulStats(cachedStats)) {
-        const primedStats =
-          primeGithubStatsLookupCache(cachedStats, {
-            username: resolvedUsername,
-            installationId:
-              normalizeInstallationId(cachedStats?.installation_id) ?? explicitInstallationId,
-          }) || cachedStats;
-
+      if (hasMeaningfulStats(freshSnapshot.stats)) {
         return NextResponse.json({
           ok: true,
           bootstrapped: false,
-          source: "cache",
+          source: freshSnapshot.events.length ? "cache+events" : "cache",
           github_username: resolvedUsername,
-          installation_id:
-            normalizeInstallationId(primedStats?.installation_id) ?? explicitInstallationId,
-          events_fetched: 0,
-          stats: primedStats,
+          installation_id: freshSnapshot.installationId,
+          events_fetched: freshSnapshot.events.length,
+          stats: freshSnapshot.stats,
         });
       }
     }
