@@ -6,17 +6,16 @@ import Link from "next/link";
 import { assets } from "@/app/assets/assets";
 import { useRouter } from "next/navigation";
 
-const THEME_KEY = "analytics-theme";
 const SIDEBAR_COLLAPSE_KEY = "analytics-sidebar-collapsed";
 
-function ThemeToggle({ theme, onToggle, collapsed }) {
+function ThemeToggle({ theme, onToggle }) {
   const isDark = theme === "dark";
 
   return (
     <button
       type="button"
       onClick={onToggle}
-      className={`flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--analytics-border)] bg-[color:var(--analytics-surface-soft)] text-[11px] font-semibold uppercase tracking-[0.2em] transition hover:scale-[1.02] ${collapsed ? "lg:hidden" : ""}`}
+      className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--analytics-border)] bg-[color:var(--analytics-surface-soft)] text-[11px] font-semibold uppercase tracking-[0.2em] transition hover:scale-[1.02]"
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       aria-pressed={isDark}
       title={isDark ? "Light theme" : "Dark theme"}
@@ -252,7 +251,14 @@ function FallbackNavIcon({ item, isActive }) {
   return <IconComponent className={iconClassName} />;
 }
 
-function NavItem({ item, isActive, onSelect, onActivate, collapsed = false }) {
+function NavItem({
+  item,
+  isActive,
+  onSelect,
+  onActivate,
+  onHashNavigate,
+  collapsed = false,
+}) {
   const baseClasses =
     "analytics-nav-item flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition";
 
@@ -267,6 +273,7 @@ function NavItem({ item, isActive, onSelect, onActivate, collapsed = false }) {
   }`;
 
   const iconSource = item.icon || item.svg;
+  const isHashLink = typeof item.href === "string" && item.href.startsWith("#");
 
   const content = (
     <>
@@ -305,6 +312,25 @@ function NavItem({ item, isActive, onSelect, onActivate, collapsed = false }) {
       ) : null}
     </>
   );
+
+  if (isHashLink) {
+    return (
+      <a
+        href={item.href}
+        className={classes}
+        onClick={(event) => {
+          event.preventDefault();
+          onSelect?.(item.id);
+          onHashNavigate?.(item.href, item.id);
+          onActivate?.();
+        }}
+        aria-label={collapsed ? item.label : undefined}
+        title={collapsed ? item.label : undefined}
+      >
+        {content}
+      </a>
+    );
+  }
 
   if (item.href) {
     return (
@@ -347,29 +373,14 @@ export default function AnalyticsShell({
   children,
   user,
 }) {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === "undefined") return "light";
-
-    const storedTheme = window.localStorage.getItem(THEME_KEY);
-    if (storedTheme === "dark" || storedTheme === "light") {
-      return storedTheme;
-    }
-
-    return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches
-      ? "dark"
-      : "light";
-  });
+  const [theme, setTheme] = useState("dark");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "true";
   });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [currentNavId, setCurrentNavId] = useState(activeNavId);
   const router = useRouter();
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(THEME_KEY, theme);
-  }, [theme]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -407,6 +418,22 @@ export default function AnalyticsShell({
     return () => mediaQuery.removeListener(handleViewportChange);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const syncNavFromHash = () => {
+      const hashId = window.location.hash.replace(/^#/, "");
+      setCurrentNavId(hashId || activeNavId);
+    };
+
+    syncNavFromHash();
+    window.addEventListener("hashchange", syncNavFromHash);
+
+    return () => {
+      window.removeEventListener("hashchange", syncNavFromHash);
+    };
+  }, [activeNavId]);
+
   const toggleTheme = () =>
     setTheme((current) => (current === "dark" ? "light" : "dark"));
 
@@ -415,6 +442,25 @@ export default function AnalyticsShell({
 
   const closeMobileSidebar = () => setIsMobileSidebarOpen(false);
   const openMobileSidebar = () => setIsMobileSidebarOpen(true);
+  const handleHashNavigate = (href, itemId) => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const targetId = href.replace(/^#/, "");
+    const target = document.getElementById(targetId);
+
+    if (!target) {
+      setCurrentNavId(itemId || activeNavId);
+      return;
+    }
+
+    setCurrentNavId(itemId || targetId);
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const nextHash = `#${targetId}`;
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, "", nextHash);
+    }
+  };
 
   return (
     <div
@@ -487,9 +533,13 @@ export default function AnalyticsShell({
                     <NavItem
                       key={item.id}
                       item={item}
-                      isActive={item.id === activeNavId}
-                      onSelect={onNavSelect}
+                      isActive={item.id === currentNavId}
+                      onSelect={(itemId) => {
+                        setCurrentNavId(itemId);
+                        onNavSelect?.(itemId);
+                      }}
                       onActivate={closeMobileSidebar}
+                      onHashNavigate={handleHashNavigate}
                       collapsed={isSidebarCollapsed}
                     />
                   ))}

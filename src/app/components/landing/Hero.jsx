@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { antonio, poppins } from "@/app/fonts";
@@ -125,7 +125,7 @@ export default function Hero() {
               value={landingUsername}
               onChange={(event) => setLandingUsername(event.target.value)}
               placeholder="your-github-username"
-              className={`w-full bg-transparent text-4xl ${antonio.className} leading-none tracking-[0.08em] text-white outline-none placeholder:text-white/18 sm:text-5xl lg:text-6xl`}
+              className={`w-full bg-transparent text-4xl ${antonio.className} leading-none tracking-[0.08em] text-white outline-none placeholder:text-white/18 sm:text-5xl lg:text-7xl xl:text-[5.5rem]`}
             />
           </div>
           <p className={`mt-3 text-sm ${poppins.className} leading-6 text-white/52`}>

@@ -31,10 +31,7 @@ const TONE_OPTIONS = [
   { value: "concise", label: "Concise" },
 ];
 
-function buildNavSections(reponame, owner) {
-  const encodedRepo = encodeURIComponent(reponame || "");
-  const ownerQuery = owner ? `?owner=${encodeURIComponent(owner)}` : "";
-
+function buildNavSections() {
   return [
     {
       label: "README Lab",
@@ -43,11 +40,6 @@ function buildNavSections(reponame, owner) {
         { id: "builder", label: "Builder", href: "#builder" },
         { id: "editor", label: "Editor", href: "#editor" },
         { id: "preview", label: "Preview", href: "#preview" },
-        {
-          id: "security",
-          label: "Security View",
-          href: `/repository-security/${encodedRepo}${ownerQuery}`,
-        },
       ],
     },
   ];
@@ -547,7 +539,7 @@ export default function ReadmeClient({ reponame }) {
         context="README"
         title={reponame || "README Lab"}
         subtitle="Open this repository from the analyzer so GitHance knows which GitHub owner to inspect."
-        navSections={buildNavSections(reponame, owner)}
+        navSections={buildNavSections()}
         activeNavId="overview"
         user={user}
       >
@@ -581,7 +573,7 @@ export default function ReadmeClient({ reponame }) {
       context="README"
       title={reponame || "README Lab"}
       subtitle="Analyze the repository README, generate missing content with GitHance, and move into a GitHub-style preview before export."
-      navSections={buildNavSections(reponame, owner)}
+      navSections={buildNavSections()}
       activeNavId="overview"
       user={user}
     >
@@ -594,14 +586,6 @@ export default function ReadmeClient({ reponame }) {
             <MetricCard label="Code Blocks" value={analysis.codeBlockCount} />
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Link
-              href={`/repository-security/${encodeURIComponent(reponame || "")}?owner=${encodeURIComponent(owner)}`}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
-            >
-              Open Security View
-            </Link>
-          </div>
         </section>
 
         {workspaceLoading ? (
@@ -652,3 +636,4 @@ export default function ReadmeClient({ reponame }) {
     </AnalyticsShell>
   );
 }
+

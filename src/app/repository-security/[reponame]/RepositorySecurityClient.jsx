@@ -20,10 +20,7 @@ async function fetchSecurityData({ username, reponame }) {
   return data;
 }
 
-function buildNavSections(reponame, owner) {
-  const encodedRepo = encodeURIComponent(reponame || "");
-  const ownerQuery = owner ? `?owner=${encodeURIComponent(owner)}` : "";
-
+function buildNavSections() {
   return [
     {
       label: "Repository Security",
@@ -33,11 +30,6 @@ function buildNavSections(reponame, owner) {
         { id: "severity", label: "Severity", href: "#severity" },
         { id: "hotspots", label: "Hotspots", href: "#hotspots" },
         { id: "findings", label: "Findings", href: "#findings" },
-        {
-          id: "readme-lab",
-          label: "README Lab",
-          href: `/readme-analyze/${encodedRepo}${ownerQuery}`,
-        },
       ],
     },
   ];
@@ -96,7 +88,7 @@ export default function RepositorySecurityClient({ reponame }) {
         context="Repository"
         title={reponame || "Repository security"}
         subtitle="Open this repository from the analyzer so GitHance knows which GitHub owner to inspect."
-        navSections={buildNavSections(reponame, owner)}
+        navSections={buildNavSections()}
         activeNavId="overview"
         user={user}
       >
@@ -130,7 +122,7 @@ export default function RepositorySecurityClient({ reponame }) {
       context="Repository"
       title={reponame || "Repository security"}
       subtitle="Vulnerability patterns, severity breakdowns, risk hotspots, and actionable fixes for this repository."
-      navSections={buildNavSections(reponame, owner)}
+      navSections={buildNavSections()}
       activeNavId="overview"
       user={user}
     >
@@ -146,3 +138,4 @@ export default function RepositorySecurityClient({ reponame }) {
     </AnalyticsShell>
   );
 }
+
