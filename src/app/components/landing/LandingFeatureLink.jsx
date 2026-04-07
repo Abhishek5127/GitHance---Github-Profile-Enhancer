@@ -6,7 +6,6 @@ import { useOptionalLandingFeatureGate } from "./LandingFeatureGate";
 const GATED_FEATURE_ROUTES = new Set([
   "/analyze",
   "/profile-builder",
-  "/profile-compare",
   "/readme-preview",
 ]);
 

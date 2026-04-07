@@ -36,7 +36,7 @@ const modes = [
     colorPalette: ["green", "yellow", "blue"],
   },
 ];
-//check
+
 const colorMap = {
   green: "bg-green-500/15 text-green-400 border border-green-500/30",
   yellow: "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30",
@@ -110,11 +110,11 @@ export default function Hero() {
           compare profiles, and review security signals from one public workspace built for discoverability and faster shipping.
         </p>
 
-        <form onSubmit={handlePersonalStart} className="mt-10 max-w-2xl">
-          <label htmlFor="hero-username" className={`text-[11px] font-semibold uppercase tracking-[0.34em] ${poppins.className} text-white/46`}>
+        <form onSubmit={handlePersonalStart} className="mt-10 max-w-4xl">
+          <label htmlFor="hero-username" className={`text-sm font-semibold uppercase tracking-[0.34em] ${poppins.className} text-white/52 sm:text-base`}>
             Start with your GitHub username
           </label>
-          <div className="mt-4 border-b border-white/18 pb-4 transition focus-within:border-[#ff7a1a]">
+          <div className="mt-5 border-b border-white/18 pb-5 transition focus-within:border-[#ff7a1a]">
             <input
               id="hero-username"
               name="username"
@@ -125,10 +125,10 @@ export default function Hero() {
               value={landingUsername}
               onChange={(event) => setLandingUsername(event.target.value)}
               placeholder="your-github-username"
-              className={`w-full bg-transparent text-4xl ${antonio.className} leading-none tracking-[0.08em] text-white outline-none placeholder:text-white/18 sm:text-5xl lg:text-7xl xl:text-[5.5rem]`}
+              className={`w-full bg-transparent text-5xl ${antonio.className} leading-none tracking-[0.06em] text-white outline-none placeholder:text-white/18 sm:text-6xl lg:text-8xl xl:text-[8rem]`}
             />
           </div>
-          <p className={`mt-3 text-sm ${poppins.className} leading-6 text-white/52`}>
+          <p className={`mt-4 max-w-3xl text-base ${poppins.className} leading-7 text-white/58 sm:text-lg`}>
             {canAccessFeature
               ? "We'll carry this into the profile builder so commit stats, contribution graphs, and profile fetches start with the right GitHub username."
               : "Enter your GitHub username to unlock profile building, repository analysis, and comparison tools from the landing page."}
