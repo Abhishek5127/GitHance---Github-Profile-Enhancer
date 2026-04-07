@@ -92,31 +92,6 @@ async function fetchRepoCommitSnapshot({ username, installationId }) {
   return request;
 }
 
-function encodeStatsSnapshot(stats) {
-  if (!stats || typeof stats !== "object") return "";
-
-  try {
-    const payload = {
-      github_username: String(stats.github_username || ""),
-      total_commits: Number(stats.total_commits || 0),
-      current_streak: Number(stats.current_streak || 0),
-      longest_streak: Number(stats.longest_streak || 0),
-      last_repo: String(stats.last_repo || ""),
-      active_days_30: Number(stats.active_days_30 || 0),
-      active_days_90: Number(stats.active_days_90 || 0),
-      top_repo_recent: String(stats.top_repo_recent || ""),
-      recent_commits_7: Number(stats.recent_commits_7 || 0),
-      recent_commits_30: Number(stats.recent_commits_30 || 0),
-      last_updated: String(stats.last_updated || ""),
-      installation_id: Number(stats.installation_id || 0) || null,
-    };
-
-    return encodeURIComponent(JSON.stringify(payload));
-  } catch {
-    return "";
-  }
-}
-
 function buildBlockUrl({
   username,
   installationId,
@@ -376,7 +351,6 @@ export default function RepoCommitStatsBlock({
   const statsBlocks = useMemo(() => {
     if (!username) return [];
     const resolvedSnapshot = bootstrapStatus.stats || persistedSnapshot || prefetchedSnapshot;
-    const encodedSnapshot = encodeStatsSnapshot(resolvedSnapshot);
     const resolvedInstallationId =
       Number(requestedInstallationId || resolvedSnapshot?.installation_id || 0) || null;
 
@@ -396,9 +370,6 @@ export default function RepoCommitStatsBlock({
           width: COMPACT_CANVAS_WIDTH,
           height: blockHeight,
           version: bootstrapStatus.version || prefetchedSnapshotVersion,
-          snapshot: encodedSnapshot,
-          preferSnapshot: true,
-          forceSnapshot: true,
         }),
       };
     });
@@ -558,4 +529,3 @@ export default function RepoCommitStatsBlock({
     </div>
   );
 }
-

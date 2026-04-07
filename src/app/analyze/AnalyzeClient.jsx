@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import LandingNav from "@/app/components/landing/LandingNav";
 import {
   loadProfileBuilderContextUsername,
   saveProfileBuilderContextUsername,
@@ -13,7 +12,7 @@ const FILTER_OPTIONS = [
   { id: "all", label: "All repos" },
   { id: "missing-readme", label: "Needs README" },
   { id: "with-readme", label: "README ready" },
-  { id: "private", label: "Private" },
+  { id: "forks", label: "Forks" },
   { id: "public", label: "Public" },
 ];
 
@@ -58,7 +57,7 @@ function matchesFilter(repo, filterId) {
 
   if (filterId === "missing-readme") return readmeStatus === "missing";
   if (filterId === "with-readme") return readmeStatus === "available";
-  if (filterId === "private") return Boolean(repo.private);
+  if (filterId === "forks") return Boolean(repo.fork);
   if (filterId === "public") return !repo.private;
   return true;
 }
@@ -253,7 +252,7 @@ function RepositoryCard({ repo, fallbackOwner }) {
   );
 }
 
-export default function AnalyzePage({ initialUsername = "" }) {
+export default function AnalyzePage({ initialUsername = "", children }) {
   const [githubUsername, setGithubUsername] = useState("");
   const [draftUsername, setDraftUsername] = useState("");
   const [repositories, setRepositories] = useState([]);
@@ -268,6 +267,8 @@ export default function AnalyzePage({ initialUsername = "" }) {
     () => normalizeUsername(initialUsername),
     [initialUsername]
   );
+  const normalizedDraftUsername = normalizeUsername(draftUsername);
+  const canLoadRepositories = Boolean(normalizedDraftUsername);
 
   useEffect(() => {
     const storedUsername = loadProfileBuilderContextUsername();
@@ -346,11 +347,11 @@ export default function AnalyzePage({ initialUsername = "" }) {
   const missingReadmeCount = repositories.filter(
     (repo) => getReadmeStatus(repo) === "missing"
   ).length;
-  const privateRepositoriesCount = repositories.filter((repo) => repo.private).length;
+  const forkedRepositoriesCount = repositories.filter((repo) => repo.fork).length;
 
   const handleUsernameSubmit = (event) => {
     event.preventDefault();
-    const normalizedUsername = normalizeUsername(draftUsername);
+    const normalizedUsername = normalizedDraftUsername;
     if (!normalizedUsername) {
       setError("Enter a GitHub username to load repositories.");
       return;
@@ -376,7 +377,7 @@ export default function AnalyzePage({ initialUsername = "" }) {
         <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(48,214,255,0.2),_transparent_62%)] blur-3xl" />
         <div className="pointer-events-none absolute left-1/2 top-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.08),_transparent_60%)] blur-3xl" />
 
-        <LandingNav />
+        {children}
 
         <section className="mx-auto grid w-full max-w-7xl grid-cols-1 items-start gap-10 px-4 pb-14 pt-12 sm:px-6 sm:pb-16 sm:pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-4">
           <div className="max-w-2xl">
@@ -387,7 +388,7 @@ export default function AnalyzePage({ initialUsername = "" }) {
               Pick a GitHub username and jump straight into the next task.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-white/68">
-              Load public repositories for any GitHub username, then move directly into README work or a security review without signing in.
+              Load public repositories for any GitHub username, then move directly into README work or a security review from the same username-based workspace.
             </p>
 
             <form onSubmit={handleUsernameSubmit} className="mt-8 max-w-xl">
@@ -397,6 +398,7 @@ export default function AnalyzePage({ initialUsername = "" }) {
               <div className="mt-3 flex flex-col gap-3 sm:flex-row">
                 <input
                   id="analyze-username"
+                  required
                   value={draftUsername}
                   onChange={(event) => setDraftUsername(event.target.value)}
                   placeholder="e.g. torvalds"
@@ -404,9 +406,10 @@ export default function AnalyzePage({ initialUsername = "" }) {
                 />
                 <button
                   type="submit"
-                  className="rounded-2xl bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
+                  disabled={!canLoadRepositories || loading}
+                  className="rounded-2xl bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:bg-[#ff7a1a]/24 disabled:text-white/40 disabled:hover:bg-[#ff7a1a]/24"
                 >
-                  Load repositories
+                  {loading ? "Loading repositories..." : "Load repositories"}
                 </button>
               </div>
             </form>
@@ -512,9 +515,9 @@ export default function AnalyzePage({ initialUsername = "" }) {
             accent="amber"
           />
           <StatCard
-            label="Private Repos"
-            value={privateRepositoriesCount}
-            hint="Private repositories are only shown when the GitHub API listing exposes them."
+            label="Forked Repos"
+            value={forkedRepositoriesCount}
+            hint="Repositories in this public preview that GitHub marks as forks."
             accent="cyan"
           />
         </section>

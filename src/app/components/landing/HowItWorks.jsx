@@ -10,9 +10,9 @@ const sections = [
   {
     id: 0,
     index: 1,
-    title: "Link GitHub",
+    title: "Enter a GitHub username",
     description:
-      "Sign in with email, link the GitHub username you want to use, and let GitHance load repositories, profile data, and the context needed for README and profile work.",
+      "Start with the GitHub username you want to work with, and let GitHance load public repositories, profile data, and the context needed for README and profile work.",
   },
   {
     id: 1,

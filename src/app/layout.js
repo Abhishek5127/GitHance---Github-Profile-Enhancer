@@ -1,6 +1,5 @@
-﻿import "./globals.css";
+import "./globals.css";
 import "github-markdown-css/github-markdown.css";
-import ClientProviders from "./ClientProvider";
 import { antonio, poppins } from "./fonts";
 import {
   DEFAULT_OG_IMAGE,
@@ -80,9 +79,11 @@ export default function RootLayout({ children }) {
         >
           Skip to content
         </a>
-        <ClientProviders>{children}</ClientProviders>
+        {children}
       </body>
     </html>
   );
 }
+
+
 

@@ -28,9 +28,9 @@ function resolveMetricText(stats, metric, window) {
 
   if (normalizedMetric === "total_commits") {
     return {
-      title: "Total Commits",
+      title: "Commit Contributions (365d)",
       value: formatCount(stats.total_commits || 0),
-      subvalue: "Across connected repositories",
+      subvalue: "GitHub commit contributions in the past year",
     };
   }
 

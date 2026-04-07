@@ -1,4 +1,5 @@
 import AnalyzeClient from "./AnalyzeClient";
+import LandingNav from "../components/landing/LandingNav";
 import JsonLd from "@/app/components/seo/JsonLd";
 import {
   buildMetadata,
@@ -49,7 +50,9 @@ export default async function AnalyzePage({ searchParams }) {
   return (
     <>
       <JsonLd data={[analyzeSchema, breadcrumbSchema]} />
-      <AnalyzeClient initialUsername={initialUsername} />
+      <AnalyzeClient initialUsername={initialUsername}>
+        <LandingNav pathname="/analyze" />
+      </AnalyzeClient>
     </>
   );
 }

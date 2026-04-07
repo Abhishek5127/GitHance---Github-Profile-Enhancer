@@ -13,8 +13,8 @@ import {
 const processSteps = [
   {
     id: "01",
-    title: "Connect and sync",
-    detail: "Sign in with your GitHance account, link a GitHub username, and pull profile, repository, and activity signals into one workspace.",
+    title: "Start with a GitHub username",
+    detail: "Enter the GitHub username you want to work with and pull profile, repository, and activity signals into one workspace.",
     icon: assets.Github,
   },
   {
@@ -78,7 +78,7 @@ export default function ProcessPage() {
       <JsonLd data={schemas} />
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(56,189,248,0.22),_transparent_70%)] blur-3xl" />
-        <LandingNav />
+        <LandingNav pathname="/process" />
       </div>
 
       <main id="main-content" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
@@ -139,4 +139,5 @@ export default function ProcessPage() {
     </div>
   );
 }
+
 

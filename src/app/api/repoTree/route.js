@@ -1,8 +1,7 @@
 export async function POST(req) {
   try {
     const { username, reponame, token } = await req.json();
-
-    // 1️⃣ Validation
+    // 1. Validation
     if (!username || !reponame) {
       return Response.json(
         { error: "Username and repository name are required" },
@@ -13,7 +12,7 @@ export async function POST(req) {
 
     if (!authToken) {
       return Response.json(
-        { error: "Auth Token missing, Login Again" },
+        { error: "GitHub access token is required for this route" },
         { status: 401 }
       );
     }
@@ -23,8 +22,7 @@ export async function POST(req) {
       Authorization: `Bearer ${authToken}`,
       Accept: "application/vnd.github+json",
     };
-
-    // 3️⃣ Fetch repo info to get default branch
+    // 3. Fetch repo info to get default branch
     const repoInfoRes = await fetch(
       `https://api.github.com/repos/${username}/${reponame}`,
       { headers }
@@ -39,8 +37,7 @@ export async function POST(req) {
 
     const repoInfo = await repoInfoRes.json();
     const defaultBranch = repoInfo.default_branch;
-
-    // 4️⃣ Fetch full repo tree
+    // 4. Fetch full repo tree
     const treeRes = await fetch(
       `https://api.github.com/repos/${username}/${reponame}/git/trees/${defaultBranch}?recursive=1`,
       { headers }
@@ -54,22 +51,19 @@ export async function POST(req) {
     }
 
     const treeData = await treeRes.json();
-
-    // 5️⃣ Safety guard for huge repos
+    // 5. Safety guard for huge repos
     if (treeData.tree.length > 5000) {
       return Response.json(
         { error: "Repository too large to analyze" },
         { status: 413 }
       );
     }
-
-    // 6️⃣ Normalize tree (IMPORTANT)
+    // 6. Normalize tree (IMPORTANT)
     const normalizedTree = treeData.tree.map((item) => ({
       path: item.path,
       type: item.type === "tree" ? "folder" : "file",
     }));
-
-    // 7️⃣ Return clean data
+    // 7. Return clean data
     return Response.json({
       success: true,
       repo: reponame,

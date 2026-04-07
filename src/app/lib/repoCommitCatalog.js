@@ -27,9 +27,9 @@ export const REPO_COMMIT_STAT_ITEMS = [
     id: "total_commits",
     type: "repo",
     metric: "total_commits",
-    label: "Total Commits",
-    description: "All commits across connected repositories.",
-    alt: "Total commits",
+    label: "Commit Contributions",
+    description: "GitHub commit contributions in the past year.",
+    alt: "Commit contributions in the past year",
   },
   {
     id: "active_days",

@@ -101,7 +101,7 @@ export default function ProductPage() {
       <div className="relative overflow-hidden border-b border-white/10">
         <div className="pointer-events-none absolute -left-40 -top-8 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(34,211,238,0.24),_transparent_66%)] blur-3xl" />
         <div className="pointer-events-none absolute -right-20 top-14 h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle,_rgba(139,92,246,0.2),_transparent_70%)] blur-3xl" />
-        <LandingNav />
+        <LandingNav pathname="/product" />
 
         <main
           id="main-content"
@@ -247,6 +247,7 @@ export default function ProductPage() {
     </div>
   );
 }
+
 
 
 

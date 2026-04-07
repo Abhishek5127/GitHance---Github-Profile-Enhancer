@@ -313,10 +313,10 @@ function isRateLimitResponse(status: number, errorMessage: string) {
 
 function buildRateLimitErrorMessage(hasToken: boolean) {
   if (hasToken) {
-    return "GitHub API rate limit reached for the current authenticated session. Please wait a moment and try again.";
+    return "GitHub API rate limit reached for the current server token. Please wait a moment and try again.";
   }
 
-  return "GitHub API rate limit reached. Sign in to your GitHance account or configure GITHUB_TOKEN on the server to raise the limit.";
+  return "GitHub API rate limit reached. Please wait a moment and try again, or configure GITHUB_TOKEN on the server to raise the limit.";
 }
 
 function toText(value: string | null | undefined) {

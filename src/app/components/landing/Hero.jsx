@@ -1,13 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { antonio, poppins } from "@/app/fonts";
-import {
-  normalizeProfileBuilderContextUsername,
-  saveProfileBuilderContextCommitStatsSnapshot,
-  saveProfileBuilderContextUsername,
-} from "@/app/lib/profileBuilderContext";
+import { saveProfileBuilderContextCommitStatsSnapshot } from "@/app/lib/profileBuilderContext";
+import LandingFeatureLink from "./LandingFeatureLink";
+import { useLandingFeatureGate } from "./LandingFeatureGate";
 
 const ANALYZE_REPOSITORIES_PATH = "/analyze";
 
@@ -48,27 +45,21 @@ const colorMap = {
 
 export default function Hero() {
   const [active, setActive] = useState(modes[0]);
-  const [heroUsername, setHeroUsername] = useState("");
   const [isLaunchingBuilder, setIsLaunchingBuilder] = useState(false);
-  const normalizedHeroUsername = normalizeProfileBuilderContextUsername(heroUsername);
-  const analyzeHref = normalizedHeroUsername
-    ? {
-        pathname: ANALYZE_REPOSITORIES_PATH,
-        query: { username: normalizedHeroUsername },
-      }
-    : ANALYZE_REPOSITORIES_PATH;
+  const {
+    landingUsername,
+    setLandingUsername,
+    canAccessFeature,
+    normalizedLandingUsername,
+    persistLandingUsername,
+  } = useLandingFeatureGate();
 
   const handlePersonalStart = async (event) => {
     event.preventDefault();
+    if (!canAccessFeature || isLaunchingBuilder) return;
 
-    const username = saveProfileBuilderContextUsername(
-      normalizedHeroUsername || heroUsername
-    );
-
-    if (!username) {
-      window.location.assign("/profile-builder");
-      return;
-    }
+    const username = persistLandingUsername();
+    if (!username) return;
 
     setIsLaunchingBuilder(true);
 
@@ -95,11 +86,6 @@ export default function Hero() {
     } finally {
       window.location.assign("/profile-builder");
     }
-  };
-
-  const handleAnalyzeStart = () => {
-    if (!normalizedHeroUsername) return;
-    saveProfileBuilderContextUsername(normalizedHeroUsername);
   };
 
   return (
@@ -135,37 +121,41 @@ export default function Hero() {
               type="text"
               autoComplete="off"
               spellCheck={false}
-              value={heroUsername}
-              onChange={(event) => setHeroUsername(event.target.value)}
+              required
+              value={landingUsername}
+              onChange={(event) => setLandingUsername(event.target.value)}
               placeholder="your-github-username"
               className={`w-full bg-transparent text-4xl ${antonio.className} leading-none tracking-[0.08em] text-white outline-none placeholder:text-white/18 sm:text-5xl lg:text-6xl`}
             />
           </div>
           <p className={`mt-3 text-sm ${poppins.className} leading-6 text-white/52`}>
-            We&apos;ll carry this into the profile builder so commit stats, contribution graphs, and profile fetches use the right account from the start.
+            {canAccessFeature
+              ? "We'll carry this into the profile builder so commit stats, contribution graphs, and profile fetches start with the right GitHub username."
+              : "Enter your GitHub username to unlock profile building, repository analysis, and comparison tools from the landing page."}
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
             <button
               type="submit"
-              disabled={isLaunchingBuilder}
-              className="inline-flex justify-center rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a] disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={!canAccessFeature || isLaunchingBuilder}
+              className="inline-flex justify-center rounded-full bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.45)] transition hover:translate-y-[-1px] hover:bg-[#ff8c3a] disabled:cursor-not-allowed disabled:bg-[#ff7a1a]/24 disabled:text-white/40 disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:bg-[#ff7a1a]/24"
             >
               {isLaunchingBuilder ? "Loading profile builder..." : "Open profile builder"}
             </button>
-            <Link
-              href={analyzeHref}
-              onClick={handleAnalyzeStart}
+            <LandingFeatureLink
+              href="/analyze"
+              lockedElement="button"
               className="inline-flex rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+              disabledClassName="inline-flex cursor-not-allowed rounded-full border border-white/10 bg-white/[0.03] px-6 py-3 text-sm font-semibold text-white/35"
             >
               Analyze repositories
-            </Link>
-            <Link
+            </LandingFeatureLink>
+            <LandingFeatureLink
               href="/process"
               className="inline-flex rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
             >
               See how it works
-            </Link>
+            </LandingFeatureLink>
           </div>
         </form>
 
@@ -205,21 +195,27 @@ export default function Hero() {
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             {active.blocklist?.map((item, index) => {
               const colorKey = active.colorPalette?.[index] || "blue";
+              const itemClasses = `min-h-12 flex items-center justify-center rounded-lg px-3 py-3 text-left text-xs font-semibold sm:text-center ${colorMap[colorKey]}`;
 
               return (
-                <Link
+                <LandingFeatureLink
                   href={item.path}
-                  key={item.label}
-                  className={`min-h-12 flex items-center justify-center rounded-lg px-3 py-3 text-left text-xs font-semibold transition hover:scale-[1.02] sm:text-center ${colorMap[colorKey]}`}
+                  key={`${item.label}-${item.path}-${index}`}
+                  className={`${itemClasses} transition hover:scale-[1.02]`}
+                  disabledClassName={`${itemClasses} cursor-not-allowed opacity-45 saturate-50`}
                 >
                   {item.label}
-                </Link>
+                </LandingFeatureLink>
               );
             })}
           </div>
+          {canAccessFeature ? (
+            <p className="mt-4 text-[11px] uppercase tracking-[0.24em] text-white/35">
+              Ready for @{normalizedLandingUsername}
+            </p>
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
-

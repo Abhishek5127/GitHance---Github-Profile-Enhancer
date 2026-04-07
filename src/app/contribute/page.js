@@ -16,7 +16,7 @@ const socialLinks = [
 export default function ContributePage() {
   return (
     <div className="min-h-screen bg-black text-white">
-      <LandingNav />
+      <LandingNav pathname="/contribute" />
 
       <main
         style={{ fontFamily: "'Geist Mono', monospace" }}

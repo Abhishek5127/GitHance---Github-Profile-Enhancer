@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import Image from "next/image";
 import LandingNav from "../components/landing/LandingNav";
 import Footer from "../components/landing/Footer";
@@ -88,7 +88,7 @@ export default function SolutionsPage() {
       <JsonLd data={schemas} />
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute left-1/2 top-8 h-80 w-80 -translate-x-1/2 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.22),_transparent_65%)] blur-3xl" />
-        <LandingNav />
+        <LandingNav pathname="/solutions" />
       </div>
 
       <main id="main-content" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
@@ -159,4 +159,5 @@ export default function SolutionsPage() {
     </div>
   );
 }
+
 

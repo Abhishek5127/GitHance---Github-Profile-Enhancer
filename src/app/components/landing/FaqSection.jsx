@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LandingFeatureLink from "./LandingFeatureLink";
 
 export const HOME_FAQS = [
   {
@@ -24,7 +25,7 @@ export const HOME_FAQS = [
   {
     question: "Do I need an account or paid plan to use GitHance?",
     answer:
-      "No. GitHance now runs as an open workspace, so the profile builder, README tooling, profile comparison, repository analysis, and security review flows are available to everyone.",
+      "No. GitHance runs as an open workspace, so you can enter a public GitHub username and move straight into the profile builder, README tooling, profile comparison, repository analysis, and security review flows.",
   },
 ];
 
@@ -66,18 +67,20 @@ export default function FaqSection() {
           >
             Explore product overview
           </Link>
-          <Link
+          <LandingFeatureLink
             href="/profile-builder"
             className="rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+            disabledClassName="cursor-not-allowed rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-white/35"
           >
             Open profile builder
-          </Link>
-          <Link
+          </LandingFeatureLink>
+          <LandingFeatureLink
             href="/analyze"
             className="rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+            disabledClassName="cursor-not-allowed rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-white/35"
           >
             Try repository preview
-          </Link>
+          </LandingFeatureLink>
         </div>
       </div>
     </section>

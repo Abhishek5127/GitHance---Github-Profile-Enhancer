@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+button {
+  cursor: pointer;
+}
+
 
 .content-center{
     display: flex;
@@ -294,3 +298,24 @@
 .analytics-shell[data-theme="dark"] .analytics-nav-item img {
   filter: invert(1) brightness(1.5) saturate(1.2);
 }
+
+.landing-nav-details > summary {
+  list-style: none;
+}
+
+.landing-nav-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-nav-details .landing-nav-close-label {
+  display: none;
+}
+
+.landing-nav-details[open] .landing-nav-menu-label {
+  display: none;
+}
+
+.landing-nav-details[open] .landing-nav-close-label {
+  display: inline;
+}
+

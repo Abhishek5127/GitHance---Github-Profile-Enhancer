@@ -1,4 +1,4 @@
-import Link from "next/link";
+import LandingFeatureLink from "./LandingFeatureLink";
 
 const linkGroups = [
   {
@@ -25,7 +25,7 @@ const linkGroups = [
   {
     title: "Public GitHub workspace",
     description:
-      "GitHance now runs as an open workspace, so every README, security, and profile tool is available without account gates.",
+      "GitHance runs as an open workspace, so every README, security, and profile tool starts from the GitHub username you enter on the landing page.",
     href: "/product",
     cta: "Explore the product",
   },
@@ -57,12 +57,13 @@ export default function InternalLinksSection() {
             >
               <h3 className="text-xl font-semibold text-white">{group.title}</h3>
               <p className="mt-3 text-sm leading-7 text-white/66">{group.description}</p>
-              <Link
+              <LandingFeatureLink
                 href={group.href}
                 className="mt-5 inline-flex items-center rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+                disabledClassName="mt-5 inline-flex cursor-not-allowed items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-white/35"
               >
                 {group.cta}
-              </Link>
+              </LandingFeatureLink>
             </article>
           ))}
         </div>

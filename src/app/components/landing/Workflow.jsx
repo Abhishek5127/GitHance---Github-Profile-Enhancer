@@ -1,13 +1,13 @@
-﻿import Image from "next/image";
-import Link from "next/link";
+import Image from "next/image";
 import { assets } from "@/app/assets/assets";
+import LandingFeatureLink from "./LandingFeatureLink";
 
 const steps = [
   {
     id: "01",
-    title: "Link your GitHub account",
-    detail: "Sign in with email, link the GitHub username you want to use, and pull repository context into one workspace.",
-    badge: "Account link",
+    title: "Enter a GitHub username",
+    detail: "Start with the GitHub username you want to work with and pull repository, profile, and contribution context into one workspace.",
+    badge: "Username setup",
     icon: assets.Github,
   },
   {
@@ -36,7 +36,7 @@ const steps = [
 const summary = [
   {
     label: "Inputs",
-    value: "GitHub profile, repositories, contribution data",
+    value: "GitHub username, repositories, contribution data",
   },
   {
     label: "Workspace",
@@ -62,29 +62,31 @@ export default function Workflow() {
               A shipping loop for GitHub presence, not a one-time generator.
             </h2>
             <p className="mt-5 max-w-lg text-sm leading-7 text-white/65 sm:text-base">
-              GitHance is built around a repeatable cycle: link your GitHub account, analyze repositories, shape profile and README surfaces, then preview and export when the markdown is ready.
+              GitHance is built around a repeatable cycle: enter a GitHub username, analyze repositories, shape profile and README surfaces, then preview and export when the markdown is ready.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3 text-sm text-white/60">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Account link</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Username setup</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Repository insight</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Live preview</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Export ready</span>
             </div>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
+              <LandingFeatureLink
                 href="/profile-builder"
                 className="inline-flex items-center justify-center rounded-full bg-[#ff7a1a] px-5 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(255,122,26,0.3)] transition hover:bg-[#ff8c3a]"
+                disabledClassName="inline-flex cursor-not-allowed items-center justify-center rounded-full bg-[#ff7a1a]/24 px-5 py-3 text-sm font-semibold text-white/40"
               >
                 Open builder
-              </Link>
-              <Link
+              </LandingFeatureLink>
+              <LandingFeatureLink
                 href="/analyze"
                 className="inline-flex items-center justify-center rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+                disabledClassName="inline-flex cursor-not-allowed items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white/35"
               >
                 Run repository analysis
-              </Link>
+              </LandingFeatureLink>
             </div>
 
             <div className="mt-8 rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-sm">
@@ -142,4 +144,3 @@ export default function Workflow() {
     </section>
   );
 }
-

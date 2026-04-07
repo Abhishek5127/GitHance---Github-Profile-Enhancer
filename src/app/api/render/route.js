@@ -5,11 +5,7 @@ import {
   generateDecorativeSvg,
   generateTrophySvg,
 } from "@/app/lib/generateBlockSvg";
-import {
-  getGithubStatsForUser,
-  mergeGithubStatsWithRecentEvents,
-  primeGithubStatsLookupCache,
-} from "@/app/lib/githubStats";
+import { getFreshGithubStats } from "@/app/lib/githubLiveStats";
 import renderContributionSvg from "@/app/lib/renderers/contributionSvg";
 import renderStreakSvg from "@/app/lib/renderers/streakSvg";
 import renderRepoSvg from "@/app/lib/renderers/repoSvg";
@@ -25,10 +21,9 @@ import {
   normalizeStickerLayers,
 } from "@/app/lib/stickerCatalog";
 import { NextResponse } from "next/server";
-import {
-  fetchGithubContributionCalendar,
-  fetchGithubRecentEvents,
-} from "@/app/lib/githubPublicData";
+import path from "path";
+import { promises as fs } from "fs";
+import { fetchGithubContributionCalendar } from "@/app/lib/githubPublicData";
 import { getFooterBannerById } from "@/app/lib/footerBannerCatalog";
 import { buildFooterBannerSvg } from "@/app/lib/renderers/footerBannerSvg";
 
@@ -78,26 +73,93 @@ function resolveAppOrigin(request) {
   return requestOrigin;
 }
 
-function buildStickerHrefMap(origin, stickers = {}, layers = []) {
+function inferAssetMimeType(assetPath = "") {
+  const extension = path.extname(String(assetPath || "").trim()).toLowerCase();
+
+  switch (extension) {
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+async function inlineAssetHref(origin, assetPath = "") {
+  const normalizedAssetPath = String(assetPath || "").trim();
+  if (!normalizedAssetPath) return "";
+  if (/^data:/i.test(normalizedAssetPath)) return normalizedAssetPath;
+
+  const fallbackAbsoluteUrl = (() => {
+    try {
+      return /^https?:\/\//i.test(normalizedAssetPath)
+        ? normalizedAssetPath
+        : new URL(normalizedAssetPath, origin).toString();
+    } catch {
+      return "";
+    }
+  })();
+
+  if (!/^https?:\/\//i.test(normalizedAssetPath)) {
+    try {
+      const relativeAssetPath = normalizedAssetPath.replace(/^\/+/, "");
+      const absoluteAssetPath = path.join(process.cwd(), "public", relativeAssetPath);
+      const assetBuffer = await fs.readFile(absoluteAssetPath);
+      const mimeType = inferAssetMimeType(normalizedAssetPath);
+      return `data:${mimeType};base64,${assetBuffer.toString("base64")}`;
+    } catch {
+      // Fall through to URL fetch.
+    }
+  }
+
+  if (!fallbackAbsoluteUrl) {
+    return "";
+  }
+
+  try {
+    const assetResponse = await fetch(fallbackAbsoluteUrl, { cache: "force-cache" });
+    if (!assetResponse.ok) {
+      return fallbackAbsoluteUrl;
+    }
+
+    const mimeType =
+      String(
+        assetResponse.headers.get("content-type") || inferAssetMimeType(normalizedAssetPath)
+      ).trim() || inferAssetMimeType(normalizedAssetPath);
+    const assetBuffer = Buffer.from(await assetResponse.arrayBuffer());
+    return `data:${mimeType};base64,${assetBuffer.toString("base64")}`;
+  } catch {
+    return fallbackAbsoluteUrl;
+  }
+}
+
+async function buildStickerHrefMap(origin, stickers = {}, layers = []) {
   const stickerIds = new Set([
     ...Object.values(stickers || {}),
     ...(Array.isArray(layers) ? layers.map((layer) => layer?.stickerId) : []),
   ].filter(Boolean));
 
-  const hrefEntries = [];
-  stickerIds.forEach((stickerId) => {
-    const sticker = getStickerById(stickerId);
-    const assetPath = String(sticker?.assetPath || "").trim();
-    if (!assetPath) return;
+  const hrefEntries = await Promise.all(
+    [...stickerIds].map(async (stickerId) => {
+      const sticker = getStickerById(stickerId);
+      const assetPath = String(sticker?.assetPath || "").trim();
+      if (!assetPath) return null;
 
-    try {
-      hrefEntries.push([stickerId, new URL(assetPath, origin).toString()]);
-    } catch {
-      // Ignore invalid asset URLs.
-    }
-  });
+      const resolvedHref = await inlineAssetHref(origin, assetPath);
+      if (!resolvedHref) return null;
+      return [stickerId, resolvedHref];
+    })
+  );
 
-  return Object.fromEntries(hrefEntries);
+  return Object.fromEntries(hrefEntries.filter(Boolean));
 }
 
 async function fetchContributionHeatmapData(username) {
@@ -137,11 +199,6 @@ function hasMeaningfulStats(stats) {
   );
 }
 
-function statsUpdatedEpoch(stats) {
-  const parsed = Date.parse(String(stats?.last_updated || ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 function normalizeInstallationId(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
@@ -160,165 +217,11 @@ function normalizeSnapshotStats(snapshotStats, username, installationId) {
   };
 }
 
-function shouldPreferSnapshotStats(snapshotStats, currentStats) {
-  if (!hasMeaningfulStats(snapshotStats)) return false;
-  if (!hasMeaningfulStats(currentStats)) return true;
-
-  const snapshotUpdatedEpoch = statsUpdatedEpoch(snapshotStats);
-  const currentUpdatedEpoch = statsUpdatedEpoch(currentStats);
-
-  if (snapshotUpdatedEpoch && snapshotUpdatedEpoch > currentUpdatedEpoch) {
-    return true;
-  }
-
-  return !currentUpdatedEpoch && snapshotUpdatedEpoch > 0;
-}
-
-const RENDER_STATS_SNAPSHOT_FAST_PATH_MAX_AGE_MS = 10 * 60 * 1000;
-const RENDER_GITHUB_STATS_CACHE_TTL_MS = 15 * 1000;
-
-function getRenderGithubStatsCache() {
-  if (!globalThis.__githanceRenderGithubStatsCache) {
-    globalThis.__githanceRenderGithubStatsCache = {
-      values: new Map(),
-      pending: new Map(),
-    };
-  }
-
-  return globalThis.__githanceRenderGithubStatsCache;
-}
-
-function buildRenderGithubStatsCacheKey({ username, installationId = null }) {
-  return `${normalizeInstallationId(installationId) ?? "none"}:${String(username || "")
-    .trim()
-    .toLowerCase()}`;
-}
-
-function readRenderGithubStatsCache({
-  username,
-  installationId = null,
-  maxAgeMs = RENDER_GITHUB_STATS_CACHE_TTL_MS,
-}) {
-  const cache = getRenderGithubStatsCache();
-  const cacheKey = buildRenderGithubStatsCacheKey({ username, installationId });
-  const entry = cache.values.get(cacheKey);
-
-  if (!entry) return null;
-
-  if (Date.now() - Number(entry.cachedAt || 0) > maxAgeMs) {
-    cache.values.delete(cacheKey);
-    return null;
-  }
-
-  return entry.stats;
-}
-
-function writeRenderGithubStatsCache({ username, installationId = null, stats }) {
-  const normalizedUsername = String(username || "").trim().toLowerCase();
-  if (!normalizedUsername || !stats) return stats;
-
-  const cache = getRenderGithubStatsCache();
-  cache.values.set(buildRenderGithubStatsCacheKey({ username, installationId }), {
-    cachedAt: Date.now(),
-    stats,
-  });
-
-  return stats;
-}
-
-function getGithubStatsAccessToken() {
-  return String(
-    process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN || process.env.GH_TOKEN || ""
-  ).trim();
-}
-
-async function loadLiveGithubStats({ username, installationId = null }) {
-  const normalizedUsername = String(username || "").trim().toLowerCase();
-  const normalizedInstallationId = normalizeInstallationId(installationId);
-
-  if (!normalizedUsername) return null;
-
-  const baseStats = await getGithubStatsForUser({
-    username: normalizedUsername,
-    installationId: normalizedInstallationId,
-    includeHistory: true,
-  });
-
-  let recentEvents = [];
-  try {
-    recentEvents = await fetchGithubRecentEvents({
-      username: normalizedUsername,
-      token: getGithubStatsAccessToken(),
-      maxPages: 3,
-      perPage: 100,
-    });
-  } catch {
-    recentEvents = [];
-  }
-
-  const resolvedInstallationId =
-    normalizeInstallationId(baseStats?.installation_id) ?? normalizedInstallationId;
-  const mergedStats = mergeGithubStatsWithRecentEvents(baseStats, {
-    username: normalizedUsername,
-    installationId: resolvedInstallationId,
-    events: recentEvents,
-  });
-
-  const primedStats =
-    primeGithubStatsLookupCache(mergedStats, {
-      username: normalizedUsername,
-      installationId: resolvedInstallationId,
-    }) || mergedStats;
-
-  return writeRenderGithubStatsCache({
-    username: normalizedUsername,
-    installationId: resolvedInstallationId,
-    stats: primedStats,
-  });
-}
-
 async function getLiveGithubStats({ username, installationId = null }) {
-  const normalizedUsername = String(username || "").trim().toLowerCase();
-  const normalizedInstallationId = normalizeInstallationId(installationId);
-
-  if (!normalizedUsername) return null;
-
-  const cachedStats = readRenderGithubStatsCache({
-    username: normalizedUsername,
-    installationId: normalizedInstallationId,
-  });
-  if (cachedStats) {
-    return cachedStats;
-  }
-
-  const cache = getRenderGithubStatsCache();
-  const cacheKey = buildRenderGithubStatsCacheKey({
-    username: normalizedUsername,
-    installationId: normalizedInstallationId,
-  });
-  const pendingRequest = cache.pending.get(cacheKey);
-
-  if (pendingRequest) {
-    return pendingRequest;
-  }
-
-  const request = loadLiveGithubStats({
-    username: normalizedUsername,
-    installationId: normalizedInstallationId,
-  }).finally(() => {
-    cache.pending.delete(cacheKey);
-  });
-
-  cache.pending.set(cacheKey, request);
-  return request;
+  const freshResult = await getFreshGithubStats({ username, installationId });
+  return freshResult?.stats || null;
 }
 
-function isFreshStatsSnapshot(stats, maxAgeMs = RENDER_STATS_SNAPSHOT_FAST_PATH_MAX_AGE_MS) {
-  if (!stats || typeof stats !== "object") return false;
-  const updatedAt = statsUpdatedEpoch(stats);
-  if (!updatedAt) return false;
-  return Date.now() - updatedAt <= maxAgeMs;
-}
 function parseStatsSnapshot(searchParams) {
   const raw = searchParams.get("snapshot");
   if (!raw) return null;
@@ -346,13 +249,6 @@ function parseStatsSnapshot(searchParams) {
   } catch {
     return null;
   }
-}
-
-function isTruthyParam(value) {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes";
 }
 
 function parseStickerAssignments(searchParams) {
@@ -457,7 +353,7 @@ export async function GET(request) {
     const contributionStickers = parseStickerAssignments(searchParams);
     const contributionStickerLayers = parseStickerLayers(searchParams);
     const contributionData = await fetchContributionHeatmapData(username);
-    const stickerHrefs = buildStickerHrefMap(
+    const stickerHrefs = await buildStickerHrefMap(
       appOrigin,
       contributionStickers,
       contributionStickerLayers
@@ -480,52 +376,29 @@ export async function GET(request) {
     const installationId =
       searchParams.get("installation_id") || searchParams.get("installationId") || "";
     const snapshotStats = parseStatsSnapshot(searchParams);
-    const preferSnapshot = isTruthyParam(searchParams.get("prefer_snapshot"));
-    const forceSnapshot = isTruthyParam(searchParams.get("force_snapshot"));
-
-    let resolvedStats = null;
     const normalizedSnapshotStats = normalizeSnapshotStats(
       snapshotStats,
       username,
       installationId
     );
-    const canUseSnapshotFastPath =
-      preferSnapshot &&
-      normalizedSnapshotStats &&
-      hasMeaningfulStats(normalizedSnapshotStats) &&
-      (forceSnapshot || isFreshStatsSnapshot(normalizedSnapshotStats));
 
-    if (canUseSnapshotFastPath) {
-      resolvedStats = normalizedSnapshotStats;
-    } else {
-      const stats = await getLiveGithubStats({
+    let resolvedStats = null;
+    try {
+      resolvedStats = await getLiveGithubStats({
         username,
         installationId,
       });
+    } catch {
+      resolvedStats = null;
+    }
 
-      if (hasMeaningfulStats(stats)) {
-        resolvedStats =
-          normalizedSnapshotStats &&
-          shouldPreferSnapshotStats(normalizedSnapshotStats, stats)
-            ? {
-                ...stats,
-                ...normalizedSnapshotStats,
-              }
-            : stats;
-      } else if (normalizedSnapshotStats) {
-        resolvedStats = {
-          ...stats,
-          ...normalizedSnapshotStats,
-        };
-      } else {
-        resolvedStats = stats;
-      }
+    if (!hasMeaningfulStats(resolvedStats) && normalizedSnapshotStats) {
+      resolvedStats = normalizedSnapshotStats;
     }
 
     if (!resolvedStats) {
       resolvedStats = normalizedSnapshotStats || {};
     }
-
     if (type === "contribution") {
       svg = renderContributionSvg(resolvedStats, {
         width,
@@ -641,7 +514,7 @@ export async function GET(request) {
 
   const cacheControl =
     type === "contribution" || type === "streak" || type === "repo"
-      ? "public, max-age=0, s-maxage=15, stale-while-revalidate=45"
+      ? "no-store, max-age=0"
       : "no-store, max-age=0";
 
   return new NextResponse(svg, {

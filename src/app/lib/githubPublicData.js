@@ -19,6 +19,32 @@ const CONTRIBUTION_CALENDAR_QUERY = `
     }
   }
 `;
+const COMMIT_CONTRIBUTION_STATS_QUERY = `
+  query CommitContributionStats(
+    $login: String!
+    $from: DateTime!
+    $to: DateTime!
+    $repoLimit: Int!
+    $dayLimit: Int!
+  ) {
+    user(login: $login) {
+      contributionsCollection(from: $from, to: $to) {
+        totalCommitContributions
+        commitContributionsByRepository(maxRepositories: $repoLimit) {
+          repository {
+            nameWithOwner
+          }
+          contributions(first: $dayLimit) {
+            nodes {
+              occurredAt
+              commitCount
+            }
+          }
+        }
+      }
+    }
+  }
+`;
 
 function normalizeGithubUsername(value) {
   return String(value || "")
@@ -35,6 +61,152 @@ function toIsoDate(value) {
   )
     .toISOString()
     .slice(0, 10);
+}
+
+function isoDayToEpoch(day) {
+  const stamp = Date.parse(`${day}T00:00:00.000Z`);
+  if (!Number.isFinite(stamp)) return 0;
+  return stamp;
+}
+
+function dayGap(fromDay, toDay) {
+  const fromEpoch = isoDayToEpoch(fromDay);
+  const toEpoch = isoDayToEpoch(toDay);
+  if (!fromEpoch || !toEpoch) return Number.POSITIVE_INFINITY;
+  return Math.round((toEpoch - fromEpoch) / DAY_MS);
+}
+
+function sumCommitsWithinWindow(dayCounts, windowDays) {
+  const cutoffEpoch = Date.now() - (windowDays - 1) * DAY_MS;
+  return Object.entries(dayCounts || {}).reduce((sum, [day, count]) => {
+    if (isoDayToEpoch(day) < cutoffEpoch) return sum;
+    return sum + Number(count || 0);
+  }, 0);
+}
+
+function countActiveDays(dayCounts, windowDays) {
+  const cutoffEpoch = Date.now() - (windowDays - 1) * DAY_MS;
+  return Object.entries(dayCounts || {}).reduce((count, [day, commits]) => {
+    if (isoDayToEpoch(day) < cutoffEpoch) return count;
+    if (Number(commits || 0) <= 0) return count;
+    return count + 1;
+  }, 0);
+}
+
+function computeStreak(dayCounts) {
+  const activeDays = Object.entries(dayCounts || {})
+    .filter(([, count]) => Number(count || 0) > 0)
+    .map(([day]) => day)
+    .sort();
+
+  if (!activeDays.length) {
+    return { current: 0, longest: 0 };
+  }
+
+  let longest = 1;
+  let running = 1;
+
+  for (let index = 1; index < activeDays.length; index += 1) {
+    const gap = dayGap(activeDays[index - 1], activeDays[index]);
+    if (gap === 1) {
+      running += 1;
+      if (running > longest) longest = running;
+    } else {
+      running = 1;
+    }
+  }
+
+  const today = toIsoDate(new Date());
+  let current = 0;
+  let previous = "";
+
+  for (let index = activeDays.length - 1; index >= 0; index -= 1) {
+    const day = activeDays[index];
+
+    if (!previous) {
+      const recentGap = dayGap(day, today);
+      if (recentGap > 1) {
+        current = 0;
+        break;
+      }
+
+      current = 1;
+      previous = day;
+      continue;
+    }
+
+    const gap = dayGap(day, previous);
+    if (gap === 1) {
+      current += 1;
+      previous = day;
+      continue;
+    }
+
+    break;
+  }
+
+  return { current, longest };
+}
+
+function getTopRepoRecent(repoDayCounts, windowDays = 30) {
+  const cutoffEpoch = Date.now() - (windowDays - 1) * DAY_MS;
+  let topRepo = "";
+  let topCommits = 0;
+
+  Object.entries(repoDayCounts || {}).forEach(([repo, dayCounts]) => {
+    const repoCommits = Object.entries(dayCounts || {}).reduce((sum, [day, count]) => {
+      if (isoDayToEpoch(day) < cutoffEpoch) return sum;
+      return sum + Number(count || 0);
+    }, 0);
+
+    if (repoCommits > topCommits) {
+      topRepo = repo;
+      topCommits = repoCommits;
+      return;
+    }
+
+    if (repoCommits === topCommits && repoCommits > 0 && repo < topRepo) {
+      topRepo = repo;
+    }
+  });
+
+  return {
+    repo: topRepo,
+    commits: topCommits,
+  };
+}
+
+function getMostRecentRepo(repoDayCounts) {
+  let recentRepo = "";
+  let recentDayEpoch = 0;
+  let recentDayCommits = 0;
+
+  Object.entries(repoDayCounts || {}).forEach(([repo, dayCounts]) => {
+    Object.entries(dayCounts || {}).forEach(([day, count]) => {
+      const commits = Number(count || 0);
+      if (commits <= 0) return;
+
+      const dayEpoch = isoDayToEpoch(day);
+      if (dayEpoch > recentDayEpoch) {
+        recentDayEpoch = dayEpoch;
+        recentRepo = repo;
+        recentDayCommits = commits;
+        return;
+      }
+
+      if (dayEpoch === recentDayEpoch && commits > recentDayCommits) {
+        recentRepo = repo;
+        recentDayCommits = commits;
+        return;
+      }
+
+      if (dayEpoch === recentDayEpoch && commits === recentDayCommits && repo < recentRepo) {
+        recentRepo = repo;
+      }
+    });
+  });
+
+  return recentRepo;
 }
 
 export function buildGithubRestHeaders(token = "", extraHeaders = {}) {
@@ -390,6 +562,130 @@ async function fetchTokenContributionCalendar({ username, token, from, to }) {
   }
 }
 
+async function fetchTokenCommitContributionStats({ username, token, from, to }) {
+  if (!token) {
+    return {
+      ok: false,
+      status: 401,
+      error: "Missing GitHub token",
+    };
+  }
+
+  try {
+    const response = await fetch(GITHUB_GRAPHQL_URL, {
+      method: "POST",
+      headers: buildGithubRestHeaders(token, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        query: COMMIT_CONTRIBUTION_STATS_QUERY,
+        variables: {
+          login: username,
+          from: from.toISOString(),
+          to: to.toISOString(),
+          repoLimit: 100,
+          dayLimit: 400,
+        },
+      }),
+      cache: "no-store",
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.errors?.length) {
+      const message =
+        payload?.errors?.[0]?.message ||
+        payload?.message ||
+        "Failed to fetch commit contribution stats";
+      return {
+        ok: false,
+        status: response.status || 502,
+        error: message,
+      };
+    }
+
+    const collection = payload?.data?.user?.contributionsCollection || null;
+    const repositories = Array.isArray(collection?.commitContributionsByRepository)
+      ? collection.commitContributionsByRepository
+      : [];
+    const dayCounts = {};
+    const repoDayCounts = {};
+
+    repositories.forEach((entry) => {
+      const repoName = String(entry?.repository?.nameWithOwner || "")
+        .trim()
+        .toLowerCase();
+      if (!repoName) return;
+
+      const nodes = Array.isArray(entry?.contributions?.nodes)
+        ? entry.contributions.nodes
+        : [];
+
+      nodes.forEach((node) => {
+        const day = toIsoDate(node?.occurredAt);
+        const commitCount = Math.max(0, Math.floor(Number(node?.commitCount || 0)));
+        if (!day || commitCount <= 0) return;
+
+        dayCounts[day] = Number(dayCounts[day] || 0) + commitCount;
+        if (!repoDayCounts[repoName]) {
+          repoDayCounts[repoName] = {};
+        }
+        repoDayCounts[repoName][day] = Number(repoDayCounts[repoName][day] || 0) + commitCount;
+      });
+    });
+
+    const streak = computeStreak(dayCounts);
+    const topRepo = getTopRepoRecent(repoDayCounts, 30);
+    const lastRepo = getMostRecentRepo(repoDayCounts);
+
+    return {
+      ok: true,
+      status: response.status,
+      data: {
+        username,
+        total_commits:
+          Math.max(0, Math.floor(Number(collection?.totalCommitContributions || 0))) ||
+          Object.values(dayCounts).reduce((sum, count) => sum + Number(count || 0), 0),
+        current_streak: streak.current,
+        longest_streak: streak.longest,
+        last_repo: lastRepo,
+        active_days_30: countActiveDays(dayCounts, 30),
+        active_days_90: countActiveDays(dayCounts, 90),
+        top_repo_recent: topRepo.repo,
+        recent_commits_7: sumCommitsWithinWindow(dayCounts, 7),
+        recent_commits_30: sumCommitsWithinWindow(dayCounts, 30),
+        last_updated: new Date().toISOString(),
+        source: "graphql_commit_contributions",
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 500,
+      error: error?.message || "Failed to fetch commit contribution stats",
+    };
+  }
+}
+
+export async function fetchGithubCommitContributionStats({ username, token = "" }) {
+  const normalizedUsername = normalizeGithubUsername(username);
+  if (!normalizedUsername) {
+    return {
+      ok: false,
+      status: 400,
+      error: "GitHub username is required",
+    };
+  }
+
+  const now = new Date();
+  const from = new Date(now.getTime() - 370 * DAY_MS);
+  return fetchTokenCommitContributionStats({
+    username: normalizedUsername,
+    token,
+    from,
+    to: now,
+  });
+}
+
 export async function fetchGithubContributionCalendar({ username, token = "" }) {
   const normalizedUsername = normalizeGithubUsername(username);
   if (!normalizedUsername) {
@@ -429,4 +725,3 @@ export async function fetchGithubContributionCalendar({ username, token = "" }) 
 
   return tokenResult || publicResult;
 }
-

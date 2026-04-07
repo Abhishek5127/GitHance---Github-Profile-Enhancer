@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LandingFeatureLink from "./LandingFeatureLink";
 
 const columns = [
   {
@@ -54,9 +55,13 @@ export default function Footer() {
               <ul className="mt-3 space-y-2 text-sm">
                 {column.links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="transition hover:text-white">
+                    <LandingFeatureLink
+                      href={link.href}
+                      className="transition hover:text-white"
+                      disabledClassName="cursor-not-allowed text-white/35"
+                    >
                       {link.label}
-                    </Link>
+                    </LandingFeatureLink>
                   </li>
                 ))}
               </ul>
