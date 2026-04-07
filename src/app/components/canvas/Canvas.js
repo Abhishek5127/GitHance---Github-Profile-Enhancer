@@ -38,8 +38,8 @@ function CanvasSticker({ entry, onRemove }) {
   if (!slot || !sticker) return null;
 
   return (
-    <div className={`pointer-events-none absolute z-30 ${slot.positionClass}`}>
-      <div className="group relative">
+    <div className={`absolute z-30 pointer-events-auto ${slot.positionClass}`}>
+      <div className="group relative pointer-events-auto">
         <SafeImage
           src={sticker.assetPath}
           alt={sticker.title}
@@ -50,7 +50,7 @@ function CanvasSticker({ entry, onRemove }) {
         />
         <button
           onClick={() => onRemove(entry.id)}
-          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-0 transition group-hover:opacity-100"
+          className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-100 transition sm:h-5 sm:w-5 sm:opacity-0 sm:group-hover:opacity-100"
           title="Remove sticker"
           aria-label="Remove sticker"
         >
@@ -107,7 +107,7 @@ export default function Canvas({
   return (
     <div
       ref={setNodeRef}
-      className={`relative min-h-[480px] overflow-x-hidden rounded-2xl border border-dashed p-1.5 pt-3 sm:min-h-[600px] ${
+      className={`relative min-h-[480px] overflow-x-clip rounded-2xl border border-dashed p-1.5 pt-3 sm:min-h-[600px] ${
         isOver ? "border-cyan-400 bg-[#101722]" : "border-white/15 bg-[#0d1117]"
       }`}
     >
@@ -116,7 +116,7 @@ export default function Canvas({
           <div className="pointer-events-auto flex gap-2">
             <button
               onClick={() => setReadmeDataContent("")}
-              className="cursor-pointer rounded-full border border-white/15 bg-[#111824]/90 px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#151d29]"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-[#111824]/90 px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#151d29]"
             >
               Create
             </button>
@@ -125,7 +125,7 @@ export default function Canvas({
                 setItems([]);
                 setReadmeDataContent("");
               }}
-              className="cursor-pointer rounded-full border border-red-500/40 bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/30"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-red-500/40 bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/30"
             >
               Clear
             </button>
@@ -133,7 +133,7 @@ export default function Canvas({
         ) : hasCanvasItems ? (
           <button
             onClick={() => setItems([])}
-            className="pointer-events-auto cursor-pointer rounded-full border border-red-500/40 bg-[#160c0c]/90 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/25"
+            className="pointer-events-auto inline-flex min-h-11 items-center justify-center rounded-full border border-red-500/40 bg-[#160c0c]/90 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/25"
           >
             Clear
           </button>

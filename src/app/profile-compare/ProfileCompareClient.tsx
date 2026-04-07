@@ -105,7 +105,7 @@ function ProfileSummaryCard({ profile, tone }: { profile: any; tone: "left" | "r
 
   return (
     <div className={`rounded-[30px] border border-white/10 p-6 ${accentClass}`}>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
         <div className="relative h-[80px] w-[80px] overflow-hidden rounded-[24px] border border-white/10">
           <Image src={profile?.basic?.avatar} alt={profile?.basic?.name || "Avatar"} fill sizes="80px" className="object-cover" />
         </div>
@@ -165,14 +165,14 @@ export default function ProfileCompareClient() {
   const rightProfile = comparison?.profiles?.[1] || null;
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#07090c] text-white">
+    <div className="min-h-[100svh] overflow-x-clip overflow-y-hidden bg-[#07090c] text-white">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-120px] top-[-140px] h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.18),transparent_68%)] blur-3xl" />
         <div className="absolute right-[-120px] top-[-120px] h-[540px] w-[540px] rounded-full bg-[radial-gradient(circle,rgba(255,122,26,0.18),transparent_68%)] blur-3xl" />
         <div className="absolute inset-x-0 top-0 h-[640px] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+      <div className="relative mx-auto flex min-h-[100svh] w-full max-w-7xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/74 transition hover:bg-white/[0.08] hover:text-white">
             <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/20 font-mono text-xs font-semibold">GH</span>
@@ -206,7 +206,7 @@ export default function ProfileCompareClient() {
                   className="h-14 w-full rounded-[24px] border border-white/10 bg-[#0b0f14] px-4 text-white outline-none placeholder:text-white/28"
                 />
                 <div className="flex items-end">
-                  <button type="submit" disabled={isLoading} className="h-14 w-full rounded-[24px] bg-[#ff7a1a] px-6 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70 lg:w-auto">
+                  <button type="submit" disabled={isLoading} className="inline-flex min-h-14 w-full items-center justify-center rounded-[24px] bg-[#ff7a1a] px-6 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70 lg:w-auto">
                     {isLoading ? "Comparing..." : "Compare Profiles"}
                   </button>
                 </div>

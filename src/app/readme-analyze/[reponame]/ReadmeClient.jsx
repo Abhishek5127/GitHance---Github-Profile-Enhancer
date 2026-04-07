@@ -123,7 +123,7 @@ function BuilderControls({ options, onChange, isGenerating, onGenerate }) {
           type="button"
           onClick={onGenerate}
           disabled={isGenerating}
-          className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isGenerating ? "Working..." : "Generate README"}
         </button>
@@ -340,7 +340,7 @@ function EditorPane({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Generate a README with GitHance or start writing here."
-        className="mt-4 min-h-[640px] w-full rounded-2xl border border-white/10 bg-[#0c1016] p-4 font-mono text-sm text-white outline-none"
+        className="mt-4 min-h-[420px] w-full rounded-2xl border border-white/10 bg-[#0c1016] p-4 font-mono text-sm text-white outline-none sm:min-h-[640px]"
       />
     </div>
   );
@@ -356,11 +356,11 @@ function PreviewPane({ value }) {
         </div>
       </div>
 
-      <div className="mt-4 min-h-[640px] overflow-auto rounded-2xl border border-white/10 bg-[#0c1016] p-4">
+      <div className="mt-4 min-h-[420px] overflow-auto rounded-2xl border border-white/10 bg-[#0c1016] p-4 sm:min-h-[640px]">
         {value.trim() ? (
           <ReadmeRenderer readme={value} className="text-white" />
         ) : (
-          <div className="flex min-h-[600px] items-center justify-center text-sm text-white/45">
+          <div className="flex min-h-[380px] items-center justify-center text-sm text-white/45 sm:min-h-[600px]">
             README preview appears here once content exists.
           </div>
         )}
@@ -560,13 +560,13 @@ export default function ReadmeClient({ reponame }) {
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/analyze"
-              className="rounded-full bg-[#ff7a1a] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#ff7a1a] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b]"
             >
               Open repository analyzer
             </Link>
             <Link
               href="/"
-              className="rounded-full border border-white/15 bg-black/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-black/30 hover:text-white"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-black/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-black/30 hover:text-white"
             >
               Return home
             </Link>
@@ -597,7 +597,7 @@ export default function ReadmeClient({ reponame }) {
           <div className="mt-5 flex flex-wrap gap-2">
             <Link
               href={`/repository-security/${encodeURIComponent(reponame || "")}?owner=${encodeURIComponent(owner)}`}
-              className="rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/15 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:bg-black/30"
             >
               Open Security View
             </Link>

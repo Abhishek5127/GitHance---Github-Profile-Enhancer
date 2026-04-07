@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { assets } from "@/app/assets/assets";
 import { useRouter } from "next/navigation";
 
@@ -15,7 +16,7 @@ function ThemeToggle({ theme, onToggle, collapsed }) {
     <button
       type="button"
       onClick={onToggle}
-      className={`flex h-10 w-10 items-center justify-center ${collapsed?"lg-hidden":""} rounded-full border border-[color:var(--analytics-border)] bg-[color:var(--analytics-surface-soft)] text-[11px] font-semibold uppercase tracking-[0.2em] transition hover:scale-[1.02]`}
+      className={`flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--analytics-border)] bg-[color:var(--analytics-surface-soft)] text-[11px] font-semibold uppercase tracking-[0.2em] transition hover:scale-[1.02] ${collapsed ? "lg:hidden" : ""}`}
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       aria-pressed={isDark}
       title={isDark ? "Light theme" : "Dark theme"}
@@ -40,7 +41,7 @@ function SidebarControlButton({ label, onClick, children, className = "", hidden
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-[color:var(--analytics-sidebar-text)] transition hover:bg-white/15 ${hiddenOn} ${className}`}
+      className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-[color:var(--analytics-sidebar-text)] transition hover:bg-white/15 ${hiddenOn} ${className}`}
       >
       {children}
     </button>
@@ -253,7 +254,7 @@ function FallbackNavIcon({ item, isActive }) {
 
 function NavItem({ item, isActive, onSelect, onActivate, collapsed = false }) {
   const baseClasses =
-    "analytics-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition";
+    "analytics-nav-item flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition";
 
   const activeClasses =
     "bg-[color:var(--analytics-sidebar-active-bg)] text-[color:var(--analytics-sidebar-active-text)]";
@@ -307,7 +308,7 @@ function NavItem({ item, isActive, onSelect, onActivate, collapsed = false }) {
 
   if (item.href) {
     return (
-      <a
+      <Link
         href={item.href}
         className={classes}
         onClick={onActivate}
@@ -315,7 +316,7 @@ function NavItem({ item, isActive, onSelect, onActivate, collapsed = false }) {
         title={collapsed ? item.label : undefined}
       >
         {content}
-      </a>
+      </Link>
     );
   }
 
@@ -376,6 +377,18 @@ export default function AnalyticsShell({
   }, [isSidebarCollapsed]);
 
   useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    if (!isMobileSidebarOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileSidebarOpen]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
     const mediaQuery = window.matchMedia("(min-width: 1024px)");
@@ -405,11 +418,11 @@ export default function AnalyticsShell({
 
   return (
     <div
-      className="analytics-shell min-h-screen"
+      className="analytics-shell min-h-[100svh]"
       data-theme={theme}
       style={{ colorScheme: theme }}
     >
-      <div className="flex min-h-screen">
+      <div className="flex min-h-[100svh]">
         <button
           type="button"
           aria-label="Close navigation"
@@ -420,7 +433,7 @@ export default function AnalyticsShell({
         />
 
         <aside
-          className={`analytics-sidebar fixed inset-y-0 left-0 z-40 flex h-screen shrink-0 flex-col gap-6 overflow-y-auto border-r border-white/10 px-5 py-6 shadow-2xl transition-all duration-300 ease-out lg:sticky lg:top-0 lg:z-10 lg:h-screen lg:translate-x-0 lg:shadow-none ${
+          className={`analytics-sidebar fixed inset-y-0 left-0 z-40 flex h-[100dvh] max-w-[85vw] shrink-0 flex-col gap-6 overflow-y-auto overscroll-contain border-r border-white/10 px-5 py-6 shadow-2xl transition-all duration-300 ease-out lg:sticky lg:top-0 lg:z-10 lg:h-[100dvh] lg:max-w-none lg:translate-x-0 lg:shadow-none ${
             isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
           } ${isSidebarCollapsed ? "w-72 lg:w-24 lg:px-3" : "w-72 lg:w-72"}`}
         >
@@ -486,7 +499,7 @@ export default function AnalyticsShell({
           </nav>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
           <header className="analytics-card mx-4 mt-4 flex flex-col gap-4 px-5 py-4 sm:px-6 lg:mx-6 lg:mt-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
               <SidebarControlButton

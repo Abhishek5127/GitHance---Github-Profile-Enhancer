@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supportCta } from "@/app/lib/support";
+
 const BUY_ME_A_COFFEE_BUTTON_IMAGE = "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png";
 
 function BuyMeACoffeeIcon({ className = "h-5 w-5" }) {
@@ -37,7 +38,7 @@ export default function LandingSupportWidget() {
   const isExpanded = isPinnedOpen || isFocusedWithin;
 
   useEffect(() => {
-    if (!isPinnedOpen) return;
+    if (!isPinnedOpen) return undefined;
 
     const handlePointerDown = (event) => {
       if (containerRef.current?.contains(event.target)) return;
@@ -68,6 +69,11 @@ export default function LandingSupportWidget() {
     });
   };
 
+  const closePanel = () => {
+    setIsPinnedOpen(false);
+    setIsFocusedWithin(false);
+  };
+
   const openPanel = () => {
     setIsPinnedOpen(true);
     focusPrimaryAction();
@@ -75,7 +81,7 @@ export default function LandingSupportWidget() {
 
   const handleToggle = () => {
     if (isExpanded) {
-      setIsPinnedOpen(false);
+      closePanel();
       return;
     }
 
@@ -86,23 +92,22 @@ export default function LandingSupportWidget() {
     const nextTarget = event.relatedTarget;
     if (nextTarget && containerRef.current?.contains(nextTarget)) return;
 
-    setIsFocusedWithin(false);
-    setIsPinnedOpen(false);
+    closePanel();
   };
 
   const panelClasses = `overflow-hidden rounded-[28px] border border-[#ffdd00]/22 bg-[linear-gradient(180deg,rgba(17,22,29,0.98),rgba(14,17,22,0.95))] shadow-[0_28px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-300 ease-out ${
     isExpanded
-      ? "pointer-events-auto w-[min(21rem,calc(100vw-5.75rem))] translate-x-0 translate-y-0 opacity-100"
+      ? "pointer-events-auto w-[min(22rem,calc(100vw-1rem))] translate-x-0 translate-y-0 opacity-100 sm:w-[min(21rem,calc(100vw-5.75rem))]"
       : "pointer-events-none w-0 -translate-x-4 translate-y-2 opacity-0"
   }`;
 
   const actionClasses =
-    "inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#ffdd00] px-4 py-2.5 text-sm font-semibold text-[#0b1537] transition hover:bg-[#ffe44d] focus:outline-none focus:ring-2 focus:ring-[#ffdd00]/60";
+    "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#ffdd00] px-4 py-2.5 text-sm font-semibold text-[#0b1537] transition hover:bg-[#ffe44d] focus:outline-none focus:ring-2 focus:ring-[#ffdd00]/60";
 
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-4 left-4 z-[70] flex max-w-[calc(100vw-1rem)] items-end gap-3 sm:bottom-5 sm:left-5 sm:max-w-[calc(100vw-2rem)]"
+      className="fixed bottom-20 right-4 z-[70] flex max-w-[calc(100vw-1rem)] items-end gap-3 sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[calc(100vw-2rem)]"
       onFocusCapture={() => setIsFocusedWithin(true)}
       onBlurCapture={handleBlurCapture}
     >
@@ -110,11 +115,8 @@ export default function LandingSupportWidget() {
         <div className="relative p-4">
           <button
             type="button"
-            onClick={() => {
-              setIsPinnedOpen(false);
-              setIsFocusedWithin(false);
-            }}
-            className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-sm text-white/50 transition hover:bg-white/10 hover:text-white"
+            onClick={closePanel}
+            className="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full text-sm text-white/50 transition hover:bg-white/10 hover:text-white"
             aria-label="Close support panel"
             tabIndex={isExpanded ? 0 : -1}
           >
@@ -166,16 +168,22 @@ export default function LandingSupportWidget() {
         onClick={handleToggle}
         aria-expanded={isExpanded}
         aria-controls="landing-support-panel"
-        className="rounded-full bg-transparent p-0 shadow-[0_18px_45px_rgba(0,0,0,0.45)] transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#ffdd00]/60"
+        className="focus:outline-none focus:ring-2 focus:ring-[#ffdd00]/60"
       >
-        <Image
-          src={BUY_ME_A_COFFEE_BUTTON_IMAGE}
-          alt="Buy Me a Coffee"
-          width={217}
-          height={60}
-          className="block h-[52px] w-auto rounded-[18px]"
-          priority={false}
-        />
+        <span className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#ffdd00]/30 bg-[#141b23]/92 px-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#ffe98a] shadow-[0_16px_40px_rgba(0,0,0,0.45)] transition hover:-translate-y-0.5 hover:border-[#ffdd00]/50 hover:bg-[#1a222c] sm:hidden">
+          <BuyMeACoffeeIcon className="h-4 w-4" />
+          Support
+        </span>
+        <span className="hidden sm:block rounded-full bg-transparent p-0 shadow-[0_18px_45px_rgba(0,0,0,0.45)] transition hover:-translate-y-0.5">
+          <Image
+            src={BUY_ME_A_COFFEE_BUTTON_IMAGE}
+            alt="Buy Me a Coffee"
+            width={217}
+            height={60}
+            className="block h-[52px] w-auto rounded-[18px]"
+            priority={false}
+          />
+        </span>
       </button>
     </div>
   );

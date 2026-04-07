@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { antonio, poppins } from "@/app/fonts";
@@ -36,7 +36,7 @@ const modes = [
     colorPalette: ["green", "yellow", "blue"],
   },
 ];
-
+//check
 const colorMap = {
   green: "bg-green-500/15 text-green-400 border border-green-500/30",
   yellow: "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30",

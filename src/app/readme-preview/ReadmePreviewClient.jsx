@@ -32,7 +32,7 @@ function MetaPill({ children }) {
 function ActionButton({ as: Component = "button", className = "", children, ...props }) {
   return (
     <Component
-      className={`rounded-full px-4 py-2.5 text-sm font-semibold transition ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition ${className}`}
       {...props}
     >
       {children}
@@ -81,7 +81,7 @@ export default function ReadmePreviewClient() {
 
   if (!payload?.markdown) {
     return (
-      <main className="relative min-h-screen overflow-hidden bg-[#05070b] px-4 py-12 text-white sm:px-6 lg:px-8">
+      <main className="relative min-h-[100svh] overflow-x-clip overflow-y-hidden bg-[#05070b] px-4 py-12 text-white sm:px-6 lg:px-8">
         <div className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.28),_transparent_65%)] blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-10 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(83,208,255,0.18),_transparent_65%)] blur-3xl" />
 
@@ -119,7 +119,7 @@ export default function ReadmePreviewClient() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#05070b] px-4 py-8 text-white sm:px-6 lg:px-8">
+    <main className="relative min-h-[100svh] overflow-x-clip overflow-y-hidden bg-[#05070b] px-4 py-8 text-white sm:px-6 lg:px-8">
       <div className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.28),_transparent_65%)] blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-10 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(83,208,255,0.18),_transparent_65%)] blur-3xl" />
 

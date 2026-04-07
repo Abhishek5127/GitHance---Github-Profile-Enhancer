@@ -371,7 +371,7 @@ export default function AnalyzePage({ initialUsername = "", children }) {
   const showRepositorySkeletons = loading && repositories.length === 0;
 
   return (
-    <div className="min-h-screen bg-[#0b0d0f] text-white">
+    <div className="min-h-[100svh] overflow-x-clip bg-[#0b0d0f] text-white">
       <div className="relative overflow-hidden border-b border-white/10">
         <div className="pointer-events-none absolute -left-28 top-8 h-72 w-72 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.28),_transparent_66%)] blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(48,214,255,0.2),_transparent_62%)] blur-3xl" />
@@ -407,7 +407,7 @@ export default function AnalyzePage({ initialUsername = "", children }) {
                 <button
                   type="submit"
                   disabled={!canLoadRepositories || loading}
-                  className="rounded-2xl bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:bg-[#ff7a1a]/24 disabled:text-white/40 disabled:hover:bg-[#ff7a1a]/24"
+                  className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-[#ff7a1a] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#ff8d3b] disabled:cursor-not-allowed disabled:bg-[#ff7a1a]/24 disabled:text-white/40 disabled:hover:bg-[#ff7a1a]/24"
                 >
                   {loading ? "Loading repositories..." : "Load repositories"}
                 </button>
@@ -629,7 +629,7 @@ export default function AnalyzePage({ initialUsername = "", children }) {
               type="button"
               onClick={() => loadRepositories(githubUsername, page + 1, true)}
               disabled={loadingMore}
-              className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loadingMore ? "Loading more repositories..." : "Load more repositories"}
             </button>

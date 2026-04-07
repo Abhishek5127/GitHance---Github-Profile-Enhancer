@@ -104,7 +104,7 @@ function SectionSlot({
       style={{ minHeight: `${slotMinHeight}px` }}
     >
       {slotItem ? (
-        <div className="pointer-events-none absolute right-2 top-2 z-20 flex translate-y-1 gap-2 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
+        <div className="pointer-events-auto absolute right-2 top-2 z-20 flex translate-y-0 gap-2 opacity-100 transition-all duration-200 sm:pointer-events-none sm:translate-y-1 sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100">
           {canEditSlotItem ? (
             <button
               onPointerDown={(event) => event.stopPropagation()}
@@ -112,7 +112,7 @@ function SectionSlot({
                 event.stopPropagation();
                 onEditItem(slotItem);
               }}
-              className="rounded-md border border-white/20 bg-[#0f1115]/95 p-1.5 text-white/80 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-white"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/20 bg-[#0f1115]/95 p-1.5 text-white/80 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-white"
               title="Edit item"
               aria-label="Edit item"
             >
@@ -128,7 +128,7 @@ function SectionSlot({
               event.stopPropagation();
               onRemoveSlotItem(slotIndex);
             }}
-            className="rounded-md border border-red-500/40 bg-red-500/25 p-1.5 text-red-200 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-red-100"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-500/40 bg-red-500/25 p-1.5 text-red-200 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-red-100"
             title="Delete item"
             aria-label="Delete item"
           >
@@ -378,7 +378,7 @@ export default function SectionBlock({
                     event.stopPropagation();
                     handleRemoveSticker(slot.id);
                   }}
-                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-0 transition group-hover/sticker:opacity-100"
+                  className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border border-red-500/55 bg-[#0f1115] text-[10px] text-red-200 opacity-100 transition sm:h-5 sm:w-5 sm:opacity-0 sm:group-hover/sticker:opacity-100"
                   title="Remove sticker"
                   aria-label="Remove sticker"
                 >

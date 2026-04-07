@@ -40,6 +40,8 @@ export default function ReadmeTemplateCarousel() {
     startScrollLeft: 0,
     moved: false,
   });
+  const suppressClickRef = useRef(false);
+  const suppressClickTimeoutRef = useRef(null);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -71,7 +73,7 @@ export default function ReadmeTemplateCarousel() {
     const container = containerRef.current;
 
     if (!container) {
-      return;
+      return undefined;
     }
 
     let ticking = false;
@@ -92,6 +94,14 @@ export default function ReadmeTemplateCarousel() {
 
     return () => {
       container.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (suppressClickTimeoutRef.current !== null) {
+        window.clearTimeout(suppressClickTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -158,6 +168,16 @@ export default function ReadmeTemplateCarousel() {
 
     if (pointerStateRef.current.moved) {
       event.preventDefault();
+      suppressClickRef.current = true;
+
+      if (suppressClickTimeoutRef.current !== null) {
+        window.clearTimeout(suppressClickTimeoutRef.current);
+      }
+
+      suppressClickTimeoutRef.current = window.setTimeout(() => {
+        suppressClickRef.current = false;
+        suppressClickTimeoutRef.current = null;
+      }, 0);
     }
 
     pointerStateRef.current = {
@@ -166,6 +186,16 @@ export default function ReadmeTemplateCarousel() {
       startScrollLeft: 0,
       moved: false,
     };
+  };
+
+  const handleClickCapture = (event) => {
+    if (!suppressClickRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClickRef.current = false;
   };
 
   return (
@@ -198,7 +228,7 @@ export default function ReadmeTemplateCarousel() {
             type="button"
             aria-label="Previous template"
             onClick={() => scrollToIndex(activeIndex - 1)}
-            className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/75 transition hover:border-cyan-300/60 hover:bg-cyan-400/10 hover:text-white"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/75 transition hover:border-cyan-300/60 hover:bg-cyan-400/10 hover:text-white"
           >
             Prev
           </button>
@@ -206,7 +236,7 @@ export default function ReadmeTemplateCarousel() {
             type="button"
             aria-label="Next template"
             onClick={() => scrollToIndex(activeIndex + 1)}
-            className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/75 transition hover:border-cyan-300/60 hover:bg-cyan-400/10 hover:text-white"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/75 transition hover:border-cyan-300/60 hover:bg-cyan-400/10 hover:text-white"
           >
             Next
           </button>
@@ -215,7 +245,7 @@ export default function ReadmeTemplateCarousel() {
 
       <div
         ref={containerRef}
-        className={`mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 pr-4 select-none touch-pan-y ${
+        className={`mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto overscroll-x-contain pb-4 pr-4 select-none ${
           isDragging ? "cursor-grabbing" : "cursor-grab"
         }`}
         onPointerDown={handlePointerDown}
@@ -227,6 +257,7 @@ export default function ReadmeTemplateCarousel() {
             endPointerDrag(event);
           }
         }}
+        onClickCapture={handleClickCapture}
       >
         {readmeTemplateCatalog.map((template, index) => {
           const Preview = template.Preview;
@@ -279,7 +310,7 @@ export default function ReadmeTemplateCarousel() {
 
                 <Link
                   href={template.href}
-                  className={`${poppins.className} inline-flex shrink-0 items-center justify-center rounded-full border border-cyan-300/45 bg-cyan-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-50 transition duration-300 hover:border-cyan-200 hover:bg-cyan-300/25`}
+                  className={`${poppins.className} inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-cyan-300/45 bg-cyan-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-50 transition duration-300 hover:border-cyan-200 hover:bg-cyan-300/25`}
                 >
                   {template.ctaLabel}
                 </Link>
@@ -305,4 +336,3 @@ export default function ReadmeTemplateCarousel() {
     </section>
   );
 }
-

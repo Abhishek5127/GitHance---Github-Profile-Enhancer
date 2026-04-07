@@ -20,10 +20,11 @@ import {
   closestCenter,
   closestCorners,
   pointerWithin,
-  PointerSensor,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
-  KeyboardSensor,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import Sidebar from "../components/sidebar/Sidebar";
@@ -1146,8 +1147,11 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   }, [builderUsername, canvasItems.length, isDraftHydrated]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: { distance: 4 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 8 },
     }),
     useSensor(KeyboardSensor)
   );
@@ -2420,7 +2424,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
   const activeSticker = getStickerById(activeStickerId);
 
   return (
-    <div className="relative min-h-screen bg-[#0b0d0f] text-white">
+    <div className="relative min-h-[100svh] overflow-x-clip bg-[#0b0d0f] text-white">
       <div className="pointer-events-none absolute -left-40 top-8 h-80 w-80 rounded-full bg-[radial-gradient(circle,_rgba(255,122,26,0.24),_transparent_60%)] blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[radial-gradient(circle,_rgba(48,214,255,0.18),_transparent_60%)] blur-3xl" />
 
@@ -2429,14 +2433,14 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           <button
             type="button"
             onClick={() => setShowMobileLibrary((prev) => !prev)}
-            className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-white/85 transition hover:bg-white/10"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-white/85 transition hover:bg-white/10"
           >
             {showMobileLibrary ? "Hide Blocks" : "Show Blocks"}
           </button>
           <button
             type="button"
             disabled={!canLaunchPreview || isAiBuilderRunning}
-            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+            className={`flex min-h-11 flex-1 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
               canLaunchPreview && !isAiBuilderRunning
                 ? "border border-cyan-400/40 bg-cyan-500/12 text-cyan-100 hover:bg-cyan-500/18"
                 : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
@@ -2448,7 +2452,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           </button>
           <button
             type="button"
-            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+            className={`flex min-h-11 flex-1 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
               canLaunchPreview
                 ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
                 : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
@@ -2462,16 +2466,16 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
         </div>
       </div>
 
-      <div className="flex min-h-[calc(100vh-64px)] flex-col lg:h-screen lg:min-h-screen lg:flex-row">
+      <div className="flex min-h-[calc(100svh-64px)] flex-col lg:h-[100dvh] lg:min-h-[100dvh] lg:flex-row">
         <div className={`${showMobileLibrary ? "block" : "hidden"} border-b border-white/10 lg:block lg:border-b-0 lg:border-r`}>
-          <div className="z-10 flex flex-col bg-[#0d1117] lg:h-screen">
+          <div className="z-10 flex flex-col bg-[#0d1117] lg:h-[100dvh]">
             <Sidebar onSelectBlock={handleSelectSidebarBlock} />
             <div className="hidden border-t border-white/10 p-4 lg:block">
               <div className="space-y-2">
                 <button
                   type="button"
                   disabled={!canLaunchPreview || isAiBuilderRunning}
-                  className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+                  className={`inline-flex min-h-11 w-full items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
                     canLaunchPreview && !isAiBuilderRunning
                       ? "border border-cyan-400/40 bg-cyan-500/12 text-cyan-100 hover:bg-cyan-500/18"
                       : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
@@ -2483,7 +2487,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
                 </button>
                 <button
                   type="button"
-                  className={`w-full rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+                  className={`inline-flex min-h-11 w-full items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer ${
                     canLaunchPreview
                       ? "bg-[#ff7a1a] text-black hover:bg-[#ff8c3a]"
                       : "border border-white/20 bg-white/5 text-white/75 hover:bg-white/10"
@@ -2506,7 +2510,7 @@ I build modern web apps, experiment with AI tooling, and care about great DX.
           onDragCancel={onDragCancel}
           onDragEnd={onDragEnd}
         >
-          <div className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6">
+          <div className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6">
             {publishFeedback.message ? (
               <div className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
                 publishFeedback.tone === "success"

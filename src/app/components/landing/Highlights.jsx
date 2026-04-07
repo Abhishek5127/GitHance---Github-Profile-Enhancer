@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { assets } from "@/app/assets/assets";
@@ -181,7 +181,7 @@ export default function Highlights() {
   }, []);
 
   function handlePointerDown(event) {
-    if (!svgRef.current) {
+    if (!svgRef.current || event.pointerType === "touch") {
       return;
     }
 
@@ -266,7 +266,7 @@ export default function Highlights() {
       </div>
 
       <div
-        className="relative flex h-[180px] w-full cursor-grab justify-center overflow-hidden select-none touch-pan-y active:cursor-grabbing sm:h-[220px]"
+        className="relative flex h-[180px] w-full cursor-default justify-center overflow-hidden select-none sm:h-[220px] md:cursor-grab md:active:cursor-grabbing"
         style={{
           WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
           maskImage: "linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",

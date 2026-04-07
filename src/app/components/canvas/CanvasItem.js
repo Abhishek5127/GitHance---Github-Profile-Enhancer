@@ -139,12 +139,12 @@ export default function CanvasItem({
       {...attributes}
       {...listeners}
     >
-      <div className="pointer-events-none absolute right-3 top-3 z-40 flex translate-y-1 gap-2 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
+      <div className="pointer-events-auto absolute right-3 top-3 z-40 flex translate-y-0 gap-2 opacity-100 transition-all duration-200 sm:pointer-events-none sm:translate-y-1 sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100">
         {canEdit ? (
           <button
             onPointerDown={(event) => event.stopPropagation()}
             onClick={handleEdit}
-            className="rounded-md border border-white/20 bg-[#0f1115]/95 p-1.5 text-white/80 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-white"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/20 bg-[#0f1115]/95 p-1.5 text-white/80 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-white"
             title="Edit item"
             aria-label="Edit item"
           >
@@ -157,7 +157,7 @@ export default function CanvasItem({
         <button
           onPointerDown={(event) => event.stopPropagation()}
           onClick={handleDelete}
-          className="rounded-md border border-red-500/40 bg-red-500/25 p-1.5 text-red-200 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-red-100"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-500/40 bg-red-500/25 p-1.5 text-red-200 shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:text-red-100"
           title="Delete item"
           aria-label="Delete item"
         >
