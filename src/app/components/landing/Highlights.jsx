@@ -105,8 +105,28 @@ function normalizeAngleDelta(delta) {
   return nextDelta;
 }
 
+function subscribeToMediaQuery(mediaQuery, handler) {
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
+  }
+
+  mediaQuery.addListener(handler);
+  return () => mediaQuery.removeListener(handler);
+}
+
 export default function Highlights() {
+  const sectionRef = useRef(null);
   const [progress, setProgress] = useState(0);
+  const [isMotionAllowed, setIsMotionAllowed] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+      !window.matchMedia("(max-width: 767px)").matches;
+  });
+  const [isInView, setIsInView] = useState(true);
   const frameRef = useRef(null);
   const lastFrameRef = useRef(null);
   const svgRef = useRef(null);
@@ -120,8 +140,70 @@ export default function Highlights() {
   const autoplayStartTimeRef = useRef(null);
   const autoplayBaseProgressRef = useRef(0);
   const resumeAutoplayAtRef = useRef(null);
+  const canAnimate = isMotionAllowed && isInView;
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const narrowViewportQuery = window.matchMedia("(max-width: 767px)");
+    const updateMotionState = () => {
+      setIsMotionAllowed(!reducedMotionQuery.matches && !narrowViewportQuery.matches);
+    };
+
+    const unsubscribeReducedMotion = subscribeToMediaQuery(reducedMotionQuery, updateMotionState);
+    const unsubscribeNarrowViewport = subscribeToMediaQuery(narrowViewportQuery, updateMotionState);
+
+    return () => {
+      unsubscribeReducedMotion();
+      unsubscribeNarrowViewport();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined" || !sectionRef.current) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInView(entry.isIntersecting);
+      },
+      {
+        rootMargin: "160px 0px",
+        threshold: 0.15,
+      }
+    );
+
+    observer.observe(sectionRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!canAnimate) {
+      autoplayEnabledRef.current = false;
+      autoplayStartTimeRef.current = null;
+      resumeAutoplayAtRef.current = null;
+      velocityRef.current = 0;
+      lastFrameRef.current = null;
+
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+
+      return undefined;
+    }
+
+    autoplayEnabledRef.current = true;
+    autoplayBaseProgressRef.current = manualProgressRef.current;
+    autoplayStartTimeRef.current = null;
+
     function animate(timestamp) {
       if (lastFrameRef.current === null) {
         lastFrameRef.current = timestamp;
@@ -176,12 +258,13 @@ export default function Highlights() {
       lastFrameRef.current = null;
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
       }
     };
-  }, []);
+  }, [canAnimate]);
 
   function handlePointerDown(event) {
-    if (!svgRef.current || event.pointerType === "touch") {
+    if (!svgRef.current || !canAnimate || event.pointerType === "touch") {
       return;
     }
 
@@ -224,7 +307,7 @@ export default function Highlights() {
     isDraggingRef.current = false;
     dragAngleRef.current = null;
     dragTimeRef.current = null;
-    resumeAutoplayAtRef.current = performance.now() + RESUME_AUTOPLAY_MS;
+    resumeAutoplayAtRef.current = canAnimate ? performance.now() + RESUME_AUTOPLAY_MS : null;
 
     if (svgRef.current.hasPointerCapture(event.pointerId)) {
       svgRef.current.releasePointerCapture(event.pointerId);
@@ -249,7 +332,7 @@ export default function Highlights() {
   });
 
   return (
-    <section
+    <section ref={sectionRef}
       id="product"
       aria-labelledby="highlights-heading"
       className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-4 py-20 sm:gap-16 sm:px-6 sm:py-24"

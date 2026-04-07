@@ -16,7 +16,7 @@ const modes = [
     copy: "Shape developer-first sections, live contribution visuals, and a profile README that communicates your strengths clearly.",
     detail: "Profile builder, profile comparison, and repository analysis work together inside one public workspace linked to the GitHub username you provide.",
     blocklist: [
-      { label: "Analyze Repositories", path: "/analyze" },
+      { label: "Build Profile README", path: "/profile-builder" },
       { label: "Compare Profiles", path: "/profile-compare" },
       { label: "Analyze Repositories", path: ANALYZE_REPOSITORIES_PATH },
     ],

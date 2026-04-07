@@ -5,8 +5,6 @@ import Workflow from "./components/landing/Workflow";
 import Footer from "./components/landing/Footer";
 import FaqSection, { HOME_FAQS } from "./components/landing/FaqSection";
 import InternalLinksSection from "./components/landing/InternalLinksSection";
-import LandingFeedbackWidget from "./components/landing/LandingFeedbackWidget";
-import LandingSupportWidget from "./components/landing/LandingSupportWidget";
 import { LandingFeatureGateProvider } from "./components/landing/LandingFeatureGate";
 import JsonLd from "./components/seo/JsonLd";
 import {
@@ -20,6 +18,8 @@ import {
 const Highlights = dynamic(() => import("./components/landing/Highlights"));
 const FeatureGrid = dynamic(() => import("./components/landing/FeatureGrid"));
 const HowItWorks = dynamic(() => import("./components/landing/HowItWorks"));
+const LandingFeedbackWidget = dynamic(() => import("./components/landing/LandingFeedbackWidget"));
+const LandingSupportWidget = dynamic(() => import("./components/landing/LandingSupportWidget"));
 
 export const revalidate = 86400;
 
@@ -62,6 +62,20 @@ const homeSchemas = [
   createFaqSchema(HOME_FAQS),
 ];
 
+function DeferredSection({ children, intrinsicSize = "960px" }) {
+  return (
+    <div
+      className="overflow-clip"
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: intrinsicSize,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#0b0d0f] text-white">
@@ -74,12 +88,24 @@ export default function Home() {
           <LandingNav />
           <main id="main-content">
             <Hero />
-            <HowItWorks />
-            <Highlights />
-            <FeatureGrid />
-            <Workflow />
-            <InternalLinksSection />
-            <FaqSection />
+            <DeferredSection intrinsicSize="900px">
+              <HowItWorks />
+            </DeferredSection>
+            <DeferredSection intrinsicSize="820px">
+              <Highlights />
+            </DeferredSection>
+            <DeferredSection intrinsicSize="980px">
+              <FeatureGrid />
+            </DeferredSection>
+            <DeferredSection intrinsicSize="760px">
+              <Workflow />
+            </DeferredSection>
+            <DeferredSection intrinsicSize="560px">
+              <InternalLinksSection />
+            </DeferredSection>
+            <DeferredSection intrinsicSize="720px">
+              <FaqSection />
+            </DeferredSection>
           </main>
         </div>
         <Footer />
