@@ -23,16 +23,16 @@ a[href^="#"] {
   touch-action: manipulation;
 }
 
-input,
+:where(input,
 textarea,
-select {
+select) {
   font: inherit;
 }
 
 @media (max-width: 640px) {
-  input,
+  :where(input,
   textarea,
-  select {
+  select) {
     font-size: 16px;
   }
 }
@@ -351,4 +351,5 @@ select {
 .landing-nav-details[open] .landing-nav-close-label {
   display: inline;
 }
+
 

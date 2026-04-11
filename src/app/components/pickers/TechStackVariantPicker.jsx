@@ -372,7 +372,7 @@ export default function TechStackVariantPicker({
                 Tech Stack Variant Picker
               </h3>
               <p className="mt-1 text-sm text-white/60">
-                Drag technologies into category buckets, then choose whether the README renders them as categorized rows or a square grid.
+                Drag technologies into category buckets, then choose a visual style and layout for how the README renders them.
               </p>
             </div>
 
@@ -386,6 +386,7 @@ export default function TechStackVariantPicker({
                 <option value="grid">Grid</option>
                 <option value="orbit">Orbit</option>
                 <option value="barcode">Barcode</option>
+                <option value="shields">Shields.io Badges</option>
               </select>
 
               <select

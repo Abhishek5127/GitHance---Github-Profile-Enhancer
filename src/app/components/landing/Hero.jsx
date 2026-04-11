@@ -125,7 +125,7 @@ export default function Hero() {
               value={landingUsername}
               onChange={(event) => setLandingUsername(event.target.value)}
               placeholder="your-github-username"
-              className={`w-full bg-transparent text-5xl ${antonio.className} leading-none tracking-[0.06em] text-white outline-none placeholder:text-white/18 sm:text-6xl lg:text-8xl xl:text-[8rem]`}
+              className={`w-full bg-transparent text-[clamp(3rem,10vw,8rem)] ${antonio.className} leading-none tracking-[0.06em] text-white outline-none placeholder:text-white/18`}
             />
           </div>
           <p className={`mt-4 max-w-3xl text-base ${poppins.className} leading-7 text-white/58 sm:text-lg`}>
@@ -158,12 +158,6 @@ export default function Hero() {
             </LandingFeatureLink>
           </div>
         </form>
-
-        <div className="mt-10 flex flex-wrap items-center gap-3 text-sm text-white/60">
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">GitHub README generator</span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Repository security review</span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Developer discoverability</span>
-        </div>
       </div>
 
       <div className="w-full max-w-xl justify-self-end rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.5)] sm:p-5">
@@ -219,3 +213,4 @@ export default function Hero() {
     </section>
   );
 }
+

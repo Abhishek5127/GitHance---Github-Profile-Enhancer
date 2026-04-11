@@ -2,6 +2,7 @@ import { buildRenderUrl, buildTrophyUrl } from "./generateBlockSvg";
 import {
   TECH_STACK_CATEGORY_LABELS,
   TECH_STACK_CATEGORY_ORDER,
+  getTechCatalogItem,
   getTechIconUrl,
   normalizeTechStackData,
 } from "./techStackCatalog";
@@ -89,6 +90,129 @@ const encodeStatsSnapshotParam = (value) => {
   }
 };
 
+const TECH_SHIELDS_BADGE_BACKGROUND = "111827";
+const TECH_STACK_INLINE_ITEM_STYLE = "margin-right: 10px; margin-bottom: 8px;";
+const TECH_STACK_SHIELDS_META = {
+  c: { logo: "c", color: "A8B9CC" },
+  cplusplus: { logo: "cplusplus", color: "00599C" },
+  javascript: { logo: "javascript", color: "F7DF1E" },
+  typescript: { logo: "typescript", color: "3178C6" },
+  html: { logo: "html5", color: "E34F26" },
+  css: { logo: "css", color: "1572B6" },
+  kotlin: { logo: "kotlin", color: "7F52FF" },
+  python: { logo: "python", color: "3776AB" },
+  dart: { logo: "dart", color: "0175C2" },
+  go: { logo: "go", color: "00ADD8" },
+  rust: { logo: "rust", color: "FFFFFF" },
+  php: { logo: "php", color: "777BB4" },
+  ruby: { logo: "ruby", color: "CC342D" },
+  swift: { logo: "swift", color: "FA7343" },
+  scala: { logo: "scala", color: "DC322F" },
+  r: { logo: "r", color: "276DC3" },
+  elixir: { logo: "elixir", color: "4B275F" },
+  react: { logo: "react", color: "61DAFB" },
+  nextjs: { logo: "nextdotjs", color: "FFFFFF" },
+  vue: { logo: "vuedotjs", color: "4FC08D" },
+  nuxtjs: { logo: "nuxt", color: "00DC82" },
+  angular: { logo: "angular", color: "DD0031" },
+  svelte: { logo: "svelte", color: "FF3E00" },
+  flutter: { logo: "flutter", color: "02569B" },
+  spring: { logo: "springboot", color: "6DB33F" },
+  nodejs: { logo: "nodedotjs", color: "5FA04E" },
+  express: { logo: "express", color: "FFFFFF" },
+  nestjs: { logo: "nestjs", color: "E0234E" },
+  django: { logo: "django", color: "092E20" },
+  flask: { logo: "flask", color: "FFFFFF" },
+  fastapi: { logo: "fastapi", color: "009688" },
+  laravel: { logo: "laravel", color: "FF2D20" },
+  rails: { logo: "rubyonrails", color: "D30001" },
+  dotnet: { logo: "dotnet", color: "512BD4" },
+  tensorflow: { logo: "tensorflow", color: "FF6F00" },
+  pytorch: { logo: "pytorch", color: "EE4C2C" },
+  vite: { logo: "vite", color: "646CFF" },
+  tailwindcss: { logo: "tailwindcss", color: "06B6D4" },
+  bootstrap: { logo: "bootstrap", color: "7952B3" },
+  graphql: { logo: "graphql", color: "E10098" },
+  redux: { logo: "redux", color: "764ABC" },
+  jquery: { logo: "jquery", color: "0769AD" },
+  threejs: { logo: "threedotjs", color: "FFFFFF" },
+  git: { logo: "git", color: "F05032" },
+  github: { logo: "github", color: "FFFFFF" },
+  gitlab: { logo: "gitlab", color: "FC6D26" },
+  docker: { logo: "docker", color: "2496ED" },
+  kubernetes: { logo: "kubernetes", color: "326CE5" },
+  terraform: { logo: "terraform", color: "844FBA" },
+  gcp: { logo: "googlecloud", color: "4285F4" },
+  vercel: { logo: "vercel", color: "FFFFFF" },
+  netlify: { logo: "netlify", color: "00C7B7" },
+  linux: { logo: "linux", color: "FCC624" },
+  ubuntu: { logo: "ubuntu", color: "E95420" },
+  intellij: { logo: "intellijidea", color: "FFFFFF" },
+  webstorm: { logo: "webstorm", color: "FFFFFF" },
+  pycharm: { logo: "pycharm", color: "FFFFFF" },
+  androidstudio: { logo: "androidstudio", color: "3DDC84" },
+  postman: { logo: "postman", color: "FF6C37" },
+  npm: { logo: "npm", color: "CB3837" },
+  yarn: { logo: "yarn", color: "2C8EBB" },
+  pnpm: { logo: "pnpm", color: "F69220" },
+  figma: { logo: "figma", color: "F24E1E" },
+  jira: { logo: "jira", color: "0052CC" },
+  mongodb: { logo: "mongodb", color: "47A248" },
+  mysql: { logo: "mysql", color: "4479A1" },
+  postgresql: { logo: "postgresql", color: "4169E1" },
+  redis: { logo: "redis", color: "DC382D" },
+  sqlite: { logo: "sqlite", color: "003B57" },
+  firebase: { logo: "firebase", color: "FFCA28" },
+  supabase: { logo: "supabase", color: "3ECF8E" },
+  prisma: { logo: "prisma", color: "FFFFFF" },
+  mariadb: { logo: "mariadb", color: "003545" },
+};
+
+const buildTechBadgeUrl = (name, meta = null) => {
+  const label = encodeURIComponent(String(name || "Tech").trim() || "Tech");
+  const search = new URLSearchParams({
+    style: "for-the-badge",
+  });
+
+  if (meta?.logo) {
+    search.set("logo", meta.logo);
+  }
+
+  const logoColor = String(meta?.logoColor || meta?.color || "")
+    .trim()
+    .replace(/^#/, "");
+  if (logoColor) {
+    search.set("logoColor", logoColor);
+  }
+
+  return `https://img.shields.io/badge/${label}-${TECH_SHIELDS_BADGE_BACKGROUND}?${search.toString()}`;
+};
+
+const buildTechStackItemMarkup = (
+  tech,
+  { useShields = false, withSpacing = true } = {}
+) => {
+  const safeName = escapeHtmlAttribute(tech?.name);
+  const styleAttr = withSpacing ? ` style="${TECH_STACK_INLINE_ITEM_STYLE}"` : "";
+
+  if (useShields) {
+    const catalog = getTechCatalogItem(tech?.id || tech?.name);
+    const badgeMeta = TECH_STACK_SHIELDS_META[catalog?.id || tech?.id] || null;
+    const badgeUrl = buildTechBadgeUrl(tech?.name || catalog?.name, badgeMeta);
+    return `<img src="${badgeUrl}" alt="${safeName}"${styleAttr} />`;
+  }
+
+  const iconUrl = getTechIconUrl(tech);
+  if (iconUrl) {
+    return `<img src="${iconUrl}" alt="${safeName}" width="44" height="44"${styleAttr} />`;
+  }
+
+  if (!withSpacing) {
+    return `<sub>${safeName}</sub>`;
+  }
+
+  return `<img src="${buildTechBadgeUrl(tech?.name)}" alt="${safeName}"${styleAttr} />`;
+};
 export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
   const {
     includeHeading = true,
@@ -96,6 +220,8 @@ export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
   } = options;
 
   const normalizedStack = normalizeTechStackData(itemData || {});
+  const normalizedVariant = String(normalizedStack.variant || "").trim().toLowerCase();
+  const useShields = normalizedVariant === "shields";
   const alignment = ["left", "center", "right"].includes(
     String(normalizedStack.alignment || "").toLowerCase()
   )
@@ -109,17 +235,18 @@ export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
 
   if (normalizedStack.items.length) {
     if (layout === "square-grid") {
-      const columnCount = Math.max(2, Math.ceil(Math.sqrt(normalizedStack.items.length)));
-      const iconCells = normalizedStack.items.map((tech) => {
-        const iconUrl = getTechIconUrl(tech);
-        const safeName = escapeHtmlAttribute(tech.name);
-
-        if (iconUrl) {
-          return `<td align="center" valign="middle" width="84" height="84"><img src="${iconUrl}" alt="${safeName}" width="44" height="44" /></td>`;
-        }
-
-        return `<td align="center" valign="middle" width="84" height="84"><sub>${safeName}</sub></td>`;
-      });
+      const columnCount = useShields
+        ? Math.min(4, Math.max(1, Math.ceil(Math.sqrt(normalizedStack.items.length))))
+        : Math.max(2, Math.ceil(Math.sqrt(normalizedStack.items.length)));
+      const cellWidth = useShields ? 180 : 84;
+      const cellHeight = useShields ? 52 : 84;
+      const iconCells = normalizedStack.items.map(
+        (tech) =>
+          `<td align="center" valign="middle" width="${cellWidth}" height="${cellHeight}">${buildTechStackItemMarkup(
+            tech,
+            { useShields, withSpacing: false }
+          )}</td>`
+      );
       const rows = [];
 
       for (let index = 0; index < iconCells.length; index += columnCount) {
@@ -130,14 +257,14 @@ export function buildTechStackMarkdownSection(itemData = {}, options = {}) {
             : [
                 ...chunk,
                 ...Array.from({ length: columnCount - chunk.length }, () =>
-                  '<td align="center" valign="middle" width="84" height="84">&nbsp;</td>'
+                  `<td align="center" valign="middle" width="${cellWidth}" height="${cellHeight}">&nbsp;</td>`
                 ),
               ];
 
         rows.push(`  <tr>\n${paddedChunk.join("\n")}\n  </tr>`);
       }
 
-      const body = `<div align="${alignment}">\n<table cellpadding="8" cellspacing="0">\n${rows.join("\n")}\n</table>\n</div>`;
+      const body = `<div align="${alignment}">\n<table cellpadding="${useShields ? 10 : 8}" cellspacing="0">\n${rows.join("\n")}\n</table>\n</div>`;
       if (!includeHeading) {
         return body;
       }
@@ -152,17 +279,7 @@ ${body}`;
       if (!categoryItems.length) return "";
 
       const icons = categoryItems
-        .map((tech) => {
-          const iconUrl = getTechIconUrl(tech);
-          const safeName = escapeHtmlAttribute(tech.name);
-
-          if (iconUrl) {
-            return `  <img src="${iconUrl}" alt="${safeName}" width="44" height="44" style="margin-right: 10px; margin-bottom: 8px;" />`;
-          }
-
-          const badgeLabel = encodeURIComponent(tech.name || "Tech");
-          return `  <img src="https://img.shields.io/badge/${badgeLabel}-111111?style=for-the-badge" alt="${safeName}" style="margin-right: 10px; margin-bottom: 8px;" />`;
-        })
+        .map((tech) => `  ${buildTechStackItemMarkup(tech, { useShields })}`)
         .join("\n");
 
       return `### ${TECH_STACK_CATEGORY_LABELS[category]}:\n\n<p align="${alignment}">\n${icons}\n</p>`;
@@ -201,7 +318,6 @@ ${sections}`;
   <img src="${url}" alt="Tech Stack" />
 </div>`;
 }
-
 export function buildGraphicComponentMarkdownSection(itemData = {}, options = {}) {
   const { baseUrl = "" } = options;
   const normalized = normalizeGraphicComponentData(itemData || {});
