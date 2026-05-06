@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "openrouter/free";
+const BIO_LINE_LIMIT = 4;
+const AI_BIO_MAX_TOKENS = 260;
 
 function getModelCandidates() {
   const configuredModel = String(process.env.OPENROUTER_MODEL || "").trim();
@@ -30,7 +32,7 @@ function shouldTryNextModel(response, message) {
  * Smart professional bio rules
  */
 const GENERATION_RULES = [
-  "Write 14-15 concise professional GitHub bio lines.",
+  "Write 3-4 concise professional GitHub bio lines.",
   "Infer developer role from languages and stack (JS+React → web/full-stack).",
   "Infer domains from repo names/descriptions (auth → security, resume → AI/productivity).",
   "Infer problems solved from project purpose when possible.",
@@ -75,7 +77,7 @@ BIO STYLE:
 - confident but realistic
 
 OUTPUT RULES:
-- 14-15 lines only
+- 3-4 lines only
 - ≤200 characters per line
 - no explanations
 - no reasoning
@@ -112,9 +114,117 @@ function sanitizeBio(value) {
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean)
-    .slice(0, 3);
+    .slice(0, BIO_LINE_LIMIT);
 
   return lines.join("\n");
+}
+
+function toText(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => toText(item)).filter(Boolean).join("\n");
+  }
+  if (!isObject(value)) return "";
+
+  return toText(value.text ?? value.content ?? value.value ?? "");
+}
+
+function extractGeneratedText(result) {
+  const choice = result?.choices?.[0] || {};
+  const message = choice?.message || {};
+
+  return (
+    [
+      message.content,
+      message.text,
+      choice.text,
+      result?.output_text,
+    ]
+      .map((value) => toText(value).trim())
+      .find(Boolean) || ""
+  );
+}
+
+function compactTextList(value, limit = 4) {
+  const list = Array.isArray(value) ? value : [];
+  return list
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function formatList(items) {
+  if (!items.length) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function inferFallbackRole(stats = {}) {
+  const stack = compactTextList(stats.primary_stack || stats.top_languages, 8)
+    .join(" ")
+    .toLowerCase();
+  const domains = compactTextList(stats.domains, 8).join(" ").toLowerCase();
+
+  if (/react|next|node|express|api/.test(stack)) return "Full-stack developer";
+  if (/react|next|frontend|ui/.test(stack)) return "Frontend developer";
+  if (/node|express|api|backend/.test(stack)) return "Backend developer";
+  if (/ai|ml|llm/.test(domains)) return "AI product builder";
+  if (/data|analytics|pipeline/.test(domains)) return "Data-focused developer";
+  return "Software developer";
+}
+
+function addFallbackLine(lines, value) {
+  const line = String(value || "").replace(/\s+/g, " ").trim();
+  if (!line || lines.includes(line)) return;
+  lines.push(line.slice(0, 200));
+}
+
+function buildFallbackBio(payload) {
+  const profile = payload?.profile || {};
+  const stats = payload?.stats || {};
+  const repos = Array.isArray(payload?.repos) ? payload.repos : [];
+  const role = inferFallbackRole(stats);
+  const stack = compactTextList(stats.primary_stack || stats.top_languages);
+  const domains = compactTextList(stats.domains, 3);
+  const deployedProjects = compactTextList(stats.deployed_projects, 2);
+  const repoNames = compactTextList(
+    repos.map((repo) => repo?.name),
+    3
+  );
+  const focus = formatList(domains.length ? domains : ["software products"]);
+  const stackText = formatList(stack);
+
+  const lines = [];
+  addFallbackLine(lines, `${role} focused on ${focus}.`);
+
+  if (stackText) {
+    addFallbackLine(lines, `Works with ${stackText} across practical GitHub projects.`);
+  }
+
+  if (repoNames.length) {
+    addFallbackLine(lines, `Builds projects such as ${formatList(repoNames)} with a product-minded engineering style.`);
+  }
+
+  if (deployedProjects.length) {
+    addFallbackLine(lines, `Ships deployed work including ${formatList(deployedProjects)}.`);
+  }
+
+  if (lines.length < 3) {
+    const repoCount = Number(profile.public_repos || repos.length || 0);
+    addFallbackLine(
+      lines,
+      repoCount
+        ? `Maintains ${repoCount} public repositories with attention to clear, reusable implementation.`
+        : "Turns repository ideas into useful developer-facing software."
+    );
+  }
+
+  if (lines.length < 3) {
+    addFallbackLine(lines, "Keeps profile work grounded in real repositories and maintainable delivery.");
+  }
+
+  return sanitizeBio(lines.join("\n"));
 }
 
 function validatePayload(payload) {
@@ -142,8 +252,8 @@ async function requestBioCompletion({ apiKey, userPrompt }) {
       body: JSON.stringify({
         model,
         temperature: 0.25,
-        max_tokens: 120,
-        stop: ["\n\n", "Explanation:", "Analysis:"],
+        max_tokens: AI_BIO_MAX_TOKENS,
+        stop: ["Explanation:", "Analysis:"],
         messages: [
           {
             role: "system",
@@ -159,6 +269,11 @@ async function requestBioCompletion({ apiKey, userPrompt }) {
 
     const result = await response.json().catch(() => null);
     if (response.ok) {
+      if (!sanitizeBio(extractGeneratedText(result)) && model !== models[models.length - 1]) {
+        lastError = "AI returned empty bio";
+        continue;
+      }
+
       return result;
     }
 
@@ -212,12 +327,8 @@ FINAL BIO:
       userPrompt,
     });
 
-    const rawBio =
-      result?.choices?.[0]?.message?.content ||
-      result?.choices?.[0]?.text ||
-      "";      
-
-    const bio = sanitizeBio(rawBio);
+    const rawBio = extractGeneratedText(result);
+    const bio = sanitizeBio(rawBio) || buildFallbackBio(trimmedPayload);
 
     if (!bio) {
       return NextResponse.json(
