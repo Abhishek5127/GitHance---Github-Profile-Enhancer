@@ -1,11 +1,30 @@
-import { log } from "console";
 import { NextResponse } from "next/server";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const DEFAULT_MODEL = "openrouter/free";
 
-const DEFAULT_MODEL =
-  process.env.OPENROUTER_MODEL ||
-  "meta-llama/llama-3.1-8b-instruct";
+function getModelCandidates() {
+  const configuredModel = String(process.env.OPENROUTER_MODEL || "").trim();
+  const fallbackModels = String(
+    process.env.OPENROUTER_FALLBACK_MODELS || DEFAULT_MODEL
+  )
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+
+  return [...new Set([configuredModel || DEFAULT_MODEL, ...fallbackModels])];
+}
+
+function shouldTryNextModel(response, message) {
+  return (
+    response.status === 404 ||
+    response.status === 429 ||
+    response.status >= 500 ||
+    /no endpoints|not available|unavailable|overloaded|rate.?limit|timeout|temporarily/i.test(
+      String(message || "")
+    )
+  );
+}
 
 /**
  * Smart professional bio rules
@@ -106,6 +125,52 @@ function validatePayload(payload) {
   return null;
 }
 
+async function requestBioCompletion({ apiKey, userPrompt }) {
+  const models = getModelCandidates();
+  let lastError = "AI request failed";
+
+  for (const model of models) {
+    const response = await fetch(OPENROUTER_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
+        "X-Title": "GitHance",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.25,
+        max_tokens: 120,
+        stop: ["\n\n", "Explanation:", "Analysis:"],
+        messages: [
+          {
+            role: "system",
+            content: SYSTEM_PROMPT,
+          },
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
+      }),
+    });
+
+    const result = await response.json().catch(() => null);
+    if (response.ok) {
+      return result;
+    }
+
+    lastError = result?.error?.message || result?.message || lastError;
+    if (!shouldTryNextModel(response, lastError)) break;
+  }
+
+  const error = new Error(lastError);
+  error.status = 502;
+  throw error;
+}
+
 
 export async function POST(req) {
   try {
@@ -142,41 +207,10 @@ ${JSON.stringify(trimmedPayload)}
 FINAL BIO:
 `;
 
-    const response = await fetch(OPENROUTER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
-        "X-Title": "GitHance",
-      },
-      body: JSON.stringify({
-        model: DEFAULT_MODEL,
-        temperature: 0.25,
-        max_tokens: 120,
-        stop: ["\n\n", "Explanation:", "Analysis:"],
-        messages: [
-          {
-            role: "system",
-            content: SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: userPrompt,
-          },
-        ],
-      }),
+    const result = await requestBioCompletion({
+      apiKey,
+      userPrompt,
     });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: result?.error?.message || "AI request failed" },
-        { status: 502 }
-      );
-    }
 
     const rawBio =
       result?.choices?.[0]?.message?.content ||
@@ -196,7 +230,7 @@ FINAL BIO:
   } catch (error) {
     return NextResponse.json(
       { error: error?.message || "Failed to generate bio" },
-      { status: 500 }
+      { status: error?.status || 500 }
     );
   }
 }
