@@ -179,6 +179,7 @@ function inferSocialPlatformFromUrl(url) {
   try {
     const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
     if (hostname.includes("linkedin.com")) return "linkedin";
+    if (hostname.includes("buymeacoffee.com")) return "buymeacoffee";
     if (hostname.includes("x.com") || hostname.includes("twitter.com")) return "x";
     if (hostname.includes("youtube.com") || hostname.includes("youtu.be")) return "youtube";
     if (hostname.includes("medium.com")) return "medium";

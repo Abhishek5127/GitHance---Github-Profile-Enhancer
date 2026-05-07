@@ -12,6 +12,15 @@ const RAW_SOCIAL_PLATFORM_ITEMS = [
     aliases: ["gh"],
   },
   {
+    id: "buymeacoffee",
+    label: "Buy Me a Coffee",
+    logo: "buymeacoffee",
+    color: "FFDD00",
+    darkColor: "FFDD00",
+    placeholder: "buymeacoffee.com/your-name",
+    aliases: ["bmc", "coffee", "support", "donation"],
+  },
+  {
     id: "linkedin",
     label: "LinkedIn",
     logo: "linkedin",
@@ -259,6 +268,8 @@ function buildPlatformSocialUrl(platformId, rawValue) {
   switch (platformId) {
     case "github":
       return `https://github.com/${handle}`;
+    case "buymeacoffee":
+      return `https://www.buymeacoffee.com/${handle}`;
     case "linkedin": {
       if (/^(in|company|school|showcase)\//i.test(safeValue)) {
         return ensureAbsoluteUrl(`https://www.linkedin.com/${safeValue}`);
