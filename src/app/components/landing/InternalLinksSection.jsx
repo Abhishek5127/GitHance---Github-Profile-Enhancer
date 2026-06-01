@@ -4,9 +4,9 @@ const linkGroups = [
   {
     title: "GitHub README Tools",
     description:
-      "Move from repository preview to README creation with routes built for GitHub README generation and documentation cleanup.",
-    href: "/analyze",
-    cta: "Open repository preview",
+      "Use a dedicated GitHub README generator route for repository README creation, markdown preview, and documentation cleanup.",
+    href: "/github-readme-generator",
+    cta: "Open README generator",
   },
   {
     title: "GitHub Profile Builder",

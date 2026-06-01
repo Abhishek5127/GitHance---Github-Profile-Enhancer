@@ -14,6 +14,7 @@ const columns = [
   {
     title: "Tools",
     links: [
+      { label: "GitHub README generator", href: "/github-readme-generator" },
       { label: "Repository analyzer", href: "/analyze" },
       { label: "Profile builder", href: "/profile-builder" },
       { label: "Profile compare", href: "/profile-compare" },
@@ -23,7 +24,7 @@ const columns = [
   {
     title: "Use Cases",
     links: [
-      { label: "GitHub README generator", href: "/analyze" },
+      { label: "AI README generator", href: "/github-readme-generator" },
       { label: "Developer profile optimization", href: "/profile-builder" },
       { label: "Repository documentation workflow", href: "/process" },
       { label: "Public GitHub tooling", href: "/product" },

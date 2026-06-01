@@ -2,6 +2,7 @@ import { absoluteUrl } from "./lib/seo";
 
 const publicRoutes = [
   "/",
+  "/github-readme-generator",
   "/product",
   "/solutions",
   "/process",
@@ -18,6 +19,6 @@ export default function sitemap() {
     url: absoluteUrl(path),
     lastModified,
     changeFrequency: "daily",
-    priority: path === "/" ? 1 : path === "/product" ? 0.9 : 0.8,
+    priority: path === "/" ? 1 : path === "/github-readme-generator" ? 0.95 : path === "/product" ? 0.9 : 0.8,
   }));
 }
