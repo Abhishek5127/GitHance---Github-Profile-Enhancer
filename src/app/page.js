@@ -24,13 +24,18 @@ const LandingSupportWidget = dynamic(() => import("./components/landing/LandingS
 export const revalidate = 86400;
 
 export const metadata = buildMetadata({
-  title: "GitHub README Generator, Profile Builder, and Repository Analyzer",
+  title: "GitHub README Generator | AI README Builder for GitHub",
   description:
-    "GitHance is an AI-powered GitHub README generator and developer productivity platform for repository analysis, profile README building, profile comparison, and repository security review.",
+    "Generate GitHub READMEs with AI. GitHance helps developers create repository READMEs, profile READMEs, markdown previews, and GitHub documentation from repository context.",
   path: "/",
   keywords: [
     "GitHub README generator",
+    "AI GitHub README generator",
     "GitHub profile builder",
+    "GitHub profile README generator",
+    "repository README generator",
+    "markdown README generator",
+    "GitHub README template",
     "repository analyzer",
     "developer productivity software",
     "repository security analysis",
@@ -44,10 +49,13 @@ const homeSchemas = [
     name: "GitHance",
     path: "/",
     description:
-      "An AI-powered GitHub README generator and developer productivity platform for profile building, repository analysis, security review, and GitHub discoverability.",
+      "An AI-powered GitHub README generator for creating repository READMEs, profile READMEs, markdown previews, repository analysis, security review, and GitHub discoverability.",
     keywords: [
       "GitHub README generator",
+      "AI GitHub README generator",
       "GitHub profile README builder",
+      "repository README generator",
+      "markdown README generator",
       "repository analyzer",
       "developer productivity tools",
     ],

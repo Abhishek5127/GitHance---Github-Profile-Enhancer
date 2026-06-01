@@ -34,15 +34,30 @@ export const SITE_URL =
     .map((value) => normalizeSiteUrl(value))
     .find(Boolean) || FALLBACK_SITE_URL;
 export const SITE_DESCRIPTION =
-  "GitHance helps developers generate GitHub READMEs, optimize profile READMEs, analyze repositories, compare developer profiles, and surface security issues from one AI-powered workspace.";
+  "GitHance is an AI GitHub README generator for creating repository READMEs, profile READMEs, markdown previews, repository analysis, and developer profile improvements from one workspace.";
 export const DEFAULT_OG_IMAGE = "/og/githance-og.png";
 
 export const DEFAULT_KEYWORDS = [
   "GitHub README generator",
+  "AI GitHub README generator",
   "AI README generator",
+  "free GitHub README generator",
+  "README generator for GitHub",
+  "GitHub repository README generator",
+  "repository README generator",
+  "markdown README generator",
+  "GitHub README maker",
+  "GitHub README creator",
+  "GitHub README template",
+  "GitHub README builder",
   "GitHub profile README builder",
+  "GitHub profile README generator",
   "GitHub profile optimizer",
+  "GitHub profile generator",
   "repository analyzer",
+  "GitHub repository analyzer",
+  "README preview",
+  "GitHub markdown preview",
   "repository security analysis",
   "developer productivity tools",
   "developer portfolio tools",
@@ -153,6 +168,11 @@ export function createWebsiteSchema() {
     url: SITE_URL,
     description: SITE_DESCRIPTION,
     inLanguage: "en",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${absoluteUrl("/analyze")}?username={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
   };
 }
 

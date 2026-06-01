@@ -15,7 +15,7 @@ import {
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "GitHance | GitHub README Generator, Profile Builder, and Repository Analyzer",
+    default: "GitHub README Generator | AI README Builder for GitHub - GitHance",
     template: "%s | GitHance",
   },
   description: SITE_DESCRIPTION,
@@ -25,7 +25,7 @@ export const metadata = {
     canonical: absoluteUrl("/"),
   },
   openGraph: {
-    title: "GitHance | GitHub README Generator, Profile Builder, and Repository Analyzer",
+    title: "GitHub README Generator | AI README Builder for GitHub - GitHance",
     description: SITE_DESCRIPTION,
     url: SITE_URL,
     siteName: SITE_NAME,
@@ -40,7 +40,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "GitHance | GitHub README Generator, Profile Builder, and Repository Analyzer",
+    title: "GitHub README Generator | AI README Builder for GitHub - GitHance",
     description: SITE_DESCRIPTION,
     images: [absoluteUrl(DEFAULT_OG_IMAGE)],
   },

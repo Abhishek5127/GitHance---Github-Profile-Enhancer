@@ -27,8 +27,8 @@ const servicePillars = [
     accent: "text-violet-100",
   },
   {
-    title: "README Builder",
-    detail: "Generate polished README files from curated template layouts and repository context.",
+    title: "README Generator",
+    detail: "Generate polished GitHub README files from curated template layouts and repository context.",
     icon: assets.Repair,
     accent: "text-blue-100",
   },
@@ -66,13 +66,17 @@ const productFlow = [
 export const revalidate = 86400;
 
 export const metadata = buildMetadata({
-  title: "AI GitHub Tools for README Generation and Profile Optimization",
+  title: "GitHub README Generator Product | AI README Builder",
   description:
-    "Explore the GitHance product: AI-powered GitHub README generation, repository analysis, profile README building, and developer visibility tools in one SaaS platform.",
+    "Explore GitHance: an AI GitHub README generator for repository READMEs, profile README building, markdown preview, repository analysis, and developer visibility.",
   path: "/product",
   keywords: [
-    "GitHub tools",
+    "GitHub README generator",
+    "AI GitHub README generator",
     "AI README generator",
+    "repository README generator",
+    "GitHub README builder",
+    "GitHub README template",
     "GitHub profile optimization",
     "repository analysis software",
   ],
@@ -83,9 +87,14 @@ const schemas = [
     name: "GitHance Product",
     path: "/product",
     description:
-      "GitHance combines repository security analysis, profile comparison, README generation, and GitHub-style preview/export in one web application.",
+      "GitHance combines AI GitHub README generation, repository security analysis, profile comparison, README templates, and GitHub-style preview/export in one web application.",
     featureList: servicePillars.map((pillar) => pillar.title),
-    keywords: ["GitHub tools", "README generator", "developer productivity SaaS"],
+    keywords: [
+      "GitHub README generator",
+      "AI README generator",
+      "repository README generator",
+      "developer productivity SaaS",
+    ],
   }),
   createBreadcrumbSchema([
     { name: "Home", path: "/" },
@@ -113,10 +122,10 @@ export default function ProductPage() {
                 Product
               </p>
               <h1 className={`${antonio.className} mt-5 text-5xl leading-[0.95] sm:text-6xl lg:text-7xl`}>
-                GitHub growth engine with template carousel and export-ready tooling.
+                AI GitHub README generator with templates, preview, and export-ready tooling.
               </h1>
               <p className={`${poppins.className} mt-5 max-w-2xl text-sm leading-7 text-white/68 sm:text-base`}>
-                GitHance connects security analysis, profile comparison, README generation, and GitHub-style preview/export
+                GitHance connects AI README generation, security analysis, profile comparison, and GitHub-style preview/export
                 in one product surface so your profile and repositories stay sharp without manual churn.
               </p>
 
@@ -163,7 +172,7 @@ export default function ProductPage() {
               <div className="overflow-hidden rounded-2xl border border-white/12 bg-[#0d1117]">
                 <Image
                   src={assets.Highlights}
-                  alt="GitHance product preview for README generation and profile analytics"
+                  alt="GitHance AI GitHub README generator product preview with profile analytics"
                   className="h-auto w-full"
                   priority
                   sizes="(min-width: 1024px) 46vw, 100vw"

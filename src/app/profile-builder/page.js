@@ -7,13 +7,16 @@ import {
 } from "@/app/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "GitHub Profile README Builder",
+  title: "GitHub Profile README Generator and Builder",
   description:
-    "Build a GitHub profile README with reusable blocks, live preview, tech stack sections, contribution widgets, and export-ready markdown designed for developers.",
+    "Generate a GitHub profile README with reusable blocks, live markdown preview, tech stack sections, contribution widgets, and export-ready markdown for developers.",
   path: "/profile-builder",
   keywords: [
+    "GitHub profile README generator",
     "GitHub profile README builder",
     "profile README generator",
+    "GitHub README generator",
+    "markdown README generator",
     "developer portfolio builder",
     "GitHub profile optimizer",
   ],
@@ -23,8 +26,9 @@ const profileBuilderSchema = createSoftwareApplicationSchema({
   name: "GitHance Profile Builder",
   path: "/profile-builder",
   description:
-    "A GitHub profile README builder for developers who want reusable content blocks, live preview, visual polish, and faster profile iteration.",
+    "A GitHub profile README generator for developers who want reusable content blocks, live markdown preview, visual polish, and faster profile iteration.",
   keywords: [
+    "GitHub profile README generator",
     "GitHub profile README builder",
     "developer profile tool",
     "profile README editor",

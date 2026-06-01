@@ -3,7 +3,7 @@
     name: "GitHance",
     short_name: "GitHance",
     description:
-      "AI-powered GitHub README generation, repository analysis, profile building, and developer visibility tools.",
+      "AI GitHub README generator for repository READMEs, profile READMEs, markdown previews, repository analysis, and developer visibility tools.",
     start_url: "/",
     display: "standalone",
     background_color: "#0b0d0f",

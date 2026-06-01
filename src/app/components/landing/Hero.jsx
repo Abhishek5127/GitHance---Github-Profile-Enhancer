@@ -25,9 +25,9 @@ const modes = [
   {
     id: "readme",
     label: "README",
-    title: "Generate cleaner GitHub READMEs from real repository context.",
+    title: "Use an AI GitHub README generator grounded in real repository context.",
     copy: "Move from repository preview to README creation with AI guidance that is grounded in your codebase, structure, and documentation gaps.",
-    detail: "Repository preview, README generation, and security review stay one click apart so documentation stays close to the code.",
+    detail: "Repository preview, GitHub README generation, and security review stay one click apart so documentation stays close to the code.",
     blocklist: [
       { label: "Build Profile README", path: "/profile-builder" },
       { label: "Repository README", path: ANALYZE_REPOSITORIES_PATH },
@@ -99,14 +99,14 @@ export default function Hero() {
           GitHub README Generator + Developer Visibility Suite
         </p>
         <h1 id="hero-heading" className={`mt-4 text-4xl ${antonio.className} font-semibold leading-tight sm:text-5xl lg:text-6xl`}>
-          AI-powered GitHub README generation,
+          AI GitHub README generator
           <span className={`block ${antonio.className} text-white/80`}>
-            profile building, and repository analysis for developers.
+            for profiles, repositories, and markdown previews.
           </span>
         </h1>
 
         <p className={`mt-5 max-w-2xl text-base ${poppins.className} leading-7 text-white/70 sm:text-lg`}>
-          GitHance helps developers create GitHub profile READMEs, generate project READMEs, preview repositories,
+          GitHance helps developers create GitHub profile READMEs, generate project READMEs, preview markdown,
           compare profiles, and review security signals from one public workspace built for discoverability and faster shipping.
         </p>
 
