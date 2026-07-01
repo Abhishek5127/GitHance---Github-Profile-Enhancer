@@ -12,7 +12,6 @@ const links = [
   { label: "Product", href: "/product" },
   { label: "Solutions", href: "/solutions" },
   { label: "Process", href: "/process" },
-  { label: "Contribute", href: "/contribute" },
 ];
 
 function isActiveRoute(pathname, href) {

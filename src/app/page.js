@@ -19,8 +19,6 @@ const Highlights = dynamic(() => import("./components/landing/Highlights"));
 const FeatureGrid = dynamic(() => import("./components/landing/FeatureGrid"));
 const HowItWorks = dynamic(() => import("./components/landing/HowItWorks"));
 const LandingFeedbackWidget = dynamic(() => import("./components/landing/LandingFeedbackWidget"));
-const LandingSupportWidget = dynamic(() => import("./components/landing/LandingSupportWidget"));
-
 export const revalidate = 86400;
 
 export const metadata = buildMetadata({
@@ -119,7 +117,6 @@ export default function Home() {
         <Footer />
       </LandingFeatureGateProvider>
       <LandingFeedbackWidget />
-      <LandingSupportWidget />
     </div>
   );
 }
